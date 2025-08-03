@@ -610,7 +610,8 @@ void EnsureShadowOrder(const int ticket,const string system)
    lr.Time       = TimeCurrent();
    lr.Symbol     = Symbol();
    lr.System     = system;
-   lr.Reason     = "TP";
+   // REFILL: 影指値（TP反転用の指値）を設置
+   lr.Reason     = "REFILL";
    lr.Spread     = PriceToPips(Ask - Bid);
    lr.Dist       = GridPips;
    lr.GridPips   = GridPips;
