@@ -825,6 +825,7 @@ void RecoverAfterSL(const string system)
 //+------------------------------------------------------------------+
 void CloseAllOrders(const string reason)
 {
+   bool updateDMC = (reason != "RESET_ALIVE" && reason != "RESET_SNAP");
    RefreshRates();
    for(int i = OrdersTotal()-1; i >= 0; i--)
    {
@@ -868,7 +869,7 @@ void CloseAllOrders(const string reason)
          WriteLog(lr);
          if(!ok)
             PrintFormat("CloseAllOrders: failed to close %d err=%d", ticket, err);
-         else
+         else if(updateDMC)
             ProcessClosedTrades(sysTmp);
       }
       else if(type == OP_BUYLIMIT || type == OP_SELLLIMIT ||
