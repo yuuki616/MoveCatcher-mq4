@@ -31,6 +31,93 @@ SystemState state_B = None;
 
 int lastSnapBar = -1; // last bar index when tick snap reset occurred
 
+struct LogRecord
+{
+   datetime Time;
+   string   Symbol;
+   string   System;
+   string   Reason;
+   double   Spread;
+   double   Dist;
+   double   GridPips;
+   double   s;
+   double   lotFactor;
+   double   BaseLot;
+   double   MaxLot;
+   double   actualLot;
+   string   seqStr;
+   string   CommentTag;
+   int      Magic;
+   string   OrderType;
+   double   EntryPrice;
+   double   SL;
+   double   TP;
+   int      ErrorCode;
+};
+
+string OrderTypeToStr(const int type)
+{
+   if(type == OP_BUY)      return("BUY");
+   if(type == OP_SELL)     return("SELL");
+   if(type == OP_BUYLIMIT) return("BUYLIMIT");
+   if(type == OP_SELLLIMIT)return("SELLLIMIT");
+   if(type == OP_BUYSTOP)  return("BUYSTOP");
+   if(type == OP_SELLSTOP) return("SELLSTOP");
+   return("UNKNOWN");
+}
+
+void WriteLog(const LogRecord &rec)
+{
+   int handle = FileOpen("MoveCatcher.log", FILE_CSV|FILE_WRITE|FILE_READ|FILE_APPEND);
+   string timeStr = TimeToString(rec.Time, TIME_DATE|TIME_SECONDS);
+   if(handle != INVALID_HANDLE)
+   {
+      FileWrite(handle,
+         timeStr,
+         rec.Symbol,
+         rec.System,
+         rec.Reason,
+         DoubleToString(rec.Spread,1),
+         DoubleToString(rec.Dist,1),
+         DoubleToString(rec.GridPips,1),
+         DoubleToString(rec.s,1),
+         DoubleToString(rec.lotFactor,2),
+         DoubleToString(rec.BaseLot,2),
+         DoubleToString(rec.MaxLot,2),
+         DoubleToString(rec.actualLot,2),
+         rec.seqStr,
+         rec.CommentTag,
+         rec.Magic,
+         rec.OrderType,
+         DoubleToString(rec.EntryPrice,Digits),
+         DoubleToString(rec.SL,Digits),
+         DoubleToString(rec.TP,Digits),
+         rec.ErrorCode);
+      FileClose(handle);
+   }
+   PrintFormat("LOG %s,%s,%s,%s,%.1f,%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%s,%s,%d,%s,%.5f,%.5f,%.5f,%d",
+               timeStr,
+               rec.Symbol,
+               rec.System,
+               rec.Reason,
+               rec.Spread,
+               rec.Dist,
+               rec.GridPips,
+               rec.s,
+               rec.lotFactor,
+               rec.BaseLot,
+               rec.MaxLot,
+               rec.actualLot,
+               rec.seqStr,
+               rec.CommentTag,
+               rec.Magic,
+               rec.OrderType,
+               rec.EntryPrice,
+               rec.SL,
+               rec.TP,
+               rec.ErrorCode);
+}
+
 bool IsStep(const double value,const double step)
 {
    double scaled = value/step;
@@ -121,7 +208,28 @@ double CalcLot(const string system,string &seq)
    if(lotCandidate > MaxLot)
    {
       state.Init();
-      PrintFormat("LOT_RESET: system=%s",system);
+      LogRecord lr;
+      lr.Time       = TimeCurrent();
+      lr.Symbol     = Symbol();
+      lr.System     = system;
+      lr.Reason     = "LOT_RESET";
+      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Dist       = 0;
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = lotFactor;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = lotCandidate;
+      lr.seqStr     = seq;
+      lr.CommentTag = "";
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = "";
+      lr.EntryPrice = 0;
+      lr.SL         = 0;
+      lr.TP         = 0;
+      lr.ErrorCode  = 0;
+      WriteLog(lr);
       lotFactor    = state.NextLot();
       seq          = "(" + state.Seq() + ")";
       lotCandidate = BaseLot * lotFactor;
@@ -267,8 +375,30 @@ void EnsureShadowOrder(const int ticket,const string system)
    int type = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
    string comment = MakeComment(system, seq);
    int tk = OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrNONE);
+   LogRecord lr;
+   lr.Time       = TimeCurrent();
+   lr.Symbol     = Symbol();
+   lr.System     = system;
+   lr.Reason     = "TP";
+   lr.Spread     = PriceToPips(Ask - Bid);
+   lr.Dist       = GridPips;
+   lr.GridPips   = GridPips;
+   lr.s          = s;
+   lr.lotFactor  = lot / BaseLot;
+   lr.BaseLot    = BaseLot;
+   lr.MaxLot     = MaxLot;
+   lr.actualLot  = lot;
+   lr.seqStr     = seq;
+   lr.CommentTag = comment;
+   lr.Magic      = MagicNumber;
+   lr.OrderType  = OrderTypeToStr(type);
+   lr.EntryPrice = price;
+   lr.SL         = 0;
+   lr.TP         = 0;
+   lr.ErrorCode  = (tk < 0) ? GetLastError() : 0;
+   WriteLog(lr);
    if(tk < 0)
-      PrintFormat("EnsureShadowOrder: failed to place shadow order for %s err=%d", system, GetLastError());
+      PrintFormat("EnsureShadowOrder: failed to place shadow order for %s err=%d", system, lr.ErrorCode);
 }
 
 //+------------------------------------------------------------------+
@@ -291,8 +421,34 @@ void DeletePendings(const string system)
       if(sys != system)
          continue;
       int tk = OrderTicket();
-      if(!OrderDelete(tk))
-         PrintFormat("DeletePendings: failed to delete %d err=%d", tk, GetLastError());
+      int err = 0;
+      bool ok = OrderDelete(tk);
+      if(!ok)
+         err = GetLastError();
+      LogRecord lr;
+      lr.Time       = TimeCurrent();
+      lr.Symbol     = Symbol();
+      lr.System     = system;
+      lr.Reason     = "SL";
+      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Dist       = 0;
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = OrderLots()/BaseLot;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = OrderLots();
+      lr.seqStr     = seq;
+      lr.CommentTag = OrderComment();
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = OrderTypeToStr(type);
+      lr.EntryPrice = OrderOpenPrice();
+      lr.SL         = OrderStopLoss();
+      lr.TP         = OrderTakeProfit();
+      lr.ErrorCode  = err;
+      WriteLog(lr);
+      if(!ok)
+         PrintFormat("DeletePendings: failed to delete %d err=%d", tk, err);
    }
 }
 
@@ -337,11 +493,34 @@ void RecoverAfterSL(const string system)
    double sl       = isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips);
    double tp       = isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips);
    string comment  = MakeComment(system, seq);
-   int ticket      = OrderSend(Symbol(), isBuy ? OP_BUY : OP_SELL, lot, price,
+   int type        = isBuy ? OP_BUY : OP_SELL;
+   int ticket      = OrderSend(Symbol(), type, lot, price,
                                slippage, sl, tp, comment, MagicNumber, 0, clrNONE);
+   LogRecord lr;
+   lr.Time       = TimeCurrent();
+   lr.Symbol     = Symbol();
+   lr.System     = system;
+   lr.Reason     = "SL";
+   lr.Spread     = PriceToPips(Ask - Bid);
+   lr.Dist       = 0;
+   lr.GridPips   = GridPips;
+   lr.s          = s;
+   lr.lotFactor  = lot / BaseLot;
+   lr.BaseLot    = BaseLot;
+   lr.MaxLot     = MaxLot;
+   lr.actualLot  = lot;
+   lr.seqStr     = seq;
+   lr.CommentTag = comment;
+   lr.Magic      = MagicNumber;
+   lr.OrderType  = OrderTypeToStr(type);
+   lr.EntryPrice = price;
+   lr.SL         = sl;
+   lr.TP         = tp;
+   lr.ErrorCode  = (ticket < 0) ? GetLastError() : 0;
+   WriteLog(lr);
    if(ticket < 0)
    {
-      PrintFormat("RecoverAfterSL: failed to reopen %s err=%d", system, GetLastError());
+      PrintFormat("RecoverAfterSL: failed to reopen %s err=%d", system, lr.ErrorCode);
       return;
    }
 
@@ -356,7 +535,7 @@ void RecoverAfterSL(const string system)
 //+------------------------------------------------------------------+
 //| Close all positions and pending orders managed by this EA        |
 //+------------------------------------------------------------------+
-void CloseAllOrders()
+void CloseAllOrders(const string reason)
 {
    RefreshRates();
    for(int i = OrdersTotal()-1; i >= 0; i--)
@@ -370,14 +549,71 @@ void CloseAllOrders()
       if(type == OP_BUY || type == OP_SELL)
       {
          double price = (type == OP_BUY) ? Bid : Ask;
-         if(!OrderClose(ticket, OrderLots(), price, 0, clrNONE))
-            PrintFormat("CloseAllOrders: failed to close %d err=%d", ticket, GetLastError());
+         int err = 0;
+         bool ok = OrderClose(ticket, OrderLots(), price, 0, clrNONE);
+         if(!ok)
+            err = GetLastError();
+         LogRecord lr;
+         lr.Time       = TimeCurrent();
+         lr.Symbol     = Symbol();
+         lr.System     = "";
+         lr.Reason     = reason;
+         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Dist       = 0;
+         lr.GridPips   = GridPips;
+         lr.s          = s;
+         lr.lotFactor  = OrderLots()/BaseLot;
+         lr.BaseLot    = BaseLot;
+         lr.MaxLot     = MaxLot;
+         lr.actualLot  = OrderLots();
+         string sysTmp, seqTmp;
+         ParseComment(OrderComment(), sysTmp, seqTmp);
+         lr.seqStr     = seqTmp;
+         lr.CommentTag = OrderComment();
+         lr.Magic      = MagicNumber;
+         lr.OrderType  = OrderTypeToStr(type);
+         lr.EntryPrice = OrderOpenPrice();
+         lr.SL         = OrderStopLoss();
+         lr.TP         = OrderTakeProfit();
+         lr.ErrorCode  = err;
+         lr.System     = sysTmp;
+         WriteLog(lr);
+         if(!ok)
+            PrintFormat("CloseAllOrders: failed to close %d err=%d", ticket, err);
       }
       else if(type == OP_BUYLIMIT || type == OP_SELLLIMIT ||
               type == OP_BUYSTOP  || type == OP_SELLSTOP)
       {
-         if(!OrderDelete(ticket))
-            PrintFormat("CloseAllOrders: failed to delete %d err=%d", ticket, GetLastError());
+         int err = 0;
+         bool ok = OrderDelete(ticket);
+         if(!ok)
+            err = GetLastError();
+         LogRecord lr;
+         lr.Time       = TimeCurrent();
+         lr.Symbol     = Symbol();
+         string sysTmp2, seqTmp2;
+         ParseComment(OrderComment(), sysTmp2, seqTmp2);
+         lr.System     = sysTmp2;
+         lr.Reason     = reason;
+         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Dist       = 0;
+         lr.GridPips   = GridPips;
+         lr.s          = s;
+         lr.lotFactor  = OrderLots()/BaseLot;
+         lr.BaseLot    = BaseLot;
+         lr.MaxLot     = MaxLot;
+         lr.actualLot  = OrderLots();
+         lr.seqStr     = seqTmp2;
+         lr.CommentTag = OrderComment();
+         lr.Magic      = MagicNumber;
+         lr.OrderType  = OrderTypeToStr(type);
+         lr.EntryPrice = OrderOpenPrice();
+         lr.SL         = OrderStopLoss();
+         lr.TP         = OrderTakeProfit();
+         lr.ErrorCode  = err;
+         WriteLog(lr);
+         if(!ok)
+            PrintFormat("CloseAllOrders: failed to delete %d err=%d", ticket, err);
       }
    }
 }
@@ -402,16 +638,60 @@ void PlaceRefillOrders(const string system,const double refPrice)
    {
       int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
                                  0, 0, 0, comment, MagicNumber, 0, clrNONE);
+      LogRecord lr;
+      lr.Time       = TimeCurrent();
+      lr.Symbol     = Symbol();
+      lr.System     = system;
+      lr.Reason     = "REFILL";
+      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Dist       = PriceToPips(MathAbs(priceSell - refPrice));
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = lot / BaseLot;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = lot;
+      lr.seqStr     = seq;
+      lr.CommentTag = comment;
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
+      lr.EntryPrice = priceSell;
+      lr.SL         = 0;
+      lr.TP         = 0;
+      lr.ErrorCode  = (ticketSell < 0) ? GetLastError() : 0;
+      WriteLog(lr);
       if(ticketSell < 0)
-         PrintFormat("PlaceRefillOrders: failed to place SellLimit for %s err=%d", system, GetLastError());
+         PrintFormat("PlaceRefillOrders: failed to place SellLimit for %s err=%d", system, lr.ErrorCode);
    }
 
    if(CanPlaceOrder(priceBuy))
    {
       int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
                                 0, 0, 0, comment, MagicNumber, 0, clrNONE);
+      LogRecord lr;
+      lr.Time       = TimeCurrent();
+      lr.Symbol     = Symbol();
+      lr.System     = system;
+      lr.Reason     = "REFILL";
+      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Dist       = PriceToPips(MathAbs(priceBuy - refPrice));
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = lot / BaseLot;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = lot;
+      lr.seqStr     = seq;
+      lr.CommentTag = comment;
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
+      lr.EntryPrice = priceBuy;
+      lr.SL         = 0;
+      lr.TP         = 0;
+      lr.ErrorCode  = (ticketBuy < 0) ? GetLastError() : 0;
+      WriteLog(lr);
       if(ticketBuy < 0)
-         PrintFormat("PlaceRefillOrders: failed to place BuyLimit for %s err=%d", system, GetLastError());
+         PrintFormat("PlaceRefillOrders: failed to place BuyLimit for %s err=%d", system, lr.ErrorCode);
    }
 }
 
@@ -442,11 +722,34 @@ void InitStrategy()
    }
 
    string commentA = MakeComment("A", seqA);
-   int ticketA = OrderSend(Symbol(), isBuy ? OP_BUY : OP_SELL, lotA, price,
+   int typeA   = isBuy ? OP_BUY : OP_SELL;
+   int ticketA = OrderSend(Symbol(), typeA, lotA, price,
                            slippage, entrySL, entryTP, commentA, MagicNumber, 0, clrNONE);
+   LogRecord lrA;
+   lrA.Time       = TimeCurrent();
+   lrA.Symbol     = Symbol();
+   lrA.System     = "A";
+   lrA.Reason     = "INIT";
+   lrA.Spread     = PriceToPips(Ask - Bid);
+   lrA.Dist       = 0;
+   lrA.GridPips   = GridPips;
+   lrA.s          = s;
+   lrA.lotFactor  = lotA / BaseLot;
+   lrA.BaseLot    = BaseLot;
+   lrA.MaxLot     = MaxLot;
+   lrA.actualLot  = lotA;
+   lrA.seqStr     = seqA;
+   lrA.CommentTag = commentA;
+   lrA.Magic      = MagicNumber;
+   lrA.OrderType  = OrderTypeToStr(typeA);
+   lrA.EntryPrice = price;
+   lrA.SL         = entrySL;
+   lrA.TP         = entryTP;
+   lrA.ErrorCode  = (ticketA < 0) ? GetLastError() : 0;
+   WriteLog(lrA);
    if(ticketA < 0)
    {
-      PrintFormat("InitStrategy: failed to place system A order, err=%d", GetLastError());
+      PrintFormat("InitStrategy: failed to place system A order, err=%d", lrA.ErrorCode);
       return;
    }
 
@@ -468,16 +771,60 @@ void InitStrategy()
    {
       int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
                                  0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+      LogRecord lrS;
+      lrS.Time       = TimeCurrent();
+      lrS.Symbol     = Symbol();
+      lrS.System     = "B";
+      lrS.Reason     = "INIT";
+      lrS.Spread     = PriceToPips(Ask - Bid);
+      lrS.Dist       = PriceToPips(MathAbs(priceSell - entryPrice));
+      lrS.GridPips   = GridPips;
+      lrS.s          = s;
+      lrS.lotFactor  = lotB / BaseLot;
+      lrS.BaseLot    = BaseLot;
+      lrS.MaxLot     = MaxLot;
+      lrS.actualLot  = lotB;
+      lrS.seqStr     = seqB;
+      lrS.CommentTag = commentB;
+      lrS.Magic      = MagicNumber;
+      lrS.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
+      lrS.EntryPrice = priceSell;
+      lrS.SL         = 0;
+      lrS.TP         = 0;
+      lrS.ErrorCode  = (ticketSell < 0) ? GetLastError() : 0;
+      WriteLog(lrS);
       if(ticketSell < 0)
-         PrintFormat("InitStrategy: failed to place SellLimit, err=%d", GetLastError());
+         PrintFormat("InitStrategy: failed to place SellLimit, err=%d", lrS.ErrorCode);
    }
 
    if(CanPlaceOrder(priceBuy))
    {
       int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
                                 0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+      LogRecord lrB;
+      lrB.Time       = TimeCurrent();
+      lrB.Symbol     = Symbol();
+      lrB.System     = "B";
+      lrB.Reason     = "INIT";
+      lrB.Spread     = PriceToPips(Ask - Bid);
+      lrB.Dist       = PriceToPips(MathAbs(priceBuy - entryPrice));
+      lrB.GridPips   = GridPips;
+      lrB.s          = s;
+      lrB.lotFactor  = lotB / BaseLot;
+      lrB.BaseLot    = BaseLot;
+      lrB.MaxLot     = MaxLot;
+      lrB.actualLot  = lotB;
+      lrB.seqStr     = seqB;
+      lrB.CommentTag = commentB;
+      lrB.Magic      = MagicNumber;
+      lrB.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
+      lrB.EntryPrice = priceBuy;
+      lrB.SL         = 0;
+      lrB.TP         = 0;
+      lrB.ErrorCode  = (ticketBuy < 0) ? GetLastError() : 0;
+      WriteLog(lrB);
       if(ticketBuy < 0)
-         PrintFormat("InitStrategy: failed to place BuyLimit, err=%d", GetLastError());
+         PrintFormat("InitStrategy: failed to place BuyLimit, err=%d", lrB.ErrorCode);
    }
 }
 
@@ -525,8 +872,34 @@ void HandleOCODetectionFor(const string system)
                            OrderType() == OP_BUYSTOP  || OrderType() == OP_SELLSTOP))
       {
          int delTicket = OrderTicket();
-         if(!OrderDelete(delTicket))
-            PrintFormat("Failed to delete pending order %d err=%d", delTicket, GetLastError());
+         int err = 0;
+         bool ok = OrderDelete(delTicket);
+         if(!ok)
+            err = GetLastError();
+         LogRecord lr;
+         lr.Time       = TimeCurrent();
+         lr.Symbol     = Symbol();
+         lr.System     = system;
+         lr.Reason     = "REFILL";
+         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Dist       = 0;
+         lr.GridPips   = GridPips;
+         lr.s          = s;
+         lr.lotFactor  = OrderLots()/BaseLot;
+         lr.BaseLot    = BaseLot;
+         lr.MaxLot     = MaxLot;
+         lr.actualLot  = OrderLots();
+         lr.seqStr     = seq;
+         lr.CommentTag = OrderComment();
+         lr.Magic      = MagicNumber;
+         lr.OrderType  = OrderTypeToStr(OrderType());
+         lr.EntryPrice = OrderOpenPrice();
+         lr.SL         = OrderStopLoss();
+         lr.TP         = OrderTakeProfit();
+         lr.ErrorCode  = err;
+         WriteLog(lr);
+         if(!ok)
+            PrintFormat("Failed to delete pending order %d err=%d", delTicket, err);
       }
    }
 
@@ -546,6 +919,31 @@ void HandleOCODetectionFor(const string system)
       PrintFormat("Failed to set TP/SL for ticket %d err=%d", posTicket, GetLastError());
 
    EnsureShadowOrder(posTicket, system);
+
+   string sys2, seq2;
+   ParseComment(OrderComment(), sys2, seq2);
+   LogRecord lr;
+   lr.Time       = TimeCurrent();
+   lr.Symbol     = Symbol();
+   lr.System     = system;
+   lr.Reason     = "REFILL";
+   lr.Spread     = PriceToPips(Ask - Bid);
+   lr.Dist       = 0;
+   lr.GridPips   = GridPips;
+   lr.s          = s;
+   lr.lotFactor  = OrderLots()/BaseLot;
+   lr.BaseLot    = BaseLot;
+   lr.MaxLot     = MaxLot;
+   lr.actualLot  = OrderLots();
+   lr.seqStr     = seq2;
+   lr.CommentTag = OrderComment();
+   lr.Magic      = MagicNumber;
+   lr.OrderType  = OrderTypeToStr(OrderType());
+   lr.EntryPrice = entry;
+   lr.SL         = sl;
+   lr.TP         = tp;
+   lr.ErrorCode  = 0;
+   WriteLog(lr);
 }
 
 //+------------------------------------------------------------------+
@@ -688,7 +1086,29 @@ void OnTick()
          int currentBar = Bars;
          if(lastSnapBar == -1 || currentBar - lastSnapBar >= SnapCooldownBars)
          {
-            CloseAllOrders();
+            LogRecord lr;
+            lr.Time       = TimeCurrent();
+            lr.Symbol     = Symbol();
+            lr.System     = "";
+            lr.Reason     = "RESET_SNAP";
+            lr.Spread     = PriceToPips(Ask - Bid);
+            lr.Dist       = dist;
+            lr.GridPips   = GridPips;
+            lr.s          = s;
+            lr.lotFactor  = 0;
+            lr.BaseLot    = BaseLot;
+            lr.MaxLot     = MaxLot;
+            lr.actualLot  = 0;
+            lr.seqStr     = "";
+            lr.CommentTag = "";
+            lr.Magic      = MagicNumber;
+            lr.OrderType  = "";
+            lr.EntryPrice = 0;
+            lr.SL         = 0;
+            lr.TP         = 0;
+            lr.ErrorCode  = 0;
+            WriteLog(lr);
+            CloseAllOrders("RESET_SNAP");
             state_A = None;
             state_B = None;
             InitStrategy();
@@ -700,7 +1120,29 @@ void OnTick()
 
    if(posCount == 0 && (pendA || pendB))
    {
-      CloseAllOrders();
+      LogRecord lr;
+      lr.Time       = TimeCurrent();
+      lr.Symbol     = Symbol();
+      lr.System     = "";
+      lr.Reason     = "RESET_ALIVE";
+      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Dist       = 0;
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = 0;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = 0;
+      lr.seqStr     = "";
+      lr.CommentTag = "";
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = "";
+      lr.EntryPrice = 0;
+      lr.SL         = 0;
+      lr.TP         = 0;
+      lr.ErrorCode  = 0;
+      WriteLog(lr);
+      CloseAllOrders("RESET_ALIVE");
       state_A = None;
       state_B = None;
       InitStrategy();
