@@ -69,6 +69,35 @@ double NormalizeLot(const double lotCandidate)
 }
 
 //+------------------------------------------------------------------+
+//| Check spread and optional distance band before placing orders    |
+//| checkSpread=true  -> also verify spread                          |
+//+------------------------------------------------------------------+
+bool CanPlace(const bool checkSpread)
+{
+   if(checkSpread)
+   {
+      double spread = PriceToPips(Ask - Bid);
+      if(spread > MaxSpreadPips)
+      {
+         PrintFormat("Spread %.1f exceeds MaxSpreadPips %.1f", spread, MaxSpreadPips);
+         return(false);
+      }
+   }
+
+   if(UseDistanceBand)
+   {
+      double dist = PriceToPips(MathAbs(Ask - Bid));
+      if(dist < MinDistancePips || dist > MaxDistancePips)
+      {
+         PrintFormat("Distance %.1f outside band [%.1f, %.1f]", dist, MinDistancePips, MaxDistancePips);
+         return(false);
+      }
+   }
+
+   return(true);
+}
+
+//+------------------------------------------------------------------+
 //| Calculate actual lot based on system and DMCMM state             |
 //+------------------------------------------------------------------+
 double CalcLot(const string system,string &seq)
@@ -155,6 +184,128 @@ SystemState UpdateState(const SystemState prev,const bool exists)
    return(None);
 }
 
+//+------------------------------------------------------------------+
+//| Place initial market order for system A and OCO limits for B     |
+//+------------------------------------------------------------------+
+void InitStrategy()
+{
+   RefreshRates();
+
+   //---- system A market order
+   string seqA; double lotA = CalcLot("A", seqA);
+   if(lotA <= 0) return;
+
+   bool isBuy = (MathRand() % 2) == 0;
+   int    slippage = (int)(SlippagePips * Pip() / Point);
+   double price    = isBuy ? Ask : Bid;
+   double entrySL, entryTP;
+   if(isBuy)
+   {
+      entrySL = price - PipsToPrice(GridPips);
+      entryTP = price + PipsToPrice(GridPips);
+   }
+   else
+   {
+      entrySL = price + PipsToPrice(GridPips);
+      entryTP = price - PipsToPrice(GridPips);
+   }
+
+   string commentA = MakeComment("A", seqA);
+   int ticketA = OrderSend(Symbol(), isBuy ? OP_BUY : OP_SELL, lotA, price,
+                           slippage, entrySL, entryTP, commentA, MagicNumber, 0, clrNONE);
+   if(ticketA < 0)
+   {
+      PrintFormat("InitStrategy: failed to place system A order, err=%d", GetLastError());
+      return;
+   }
+
+   if(!OrderSelect(ticketA, SELECT_BY_TICKET))
+      return;
+   double entryPrice = OrderOpenPrice();
+
+   //---- system B OCO pending orders
+   if(!CanPlace(true))
+      return;
+
+   string seqB; double lotB = CalcLot("B", seqB);
+   if(lotB <= 0) return;
+   string commentB = MakeComment("B", seqB);
+
+   double priceSell = entryPrice + PipsToPrice(s);
+   double priceBuy  = entryPrice - PipsToPrice(s);
+
+   int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
+                              0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+   if(ticketSell < 0)
+      PrintFormat("InitStrategy: failed to place SellLimit, err=%d", GetLastError());
+
+   int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
+                             0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+   if(ticketBuy < 0)
+      PrintFormat("InitStrategy: failed to place BuyLimit, err=%d", GetLastError());
+}
+
+//+------------------------------------------------------------------+
+//| Detect filled OCO and handle cancellation and TP/SL attachment    |
+//+------------------------------------------------------------------+
+void HandleOCODetection()
+{
+   int bPosTicket = -1;
+
+   // find existing B position if any
+   for(int i=OrdersTotal()-1; i>=0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol()) continue;
+      string sys, seq; if(!ParseComment(OrderComment(), sys, seq)) continue;
+      if(sys=="B" && (OrderType()==OP_BUY || OrderType()==OP_SELL))
+      {
+         bPosTicket = OrderTicket();
+         break;
+      }
+   }
+
+   if(bPosTicket==-1)
+      return; // no B position
+
+   // remove remaining B pending orders
+   for(int i=OrdersTotal()-1; i>=0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol()) continue;
+      string sys, seq; if(!ParseComment(OrderComment(), sys, seq)) continue;
+      if(sys=="B" && (OrderType()==OP_BUYLIMIT || OrderType()==OP_SELLLIMIT ||
+                       OrderType()==OP_BUYSTOP || OrderType()==OP_SELLSTOP))
+      {
+         int delTicket = OrderTicket();
+         if(!OrderDelete(delTicket))
+            PrintFormat("Failed to delete pending order %d err=%d", delTicket, GetLastError());
+      }
+   }
+
+   // attach TP/SL if not already
+   if(!OrderSelect(bPosTicket, SELECT_BY_TICKET))
+      return;
+
+   if(OrderStopLoss()==0 || OrderTakeProfit()==0)
+   {
+      double entry = OrderOpenPrice();
+      double sl, tp;
+      if(OrderType()==OP_BUY)
+      {
+         sl = entry - PipsToPrice(GridPips);
+         tp = entry + PipsToPrice(GridPips);
+      }
+      else
+      {
+         sl = entry + PipsToPrice(GridPips);
+         tp = entry - PipsToPrice(GridPips);
+      }
+      if(!OrderModify(bPosTicket, entry, sl, tp, 0, clrNONE))
+         PrintFormat("Failed to set TP/SL for ticket %d err=%d", bPosTicket, GetLastError());
+   }
+}
+
 int OnInit()
 {
    if(GridPips <= 0)
@@ -217,11 +368,16 @@ int OnInit()
    else
       state_B = None;
 
+   MathSrand(GetTickCount());
+   InitStrategy();
+
    return(INIT_SUCCEEDED);
 }
 
 void OnTick()
 {
+   HandleOCODetection();
+
    bool hasA = false;
    bool hasB = false;
 
