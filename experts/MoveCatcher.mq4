@@ -583,20 +583,8 @@ void EnsureShadowOrder(const int ticket,const string system)
    }
    if(dist < stopLevel)
    {
-      double old = price;
-      price = (type == OP_BUYLIMIT)
-              ? NormalizeDouble(ref - stopLevel, Digits)
-              : NormalizeDouble(ref + stopLevel, Digits);
-      PrintFormat("EnsureShadowOrder: price adjusted from %.5f to %.5f due to stop level %.1f pips", old, price, PriceToPips(stopLevel));
-   }
-   if(UseDistanceBand)
-   {
-      double distPips = PriceToPips(MathAbs(price - ref));
-      if(distPips < MinDistancePips || distPips > MaxDistancePips)
-      {
-         PrintFormat("EnsureShadowOrder: distance %.1f outside band [%.1f, %.1f]", distPips, MinDistancePips, MaxDistancePips);
-         return;
-      }
+      PrintFormat("EnsureShadowOrder: price %.5f within stop level %.1f pips, retry next tick", price, PriceToPips(stopLevel));
+      return;
    }
    int tk = OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrNONE);
    LogRecord lr;
