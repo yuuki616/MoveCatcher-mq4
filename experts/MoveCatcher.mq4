@@ -516,16 +516,29 @@ void EnsureTPSL(const int ticket)
       return;
    double entry = OrderOpenPrice();
    double desiredSL, desiredTP;
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   double minDist     = MathMax(stopLevel, freezeLevel);
    if(OrderType() == OP_BUY)
    {
       desiredSL = entry - PipsToPrice(GridPips);
       desiredTP = entry + PipsToPrice(GridPips);
+      if(Bid - desiredSL < minDist)
+         desiredSL = Bid - minDist;
+      if(desiredTP - Ask < minDist)
+         desiredTP = Ask + minDist;
    }
    else
    {
       desiredSL = entry + PipsToPrice(GridPips);
       desiredTP = entry - PipsToPrice(GridPips);
+      if(desiredSL - Ask < minDist)
+         desiredSL = Ask + minDist;
+      if(Bid - desiredTP < minDist)
+         desiredTP = Bid - minDist;
    }
+   desiredSL = NormalizeDouble(desiredSL, Digits);
+   desiredTP = NormalizeDouble(desiredTP, Digits);
    if(OrderStopLoss() == 0 || OrderTakeProfit() == 0)
    {
       if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
