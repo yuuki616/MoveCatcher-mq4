@@ -59,6 +59,47 @@ double NormalizeLot(const double lotCandidate)
    return(lot);
 }
 
+//+------------------------------------------------------------------+
+//| Make comment string from system and sequence                     |
+//+------------------------------------------------------------------+
+string MakeComment(const string system,const string seq)
+{
+   string comment;
+   StringConcatenate(comment,"MoveCatcher_",system,"_",seq);
+   return(comment);
+}
+
+//+------------------------------------------------------------------+
+//| Parse comment into system and sequence                           |
+//| Returns true on success                                          |
+//+------------------------------------------------------------------+
+bool ParseComment(const string comment,string &system,string &seq)
+{
+   system="";
+   seq="";
+
+   string prefix="MoveCatcher_";
+   int prefixLen=StringLen(prefix);
+   if(StringSubstr(comment,0,prefixLen)!=prefix)
+      return(false);
+
+   int pos=StringFind(comment,"_",prefixLen);
+   if(pos<0)
+      return(false);
+
+   system=StringSubstr(comment,prefixLen,pos-prefixLen);
+   seq=StringSubstr(comment,pos+1);
+
+   if(system!="A" && system!="B")
+   {
+      system="";
+      seq="";
+      return(false);
+   }
+
+   return(true);
+}
+
 int OnInit()
 {
    if(GridPips <= 0)
