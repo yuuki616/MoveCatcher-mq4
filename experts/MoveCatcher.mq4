@@ -458,7 +458,7 @@ void ProcessClosedTrades(const string system)
          continue;
       datetime ct = OrderCloseTime();
       if(ct <= lastTime)
-         break;
+         continue;
       int idx = ArraySize(tickets);
       ArrayResize(tickets, idx + 1);
       ArrayResize(times, idx + 1);
@@ -474,12 +474,14 @@ void ProcessClosedTrades(const string system)
       if(system == "A")
       {
          stateA.OnTrade(win);
-         lastCloseTimeA = times[i];
+         if(times[i] > lastCloseTimeA)
+            lastCloseTimeA = times[i];
       }
       else
       {
          stateB.OnTrade(win);
-         lastCloseTimeB = times[i];
+         if(times[i] > lastCloseTimeB)
+            lastCloseTimeB = times[i];
       }
    }
 }
