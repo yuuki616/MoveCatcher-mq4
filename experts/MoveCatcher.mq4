@@ -31,6 +31,9 @@ SystemState state_B = None;
 
 int lastSnapBar = -1; // last bar index when tick snap reset occurred
 
+datetime lastCloseTimeA = 0; // last processed close time for system A
+datetime lastCloseTimeB = 0; // last processed close time for system B
+
 struct LogRecord
 {
    datetime Time;
@@ -294,6 +297,78 @@ SystemState UpdateState(const SystemState prev,const bool exists)
 }
 
 //+------------------------------------------------------------------+
+//| Initialize last close times for both systems                      |
+//+------------------------------------------------------------------+
+void InitCloseTimes()
+{
+   lastCloseTimeA = 0;
+   lastCloseTimeB = 0;
+   for(int i = OrdersHistoryTotal()-1; i >= 0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      int type = OrderType();
+      if(type != OP_BUY && type != OP_SELL)
+         continue;
+      string sys, seq;
+      if(!ParseComment(OrderComment(), sys, seq))
+         continue;
+      datetime ct = OrderCloseTime();
+      if(sys == "A" && ct > lastCloseTimeA)
+         lastCloseTimeA = ct;
+      else if(sys == "B" && ct > lastCloseTimeB)
+         lastCloseTimeB = ct;
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Process newly closed trades for specified system                  |
+//+------------------------------------------------------------------+
+void ProcessClosedTrades(const string system)
+{
+   datetime &lastTime = (system == "A") ? lastCloseTimeA : lastCloseTimeB;
+   int tickets[];
+   datetime times[];
+   for(int i = OrdersHistoryTotal()-1; i >= 0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      int type = OrderType();
+      if(type != OP_BUY && type != OP_SELL)
+         continue;
+      string sys, seq;
+      if(!ParseComment(OrderComment(), sys, seq))
+         continue;
+      if(sys != system)
+         continue;
+      datetime ct = OrderCloseTime();
+      if(ct <= lastTime)
+         break;
+      int idx = ArraySize(tickets);
+      ArrayResize(tickets, idx + 1);
+      ArrayResize(times, idx + 1);
+      tickets[idx] = OrderTicket();
+      times[idx]   = ct;
+   }
+   for(int i = ArraySize(tickets)-1; i >= 0; i--)
+   {
+      if(!OrderSelect(tickets[i], SELECT_BY_TICKET, MODE_HISTORY))
+         continue;
+      double profit = OrderProfit() + OrderSwap() + OrderCommission();
+      bool win = (profit >= 0);
+      if(system == "A")
+         stateA.OnTrade(win);
+      else
+         stateB.OnTrade(win);
+      lastTime = times[i];
+   }
+}
+
+//+------------------------------------------------------------------+
 //| Find existing shadow pending order for a position                |
 //+------------------------------------------------------------------+
 bool FindShadowPending(const string system,const double entry,const bool isBuy,int &ticket)
@@ -458,6 +533,7 @@ void DeletePendings(const string system,const string reason)
 void RecoverAfterSL(const string system)
 {
    RefreshRates();
+   ProcessClosedTrades(system);
    DeletePendings(system, "SL");
 
    int lastType = -1;
@@ -553,6 +629,8 @@ void CloseAllOrders(const string reason)
          bool ok = OrderClose(ticket, OrderLots(), price, 0, clrNONE);
          if(!ok)
             err = GetLastError();
+         string sysTmp, seqTmp;
+         ParseComment(OrderComment(), sysTmp, seqTmp);
          LogRecord lr;
          lr.Time       = TimeCurrent();
          lr.Symbol     = Symbol();
@@ -566,8 +644,6 @@ void CloseAllOrders(const string reason)
          lr.BaseLot    = BaseLot;
          lr.MaxLot     = MaxLot;
          lr.actualLot  = OrderLots();
-         string sysTmp, seqTmp;
-         ParseComment(OrderComment(), sysTmp, seqTmp);
          lr.seqStr     = seqTmp;
          lr.CommentTag = OrderComment();
          lr.Magic      = MagicNumber;
@@ -580,6 +656,8 @@ void CloseAllOrders(const string reason)
          WriteLog(lr);
          if(!ok)
             PrintFormat("CloseAllOrders: failed to close %d err=%d", ticket, err);
+         else
+            ProcessClosedTrades(sysTmp);
       }
       else if(type == OP_BUYLIMIT || type == OP_SELLLIMIT ||
               type == OP_BUYSTOP  || type == OP_SELLSTOP)
@@ -972,6 +1050,7 @@ void InitStrategy()
 //+------------------------------------------------------------------+
 void HandleOCODetectionFor(const string system)
 {
+   ProcessClosedTrades(system);
    int posTicket = -1;
    for(int i = OrdersTotal()-1; i >= 0; i--)
    {
@@ -1157,6 +1236,7 @@ int OnInit()
       state_B = None;
 
    MathSrand(GetTickCount());
+   InitCloseTimes();
    InitStrategy();
 
    return(INIT_SUCCEEDED);
