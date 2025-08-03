@@ -288,7 +288,7 @@ bool CanPlaceOrder(double &price,const bool isBuy)
 //+------------------------------------------------------------------+
 //| Calculate actual lot based on system and DMCMM state             |
 //+------------------------------------------------------------------+
-double CalcLot(const string system,string &seq)
+double CalcLot(const string system,string &seq,double &lotFactor)
 {
    CDecompMC *state = NULL;
    if(system == "A")
@@ -298,11 +298,12 @@ double CalcLot(const string system,string &seq)
    else
    {
       seq = "";
+      lotFactor = 0.0;
       return(0.0);
    }
 
-   double lotFactor    = state.NextLot();
-   seq = "(" + state.Seq() + ")";
+   lotFactor          = state.NextLot();
+   seq                = "(" + state.Seq() + ")";
    double lotCandidate = BaseLot * lotFactor;
 
    if(lotCandidate > MaxLot)
@@ -561,7 +562,8 @@ void EnsureShadowOrder(const int ticket,const string system)
    if(FindShadowPending(system, entry, isBuy, pendTicket))
       return; // already exists
    string seq;
-   double lot = CalcLot(system, seq);
+   double lotFactor;
+   double lot = CalcLot(system, seq, lotFactor);
    if(lot <= 0)
       return;
    double price = isBuy ? entry + PipsToPrice(GridPips)
@@ -606,7 +608,7 @@ void EnsureShadowOrder(const int ticket,const string system)
    lr.Dist       = GridPips;
    lr.GridPips   = GridPips;
    lr.s          = s;
-   lr.lotFactor  = lot / BaseLot;
+   lr.lotFactor  = lotFactor;
    lr.BaseLot    = BaseLot;
    lr.MaxLot     = MaxLot;
    lr.actualLot  = lot;
@@ -656,7 +658,7 @@ void DeletePendings(const string system,const string reason)
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
       lr.s          = s;
-      lr.lotFactor  = OrderLots()/BaseLot;
+      lr.lotFactor  = 0;
       lr.BaseLot    = BaseLot;
       lr.MaxLot     = MaxLot;
       lr.actualLot  = OrderLots();
@@ -706,7 +708,8 @@ void RecoverAfterSL(const string system)
       return;
 
    string seq;
-   double lot = CalcLot(system, seq);
+   double lotFactor;
+   double lot = CalcLot(system, seq, lotFactor);
    if(lot <= 0)
       return;
 
@@ -751,7 +754,7 @@ void RecoverAfterSL(const string system)
    lr.Dist       = 0;
    lr.GridPips   = GridPips;
    lr.s          = s;
-   lr.lotFactor  = lot / BaseLot;
+   lr.lotFactor  = lotFactor;
    lr.BaseLot    = BaseLot;
    lr.MaxLot     = MaxLot;
    lr.actualLot  = lot;
@@ -810,7 +813,7 @@ void CloseAllOrders(const string reason)
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
-         lr.lotFactor  = OrderLots()/BaseLot;
+         lr.lotFactor  = 0;
          lr.BaseLot    = BaseLot;
          lr.MaxLot     = MaxLot;
          lr.actualLot  = OrderLots();
@@ -847,7 +850,7 @@ void CloseAllOrders(const string reason)
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
-         lr.lotFactor  = OrderLots()/BaseLot;
+         lr.lotFactor  = 0;
          lr.BaseLot    = BaseLot;
          lr.MaxLot     = MaxLot;
          lr.actualLot  = OrderLots();
@@ -934,7 +937,7 @@ void CorrectDuplicatePositions()
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
-         lr.lotFactor  = OrderLots()/BaseLot;
+         lr.lotFactor  = 0;
          lr.BaseLot    = BaseLot;
          lr.MaxLot     = MaxLot;
          lr.actualLot  = OrderLots();
@@ -984,7 +987,7 @@ void CorrectDuplicatePositions()
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
-         lr.lotFactor  = OrderLots()/BaseLot;
+         lr.lotFactor  = 0;
          lr.BaseLot    = BaseLot;
          lr.MaxLot     = MaxLot;
          lr.actualLot  = OrderLots();
@@ -1015,7 +1018,8 @@ void PlaceRefillOrders(const string system,const double refPrice)
    RefreshRates();
 
    string seq;
-   double lot = CalcLot(system, seq);
+   double lotFactor;
+   double lot = CalcLot(system, seq, lotFactor);
    if(lot <= 0)
       return;
 
@@ -1052,7 +1056,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lr.Dist       = PriceToPips(MathAbs(priceSell - refPrice));
       lr.GridPips   = GridPips;
       lr.s          = s;
-      lr.lotFactor  = lot / BaseLot;
+      lr.lotFactor  = lotFactor;
       lr.BaseLot    = BaseLot;
       lr.MaxLot     = MaxLot;
       lr.actualLot  = lot;
@@ -1096,7 +1100,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lr.Dist       = PriceToPips(MathAbs(priceBuy - refPrice));
       lr.GridPips   = GridPips;
       lr.s          = s;
-      lr.lotFactor  = lot / BaseLot;
+      lr.lotFactor  = lotFactor;
       lr.BaseLot    = BaseLot;
       lr.MaxLot     = MaxLot;
       lr.actualLot  = lot;
@@ -1123,7 +1127,7 @@ void InitStrategy()
    RefreshRates();
 
    //---- system A market order
-   string seqA; double lotA = CalcLot("A", seqA);
+   string seqA; double lotFactorA; double lotA = CalcLot("A", seqA, lotFactorA);
    if(lotA <= 0) return;
 
    bool isBuy = (MathRand() % 2) == 0;
@@ -1178,7 +1182,7 @@ void InitStrategy()
    lrA.Dist       = 0;
    lrA.GridPips   = GridPips;
    lrA.s          = s;
-   lrA.lotFactor  = lotA / BaseLot;
+   lrA.lotFactor  = lotFactorA;
    lrA.BaseLot    = BaseLot;
    lrA.MaxLot     = MaxLot;
    lrA.actualLot  = lotA;
@@ -1204,7 +1208,7 @@ void InitStrategy()
    EnsureShadowOrder(ticketA, "A");
 
    //---- system B OCO pending orders
-   string seqB; double lotB = CalcLot("B", seqB);
+   string seqB; double lotFactorB; double lotB = CalcLot("B", seqB, lotFactorB);
    if(lotB <= 0) return;
    string commentB = MakeComment("B", seqB);
 
@@ -1239,7 +1243,7 @@ void InitStrategy()
       lrS.Dist       = PriceToPips(MathAbs(priceSell - entryPrice));
       lrS.GridPips   = GridPips;
       lrS.s          = s;
-      lrS.lotFactor  = lotB / BaseLot;
+      lrS.lotFactor  = lotFactorB;
       lrS.BaseLot    = BaseLot;
       lrS.MaxLot     = MaxLot;
       lrS.actualLot  = lotB;
@@ -1283,7 +1287,7 @@ void InitStrategy()
       lrB.Dist       = PriceToPips(MathAbs(priceBuy - entryPrice));
       lrB.GridPips   = GridPips;
       lrB.s          = s;
-      lrB.lotFactor  = lotB / BaseLot;
+      lrB.lotFactor  = lotFactorB;
       lrB.BaseLot    = BaseLot;
       lrB.MaxLot     = MaxLot;
       lrB.actualLot  = lotB;
@@ -1370,7 +1374,7 @@ void HandleOCODetectionFor(const string system)
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
-         lr.lotFactor  = OrderLots()/BaseLot;
+         lr.lotFactor  = 0;
          lr.BaseLot    = BaseLot;
          lr.MaxLot     = MaxLot;
          lr.actualLot  = OrderLots();
@@ -1431,7 +1435,7 @@ void HandleOCODetectionFor(const string system)
       lrFail.Dist       = 0;
       lrFail.GridPips   = GridPips;
       lrFail.s          = s;
-      lrFail.lotFactor  = OrderLots()/BaseLot;
+      lrFail.lotFactor  = 0;
       lrFail.BaseLot    = BaseLot;
       lrFail.MaxLot     = MaxLot;
       lrFail.actualLot  = OrderLots();
@@ -1463,7 +1467,7 @@ void HandleOCODetectionFor(const string system)
    lr.Dist       = 0;
    lr.GridPips   = GridPips;
    lr.s          = s;
-   lr.lotFactor  = OrderLots()/BaseLot;
+   lr.lotFactor  = 0;
    lr.BaseLot    = BaseLot;
    lr.MaxLot     = MaxLot;
    lr.actualLot  = OrderLots();
