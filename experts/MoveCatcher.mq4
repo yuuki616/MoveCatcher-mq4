@@ -589,6 +589,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       return;
    double price = isBuy ? entry + PipsToPrice(GridPips)
                         : entry - PipsToPrice(GridPips);
+   price = NormalizeDouble(price, Digits);
    int type = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
    string comment = MakeComment(system, seq);
 
