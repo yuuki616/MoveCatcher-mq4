@@ -108,6 +108,27 @@ public:
       return (double)u * gm();                // 基本ベット額=1
    }
 
+   string Serialize() const{
+      string seqStr="";
+      for(int i=0;i<ArraySize(seq);i++){
+         if(i) seqStr+=",";
+         seqStr+=IntegerToString(seq[i]);
+      }
+      return(IntegerToString(stock)+"|"+IntegerToString(streak)+"|"+seqStr);
+   }
+
+   bool Deserialize(const string data){
+      string parts[]; int cnt=StringSplit(data,'|',parts);
+      if(cnt!=3) return(false);
+      stock=(int)StringToInteger(parts[0]);
+      streak=(int)StringToInteger(parts[1]);
+      string seqParts[]; int n=StringSplit(parts[2],',',seqParts);
+      if(n<2) return(false);
+      ArrayResize(seq,n);
+      for(int i=0;i<n;i++) seq[i]=(int)StringToInteger(seqParts[i]);
+      return(true);
+   }
+
    /* デバッグ用 */
    string Seq(){string s="";for(int i=0;i<ArraySize(seq);i++){if(i)s+=",";s+=IntegerToString(seq[i]);}return s;}
    int    Stock(){ return stock; }
