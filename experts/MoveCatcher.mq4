@@ -895,15 +895,30 @@ void RecoverAfterSL(const string system)
    }
    desiredSL = NormalizeDouble(desiredSL, Digits);
    desiredTP = NormalizeDouble(desiredTP, Digits);
-   if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
-   {
-      int err = GetLastError();
-      PrintFormat("RecoverAfterSL: failed to adjust TP/SL for %s ticket %d err=%d", system, ticket, err);
-   }
    lr.EntryPrice = entry;
    lr.SL         = desiredSL;
    lr.TP         = desiredTP;
-   WriteLog(lr);
+   int err = 0;
+   if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
+   {
+      err = GetLastError();
+      lr.ErrorCode = err;
+      WriteLog(lr);
+      PrintFormat("RecoverAfterSL: failed to adjust TP/SL for %s ticket %d err=%d", system, ticket, err);
+      if(system == "A")
+         retryTicketA = ticket;
+      else
+         retryTicketB = ticket;
+   }
+   else
+   {
+      lr.ErrorCode = 0;
+      WriteLog(lr);
+      if(system == "A")
+         retryTicketA = -1;
+      else
+         retryTicketB = -1;
+   }
 
    EnsureShadowOrder(ticket, system);
 
