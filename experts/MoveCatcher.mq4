@@ -1,5 +1,7 @@
 #property strict
 
+#include <DecompositionMonteCarloMM.mqh>
+
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
@@ -19,6 +21,9 @@ input int    MagicNumber       = 246810;// Magic number for order identification
 
 // Derived values
 double s;   // Half grid distance
+
+CDecompMC stateA; // DMCMM state for system A
+CDecompMC stateB; // DMCMM state for system B
 
 bool IsStep(const double value,const double step)
 {
@@ -57,6 +62,39 @@ double NormalizeLot(const double lotCandidate)
       lot = maxLot;
 
    return(lot);
+}
+
+//+------------------------------------------------------------------+
+//| Calculate actual lot based on system and DMCMM state             |
+//+------------------------------------------------------------------+
+double CalcLot(const string system,string &seq)
+{
+   CDecompMC *state = NULL;
+   if(system == "A")
+      state = &stateA;
+   else if(system == "B")
+      state = &stateB;
+   else
+   {
+      seq = "";
+      return(0.0);
+   }
+
+   double lotFactor    = state.NextLot();
+   seq = "(" + state.Seq() + ")";
+   double lotCandidate = BaseLot * lotFactor;
+
+   if(lotCandidate > MaxLot)
+   {
+      state.Init();
+      PrintFormat("LOT_RESET: system=%s",system);
+      lotFactor    = state.NextLot();
+      seq          = "(" + state.Seq() + ")";
+      lotCandidate = BaseLot * lotFactor;
+   }
+
+   double lotActual = MathMin(lotCandidate, MaxLot);
+   return(NormalizeLot(lotActual));
 }
 
 //+------------------------------------------------------------------+
@@ -147,6 +185,9 @@ int OnInit()
    }
 
    s   = GridPips / 2.0;
+
+   stateA.Init();
+   stateB.Init();
 
    return(INIT_SUCCEEDED);
 }
