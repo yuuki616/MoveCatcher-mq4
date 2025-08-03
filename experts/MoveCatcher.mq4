@@ -34,6 +34,9 @@ int lastSnapBar = -1; // last bar index when tick snap reset occurred
 datetime lastCloseTimeA = 0; // last processed close time for system A
 datetime lastCloseTimeB = 0; // last processed close time for system B
 
+int retryTicketA = -1; // ticket to retry TP/SL setting for system A
+int retryTicketB = -1; // ticket to retry TP/SL setting for system B
+
 struct LogRecord
 {
    datetime Time;
@@ -1304,6 +1307,7 @@ void InitStrategy()
 void HandleOCODetectionFor(const string system)
 {
    ProcessClosedTrades(system);
+   int &retryTicket = (system == "A") ? retryTicketA : retryTicketB;
    int posTicket = -1;
    for(int i = OrdersTotal()-1; i >= 0; i--)
    {
@@ -1321,13 +1325,22 @@ void HandleOCODetectionFor(const string system)
       }
    }
    if(posTicket == -1)
+   {
+      retryTicket = -1;
       return;
+   }
 
    if(!OrderSelect(posTicket, SELECT_BY_TICKET))
+   {
+      retryTicket = -1;
       return;
+   }
 
    if(OrderStopLoss() != 0 && OrderTakeProfit() != 0)
+   {
+      retryTicket = -1;
       return; // already processed
+   }
 
    // remove remaining pending orders for this system
    for(int i = OrdersTotal()-1; i >= 0; i--)
@@ -1376,19 +1389,66 @@ void HandleOCODetectionFor(const string system)
 
    double entry = OrderOpenPrice();
    double sl, tp;
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   double minDist     = MathMax(stopLevel, freezeLevel);
    if(OrderType() == OP_BUY)
    {
       sl = entry - PipsToPrice(GridPips);
       tp = entry + PipsToPrice(GridPips);
+      if(Bid - sl < minDist)
+         sl = Bid - minDist;
+      if(tp - Ask < minDist)
+         tp = Ask + minDist;
    }
    else
    {
       sl = entry + PipsToPrice(GridPips);
       tp = entry - PipsToPrice(GridPips);
+      if(sl - Ask < minDist)
+         sl = Ask + minDist;
+      if(Bid - tp < minDist)
+         tp = Bid - minDist;
    }
-   if(!OrderModify(posTicket, entry, sl, tp, 0, clrNONE))
-      PrintFormat("Failed to set TP/SL for ticket %d err=%d", posTicket, GetLastError());
+   sl = NormalizeDouble(sl, Digits);
+   tp = NormalizeDouble(tp, Digits);
 
+   int err = 0;
+   if(!OrderModify(posTicket, entry, sl, tp, 0, clrNONE))
+   {
+      err = GetLastError();
+      PrintFormat("Failed to set TP/SL for ticket %d err=%d", posTicket, err);
+
+      string sys2, seq2;
+      ParseComment(OrderComment(), sys2, seq2);
+      LogRecord lrFail;
+      lrFail.Time       = TimeCurrent();
+      lrFail.Symbol     = Symbol();
+      lrFail.System     = system;
+      lrFail.Reason     = "REFILL";
+      lrFail.Spread     = PriceToPips(Ask - Bid);
+      lrFail.Dist       = 0;
+      lrFail.GridPips   = GridPips;
+      lrFail.s          = s;
+      lrFail.lotFactor  = OrderLots()/BaseLot;
+      lrFail.BaseLot    = BaseLot;
+      lrFail.MaxLot     = MaxLot;
+      lrFail.actualLot  = OrderLots();
+      lrFail.seqStr     = seq2;
+      lrFail.CommentTag = OrderComment();
+      lrFail.Magic      = MagicNumber;
+      lrFail.OrderType  = OrderTypeToStr(OrderType());
+      lrFail.EntryPrice = entry;
+      lrFail.SL         = sl;
+      lrFail.TP         = tp;
+      lrFail.ErrorCode  = err;
+      WriteLog(lrFail);
+
+      retryTicket = posTicket;
+      return;
+   }
+
+   retryTicket = -1;
    EnsureShadowOrder(posTicket, system);
 
    string sys2, seq2;
