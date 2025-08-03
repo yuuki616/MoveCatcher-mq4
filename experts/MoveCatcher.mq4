@@ -353,6 +353,64 @@ void RecoverAfterSL(const string system)
 }
 
 //+------------------------------------------------------------------+
+//| Close all positions and pending orders managed by this EA        |
+//+------------------------------------------------------------------+
+void CloseAllOrders()
+{
+   RefreshRates();
+   for(int i = OrdersTotal()-1; i >= 0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      int type   = OrderType();
+      int ticket = OrderTicket();
+      if(type == OP_BUY || type == OP_SELL)
+      {
+         double price = (type == OP_BUY) ? Bid : Ask;
+         if(!OrderClose(ticket, OrderLots(), price, 0, clrNONE))
+            PrintFormat("CloseAllOrders: failed to close %d err=%d", ticket, GetLastError());
+      }
+      else if(type == OP_BUYLIMIT || type == OP_SELLLIMIT ||
+              type == OP_BUYSTOP  || type == OP_SELLSTOP)
+      {
+         if(!OrderDelete(ticket))
+            PrintFormat("CloseAllOrders: failed to delete %d err=%d", ticket, GetLastError());
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Place refill pending orders at ±s from reference price           |
+//+------------------------------------------------------------------+
+void PlaceRefillOrders(const string system,const double refPrice)
+{
+   RefreshRates();
+   if(!CanPlace(true))
+      return;
+
+   string seq;
+   double lot = CalcLot(system, seq);
+   if(lot <= 0)
+      return;
+
+   string comment = MakeComment(system, seq);
+   double priceSell = refPrice + PipsToPrice(s);
+   double priceBuy  = refPrice - PipsToPrice(s);
+
+   int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
+                              0, 0, 0, comment, MagicNumber, 0, clrNONE);
+   if(ticketSell < 0)
+      PrintFormat("PlaceRefillOrders: failed to place SellLimit for %s err=%d", system, GetLastError());
+
+   int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
+                             0, 0, 0, comment, MagicNumber, 0, clrNONE);
+   if(ticketBuy < 0)
+      PrintFormat("PlaceRefillOrders: failed to place BuyLimit for %s err=%d", system, GetLastError());
+}
+
+//+------------------------------------------------------------------+
 //| Place initial market order for system A and OCO limits for B     |
 //+------------------------------------------------------------------+
 void InitStrategy()
@@ -416,36 +474,47 @@ void InitStrategy()
 }
 
 //+------------------------------------------------------------------+
-//| Detect filled OCO and handle cancellation and TP/SL attachment    |
+//| Detect filled OCO for specified system                            |
 //+------------------------------------------------------------------+
-void HandleOCODetection()
+void HandleOCODetectionFor(const string system)
 {
-   int bPosTicket = -1;
-
-   // find existing B position if any
-   for(int i=OrdersTotal()-1; i>=0; i--)
+   int posTicket = -1;
+   for(int i = OrdersTotal()-1; i >= 0; i--)
    {
-      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol()) continue;
-      string sys, seq; if(!ParseComment(OrderComment(), sys, seq)) continue;
-      if(sys=="B" && (OrderType()==OP_BUY || OrderType()==OP_SELL))
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      string sys, seq;
+      if(!ParseComment(OrderComment(), sys, seq))
+         continue;
+      if(sys == system && (OrderType() == OP_BUY || OrderType() == OP_SELL))
       {
-         bPosTicket = OrderTicket();
+         posTicket = OrderTicket();
          break;
       }
    }
+   if(posTicket == -1)
+      return;
 
-   if(bPosTicket==-1)
-      return; // no B position
+   if(!OrderSelect(posTicket, SELECT_BY_TICKET))
+      return;
 
-   // remove remaining B pending orders
-   for(int i=OrdersTotal()-1; i>=0; i--)
+   if(OrderStopLoss() != 0 && OrderTakeProfit() != 0)
+      return; // already processed
+
+   // remove remaining pending orders for this system
+   for(int i = OrdersTotal()-1; i >= 0; i--)
    {
-      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol()) continue;
-      string sys, seq; if(!ParseComment(OrderComment(), sys, seq)) continue;
-      if(sys=="B" && (OrderType()==OP_BUYLIMIT || OrderType()==OP_SELLLIMIT ||
-                       OrderType()==OP_BUYSTOP || OrderType()==OP_SELLSTOP))
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      string sys, seq;
+      if(!ParseComment(OrderComment(), sys, seq))
+         continue;
+      if(sys == system && (OrderType() == OP_BUYLIMIT || OrderType() == OP_SELLLIMIT ||
+                           OrderType() == OP_BUYSTOP  || OrderType() == OP_SELLSTOP))
       {
          int delTicket = OrderTicket();
          if(!OrderDelete(delTicket))
@@ -453,29 +522,31 @@ void HandleOCODetection()
       }
    }
 
-   // attach TP/SL if not already
-   if(!OrderSelect(bPosTicket, SELECT_BY_TICKET))
-      return;
-
-   if(OrderStopLoss()==0 || OrderTakeProfit()==0)
+   double entry = OrderOpenPrice();
+   double sl, tp;
+   if(OrderType() == OP_BUY)
    {
-      double entry = OrderOpenPrice();
-      double sl, tp;
-      if(OrderType()==OP_BUY)
-      {
-         sl = entry - PipsToPrice(GridPips);
-         tp = entry + PipsToPrice(GridPips);
-      }
-      else
-      {
-         sl = entry + PipsToPrice(GridPips);
-         tp = entry - PipsToPrice(GridPips);
-      }
-      if(!OrderModify(bPosTicket, entry, sl, tp, 0, clrNONE))
-         PrintFormat("Failed to set TP/SL for ticket %d err=%d", bPosTicket, GetLastError());
+      sl = entry - PipsToPrice(GridPips);
+      tp = entry + PipsToPrice(GridPips);
    }
+   else
+   {
+      sl = entry + PipsToPrice(GridPips);
+      tp = entry - PipsToPrice(GridPips);
+   }
+   if(!OrderModify(posTicket, entry, sl, tp, 0, clrNONE))
+      PrintFormat("Failed to set TP/SL for ticket %d err=%d", posTicket, GetLastError());
 
-   EnsureShadowOrder(bPosTicket, "B");
+   EnsureShadowOrder(posTicket, system);
+}
+
+//+------------------------------------------------------------------+
+//| Detect filled OCOs and process for both systems                   |
+//+------------------------------------------------------------------+
+void HandleOCODetection()
+{
+   HandleOCODetectionFor("A");
+   HandleOCODetectionFor("B");
 }
 
 int OnInit()
@@ -552,6 +623,10 @@ void OnTick()
 
    bool hasA = false;
    bool hasB = false;
+   bool pendA = false;
+   bool pendB = false;
+   int  ticketA = -1;
+   int  ticketB = -1;
 
    for(int i = OrdersTotal() - 1; i >= 0; i--)
    {
@@ -566,12 +641,51 @@ void OnTick()
       if(type == OP_BUY || type == OP_SELL)
       {
          if(system == "A")
+         {
             hasA = true;
+            ticketA = OrderTicket();
+         }
          else if(system == "B")
+         {
             hasB = true;
+            ticketB = OrderTicket();
+         }
 
          EnsureTPSL(OrderTicket());
          EnsureShadowOrder(OrderTicket(), system);
+      }
+      else if(type == OP_BUYLIMIT || type == OP_SELLLIMIT ||
+              type == OP_BUYSTOP  || type == OP_SELLSTOP)
+      {
+         if(system == "A")
+            pendA = true;
+         else if(system == "B")
+            pendB = true;
+      }
+   }
+
+   int posCount = (hasA ? 1 : 0) + (hasB ? 1 : 0);
+
+   if(posCount == 0 && (pendA || pendB))
+   {
+      CloseAllOrders();
+      state_A = None;
+      state_B = None;
+      InitStrategy();
+      return;
+   }
+
+   if(posCount == 1)
+   {
+      if(hasA && !hasB && !pendB && ticketA != -1)
+      {
+         if(OrderSelect(ticketA, SELECT_BY_TICKET))
+            PlaceRefillOrders("B", OrderOpenPrice());
+      }
+      else if(hasB && !hasA && !pendA && ticketB != -1)
+      {
+         if(OrderSelect(ticketB, SELECT_BY_TICKET))
+            PlaceRefillOrders("A", OrderOpenPrice());
       }
    }
 
