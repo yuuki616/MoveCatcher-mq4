@@ -236,9 +236,31 @@ bool LoadDMCState(const string system,CDecompMC &state)
 //+------------------------------------------------------------------+
 //| Check spread and distance band for a candidate order price       |
 //+------------------------------------------------------------------+
-bool CanPlaceOrder(const double price)
+bool CanPlaceOrder(double &price)
 {
    RefreshRates();
+
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+
+   double ref  = (price > Ask) ? Ask : Bid;
+   double dist = MathAbs(price - ref);
+
+   if(dist < freezeLevel)
+   {
+      PrintFormat("CanPlaceOrder: price %.5f within freeze level %.1f pips, retry next tick",
+                  price, PriceToPips(freezeLevel));
+      return(false);
+   }
+
+   if(dist < stopLevel)
+   {
+      double oldPrice = price;
+      price = (price > ref) ? ref + stopLevel : ref - stopLevel;
+      price = NormalizeDouble(price, Digits);
+      PrintFormat("CanPlaceOrder: price adjusted from %.5f to %.5f due to stop level %.1f pips",
+                  oldPrice, price, PriceToPips(stopLevel));
+   }
 
    double spread = PriceToPips(Ask - Bid);
    if(spread > MaxSpreadPips)
@@ -249,8 +271,8 @@ bool CanPlaceOrder(const double price)
 
    if(UseDistanceBand)
    {
-      double ref = (MathAbs(price - Ask) < MathAbs(price - Bid)) ? Ask : Bid;
-      double dist = PriceToPips(MathAbs(price - ref));
+      ref  = (MathAbs(price - Ask) < MathAbs(price - Bid)) ? Ask : Bid;
+      dist = PriceToPips(MathAbs(price - ref));
       if(dist < MinDistancePips || dist > MaxDistancePips)
       {
          PrintFormat("Distance %.1f outside band [%.1f, %.1f]", dist, MinDistancePips, MaxDistancePips);
@@ -528,6 +550,23 @@ void EnsureShadowOrder(const int ticket,const string system)
                         : entry - PipsToPrice(GridPips);
    int type = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
    string comment = MakeComment(system, seq);
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   double dist        = isBuy ? MathAbs(price - Ask) : MathAbs(Bid - price);
+   if(dist < freezeLevel)
+   {
+      PrintFormat("EnsureShadowOrder: price %.5f within freeze level %.1f pips, retry next tick", price, PriceToPips(freezeLevel));
+      return;
+   }
+   if(dist < stopLevel)
+   {
+      double old = price;
+      price = isBuy ? NormalizeDouble(Ask + stopLevel, Digits)
+                    : NormalizeDouble(Bid - stopLevel, Digits);
+      PrintFormat("EnsureShadowOrder: price adjusted from %.5f to %.5f due to stop level %.1f pips", old, price, PriceToPips(stopLevel));
+   }
+   if(!CanPlaceOrder(price))
+      return;
    int tk = OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrNONE);
    LogRecord lr;
    lr.Time       = TimeCurrent();
@@ -647,6 +686,29 @@ void RecoverAfterSL(const string system)
    double price    = isBuy ? Ask : Bid;
    double sl       = isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips);
    double tp       = isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips);
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   double minLevel    = MathMax(stopLevel, freezeLevel);
+
+   double distSL = MathAbs(price - sl);
+   if(distSL < minLevel)
+   {
+      double oldSL = sl;
+      sl = isBuy ? price - minLevel : price + minLevel;
+      sl = NormalizeDouble(sl, Digits);
+      PrintFormat("RecoverAfterSL: SL adjusted from %.5f to %.5f due to min distance %.1f pips",
+                  oldSL, sl, PriceToPips(minLevel));
+   }
+
+   double distTP = MathAbs(tp - price);
+   if(distTP < minLevel)
+   {
+      double oldTP = tp;
+      tp = isBuy ? price + minLevel : price - minLevel;
+      tp = NormalizeDouble(tp, Digits);
+      PrintFormat("RecoverAfterSL: TP adjusted from %.5f to %.5f due to min distance %.1f pips",
+                  oldTP, tp, PriceToPips(minLevel));
+   }
    string comment  = MakeComment(system, seq);
    int type        = isBuy ? OP_BUY : OP_SELL;
    int ticket      = OrderSend(Symbol(), type, lot, price,
@@ -930,10 +992,26 @@ void PlaceRefillOrders(const string system,const double refPrice)
    double priceSell = refPrice + PipsToPrice(s);
    double priceBuy  = refPrice - PipsToPrice(s);
 
-   if(CanPlaceOrder(priceSell))
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+
+   double distSell = MathAbs(priceSell - Ask);
+   if(distSell < freezeLevel)
+      PrintFormat("PlaceRefillOrders: SellLimit %.5f within freeze level %.1f pips, retry next tick",
+                  priceSell, PriceToPips(freezeLevel));
+   else
    {
-      int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
-                                 0, 0, 0, comment, MagicNumber, 0, clrNONE);
+      if(distSell < stopLevel)
+      {
+         double old = priceSell;
+         priceSell = NormalizeDouble(Ask + stopLevel, Digits);
+         PrintFormat("PlaceRefillOrders: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
+                     old, priceSell, PriceToPips(stopLevel));
+      }
+      if(CanPlaceOrder(priceSell))
+      {
+         int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
+                                    0, 0, 0, comment, MagicNumber, 0, clrNONE);
       LogRecord lr;
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
@@ -958,12 +1036,26 @@ void PlaceRefillOrders(const string system,const double refPrice)
       WriteLog(lr);
       if(ticketSell < 0)
          PrintFormat("PlaceRefillOrders: failed to place SellLimit for %s err=%d", system, lr.ErrorCode);
+      }
    }
 
-   if(CanPlaceOrder(priceBuy))
+   double distBuy = MathAbs(Bid - priceBuy);
+   if(distBuy < freezeLevel)
+      PrintFormat("PlaceRefillOrders: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
+                  priceBuy, PriceToPips(freezeLevel));
+   else
    {
-      int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
-                                0, 0, 0, comment, MagicNumber, 0, clrNONE);
+      if(distBuy < stopLevel)
+      {
+         double oldB = priceBuy;
+         priceBuy = NormalizeDouble(Bid - stopLevel, Digits);
+         PrintFormat("PlaceRefillOrders: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
+                     oldB, priceBuy, PriceToPips(stopLevel));
+      }
+      if(CanPlaceOrder(priceBuy))
+      {
+         int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
+                                   0, 0, 0, comment, MagicNumber, 0, clrNONE);
       LogRecord lr;
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
@@ -988,6 +1080,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       WriteLog(lr);
       if(ticketBuy < 0)
          PrintFormat("PlaceRefillOrders: failed to place BuyLimit for %s err=%d", system, lr.ErrorCode);
+      }
    }
 }
 
@@ -1015,6 +1108,30 @@ void InitStrategy()
    {
       entrySL = price + PipsToPrice(GridPips);
       entryTP = price - PipsToPrice(GridPips);
+   }
+
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   double minLevel    = MathMax(stopLevel, freezeLevel);
+
+   double distSL = MathAbs(price - entrySL);
+   if(distSL < minLevel)
+   {
+      double oldSL = entrySL;
+      entrySL = isBuy ? price - minLevel : price + minLevel;
+      entrySL = NormalizeDouble(entrySL, Digits);
+      PrintFormat("InitStrategy: SL adjusted from %.5f to %.5f due to min distance %.1f pips",
+                  oldSL, entrySL, PriceToPips(minLevel));
+   }
+
+   double distTP = MathAbs(entryTP - price);
+   if(distTP < minLevel)
+   {
+      double oldTP = entryTP;
+      entryTP = isBuy ? price + minLevel : price - minLevel;
+      entryTP = NormalizeDouble(entryTP, Digits);
+      PrintFormat("InitStrategy: TP adjusted from %.5f to %.5f due to min distance %.1f pips",
+                  oldTP, entryTP, PriceToPips(minLevel));
    }
 
    string commentA = MakeComment("A", seqA);
@@ -1062,11 +1179,26 @@ void InitStrategy()
 
    double priceSell = entryPrice + PipsToPrice(s);
    double priceBuy  = entryPrice - PipsToPrice(s);
+   stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
+   freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
 
-   if(CanPlaceOrder(priceSell))
+   double distSell = MathAbs(priceSell - Ask);
+   if(distSell < freezeLevel)
+      PrintFormat("InitStrategy: SellLimit %.5f within freeze level %.1f pips, retry next tick",
+                  priceSell, PriceToPips(freezeLevel));
+   else
    {
-      int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
-                                 0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+      if(distSell < stopLevel)
+      {
+         double oldS = priceSell;
+         priceSell = NormalizeDouble(Ask + stopLevel, Digits);
+         PrintFormat("InitStrategy: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
+                     oldS, priceSell, PriceToPips(stopLevel));
+      }
+      if(CanPlaceOrder(priceSell))
+      {
+         int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
+                                    0, 0, 0, commentB, MagicNumber, 0, clrNONE);
       LogRecord lrS;
       lrS.Time       = TimeCurrent();
       lrS.Symbol     = Symbol();
@@ -1091,12 +1223,26 @@ void InitStrategy()
       WriteLog(lrS);
       if(ticketSell < 0)
          PrintFormat("InitStrategy: failed to place SellLimit, err=%d", lrS.ErrorCode);
+      }
    }
 
-   if(CanPlaceOrder(priceBuy))
+   double distBuy = MathAbs(Bid - priceBuy);
+   if(distBuy < freezeLevel)
+      PrintFormat("InitStrategy: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
+                  priceBuy, PriceToPips(freezeLevel));
+   else
    {
-      int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
-                                0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+      if(distBuy < stopLevel)
+      {
+         double oldB = priceBuy;
+         priceBuy = NormalizeDouble(Bid - stopLevel, Digits);
+         PrintFormat("InitStrategy: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
+                     oldB, priceBuy, PriceToPips(stopLevel));
+      }
+      if(CanPlaceOrder(priceBuy))
+      {
+         int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
+                                   0, 0, 0, commentB, MagicNumber, 0, clrNONE);
       LogRecord lrB;
       lrB.Time       = TimeCurrent();
       lrB.Symbol     = Symbol();
@@ -1121,6 +1267,7 @@ void InitStrategy()
       WriteLog(lrB);
       if(ticketBuy < 0)
          PrintFormat("InitStrategy: failed to place BuyLimit, err=%d", lrB.ErrorCode);
+      }
    }
 }
 
