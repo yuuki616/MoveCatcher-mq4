@@ -566,9 +566,12 @@ void EnsureShadowOrder(const int ticket,const string system)
                         : entry - PipsToPrice(GridPips);
    int type = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
    string comment = MakeComment(system, seq);
+
+   RefreshRates();
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
-   double dist        = MathAbs(Bid - price);
+   double ref         = (type == OP_BUYLIMIT) ? Ask : Bid;
+   double dist        = MathAbs(price - ref);
    if(dist < freezeLevel)
    {
       PrintFormat("EnsureShadowOrder: price %.5f within freeze level %.1f pips, retry next tick", price, PriceToPips(freezeLevel));
@@ -577,12 +580,20 @@ void EnsureShadowOrder(const int ticket,const string system)
    if(dist < stopLevel)
    {
       double old = price;
-      price = isBuy ? NormalizeDouble(Bid + stopLevel, Digits)
-                    : NormalizeDouble(Bid - stopLevel, Digits);
+      price = (type == OP_BUYLIMIT)
+              ? NormalizeDouble(ref - stopLevel, Digits)
+              : NormalizeDouble(ref + stopLevel, Digits);
       PrintFormat("EnsureShadowOrder: price adjusted from %.5f to %.5f due to stop level %.1f pips", old, price, PriceToPips(stopLevel));
    }
-   if(!CanPlaceOrder(price, type == OP_BUYLIMIT))
-      return;
+   if(UseDistanceBand)
+   {
+      double distPips = PriceToPips(MathAbs(price - ref));
+      if(distPips < MinDistancePips || distPips > MaxDistancePips)
+      {
+         PrintFormat("EnsureShadowOrder: distance %.1f outside band [%.1f, %.1f]", distPips, MinDistancePips, MaxDistancePips);
+         return;
+      }
+   }
    int tk = OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrNONE);
    LogRecord lr;
    lr.Time       = TimeCurrent();
