@@ -1302,19 +1302,33 @@ void HandleOCODetectionFor(const string system)
    ProcessClosedTrades(system);
    int &retryTicket = (system == "A") ? retryTicketA : retryTicketB;
    int posTicket = -1;
-   for(int i = OrdersTotal()-1; i >= 0; i--)
+   if(retryTicket != -1)
    {
-      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
-         continue;
-      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
-         continue;
-      string sys, seq;
-      if(!ParseComment(OrderComment(), sys, seq))
-         continue;
-      if(sys == system && (OrderType() == OP_BUY || OrderType() == OP_SELL))
+      if(OrderSelect(retryTicket, SELECT_BY_TICKET))
       {
-         posTicket = OrderTicket();
-         break;
+         posTicket = retryTicket;
+      }
+      else
+      {
+         retryTicket = -1;
+      }
+   }
+   if(posTicket == -1)
+   {
+      for(int i = OrdersTotal()-1; i >= 0; i--)
+      {
+         if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+            continue;
+         if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+            continue;
+         string sys, seq;
+         if(!ParseComment(OrderComment(), sys, seq))
+            continue;
+         if(sys == system && (OrderType() == OP_BUY || OrderType() == OP_SELL))
+         {
+            posTicket = OrderTicket();
+            break;
+         }
       }
    }
    if(posTicket == -1)
