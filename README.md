@@ -48,13 +48,15 @@ README.md                                  ← 本ドキュメント
 
 ---
 
-## 5. インストール
+## 5. インストールと使用方法
 
 1. `MoveCatcher.mq4` を **MQL4/Experts** へ配置
-2. `DecompositionMonteCarloMM.mqh` を **MQL4/Include** へ配置
+2. `DecompositionMonteCarloMM.mqh` を **MQL4/Include** へ配置（フォルダが無い場合は作成）
 3. MT4 を再起動 → ナビゲータの「エキスパートアドバイザ」に表示されることを確認
 4. 任意のチャート（推奨：**M1〜M15**）に EA をドラッグ & ドロップ
-5. 「自動売買」をオン、パラメータを設定して稼働
+5. 入力パラメータを設定し「自動売買」をオン
+6. 起動直後に **系統A** の成行と **系統B** の `±s` OCO 指値が自動で発注されます（仕様 §7）
+7. 停止したい場合は「自動売買」をオフにするか、EA をチャートから外してください
 
 ---
 
@@ -62,22 +64,21 @@ README.md                                  ← 本ドキュメント
 
 > **精度**：BaseLot/MaxLot は **0.01 刻み**で入力。距離は pips 単位。
 
-| パラメータ               |      型 |      例 | 説明                                     |
-| ------------------- | -----: | -----: | -------------------------------------- |
-| `GridPips`          | double |    100 | **d**。各ポジの TP/SL 距離（pips）              |
-| `EpsilonPips`       | double |    1.0 | 等間隔 s に対する許容幅 ε                        |
-| `MaxSpreadPips`     | double |    2.0 | **置く前だけ**判定（初期OCO／補充／SL後の Pending 再建て） |
-| `UseProtectedLimit` |   bool |   true | **SL 復帰＝成行＋Slippage**（MT4 標準の価格保護）     |
-| `SlippagePips`      | double |    1.0 | 成行の最大許容スリッページ（pips）                    |
-| `UseDistanceBand`   |   bool |  false | 発注前の距離帯フィルタ ON/OFF                     |
-| `MinDistancePips`   | double |     50 | 距離帯下限                                  |
-| `MaxDistancePips`   | double |     55 | 距離帯上限                                  |
-| `UseTickSnap`       |   bool |  false | 2本揃い時に距離逸脱で即初期化（任意）                    |
-| `SnapCooldownBars`  |    int |      2 | Tickスナップ再発火のクールダウン（バー数）                |
-| `BaseLot`           | double |   0.10 | **基準ロット**。実ロット = `BaseLot × DMCMM 係数`  |
-| `MaxLot`            | double |   1.50 | **ユーザー上限**。超過時は当該系統のロット計算を初期化して再評価     |
-| `MagicNumber`       |    int | 246810 | EA 識別用マジック                             |
-
+| パラメータ               |      型 | 精度 / 例                 | 説明                                                         |
+| ------------------- | -----: | ---------------------- | ------------------------------------------------------------ |
+| `GridPips`          | double | 例: 100                 | **d**。各ポジの TP/SL 距離（pips）                                  |
+| `EpsilonPips`       | double | 例: 1.0                 | 等間隔 s に対する許容幅 ε                                         |
+| `MaxSpreadPips`     | double | 例: 2.0                 | **置く前だけ**判定（初期OCO／補充／SL後の Pending 再建て）                 |
+| `UseProtectedLimit` |   bool | true/false              | **SL 復帰＝成行＋Slippage**（MT4 標準の価格保護）                           |
+| `SlippagePips`      | double | 例: 1.0                 | 成行の最大許容スリッページ（pips）                                      |
+| `UseDistanceBand`   |   bool | true/false              | true で発注前に距離帯 `[Min, Max]` をチェック                             |
+| `MinDistancePips`   | double | 例: 50                  | 距離帯下限（`UseDistanceBand=true` のとき有効）                            |
+| `MaxDistancePips`   | double | 例: 55                  | 距離帯上限（`UseDistanceBand=true` のとき有効）                            |
+| `UseTickSnap`       |   bool | true/false              | 2本揃い時に距離逸脱で即初期化（任意）                                      |
+| `SnapCooldownBars`  |    int | 例: 2                   | Tickスナップ再発火のクールダウン（バー数）                                 |
+| `BaseLot`           | double | 0.01 刻み（例: 0.10）     | **基準ロット**。実ロット = `BaseLot × DMCMM 係数`                         |
+| `MaxLot`            | double | 0.01 刻み（例: 1.50）     | **ユーザー上限**。超過時は当該系統のロット計算を初期化して再評価                     |
+| `MagicNumber`       |    int | 例: 246810              | EA 識別用マジック                                                   |
 **内部派生値**
 
 * `s = GridPips / 2`（ユーザー設定不要）
@@ -190,9 +191,10 @@ A. `Pip = 10*Point` として価格⇄pips を相互変換します（3桁も同
 
 ## 15. 依存ライブラリ（DMCMM）
 
-* ファイル：`DecompositionMonteCarloMM.mqh`
-* 期待インターフェース（概要）：
-
+* 配置手順
+  1. `DecompositionMonteCarloMM.mqh` を MT4 の **MQL4/Include** へコピー
+  2. EA 冒頭で `#include <DecompositionMonteCarloMM.mqh>` を宣言
+* 期待インターフェース（概要）
   * 入力：系統ごとの内部状態 `state_sys`（勝敗系列・連敗・PnL・分散推定・信頼区間など）
   * 出力：`lotFactor_sys`（無次元係数）, `seq_sys`（コメント用数列文字列）
   * **状態初期化 API**：MaxLot 超過時に**当該系統の状態のみ**初期化できること
