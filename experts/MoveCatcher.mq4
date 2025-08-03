@@ -568,7 +568,7 @@ void EnsureShadowOrder(const int ticket,const string system)
    string comment = MakeComment(system, seq);
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
-   double dist        = isBuy ? MathAbs(price - Ask) : MathAbs(Bid - price);
+   double dist        = MathAbs(Bid - price);
    if(dist < freezeLevel)
    {
       PrintFormat("EnsureShadowOrder: price %.5f within freeze level %.1f pips, retry next tick", price, PriceToPips(freezeLevel));
@@ -577,7 +577,7 @@ void EnsureShadowOrder(const int ticket,const string system)
    if(dist < stopLevel)
    {
       double old = price;
-      price = isBuy ? NormalizeDouble(Ask + stopLevel, Digits)
+      price = isBuy ? NormalizeDouble(Bid + stopLevel, Digits)
                     : NormalizeDouble(Bid - stopLevel, Digits);
       PrintFormat("EnsureShadowOrder: price adjusted from %.5f to %.5f due to stop level %.1f pips", old, price, PriceToPips(stopLevel));
    }
@@ -1011,7 +1011,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
 
-   double distSell = MathAbs(priceSell - Ask);
+   double distSell = MathAbs(Bid - priceSell);
    if(distSell < freezeLevel)
       PrintFormat("PlaceRefillOrders: SellLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceSell, PriceToPips(freezeLevel));
@@ -1020,7 +1020,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       if(distSell < stopLevel)
       {
          double old = priceSell;
-         priceSell = NormalizeDouble(Ask + stopLevel, Digits);
+         priceSell = NormalizeDouble(Bid + stopLevel, Digits);
          PrintFormat("PlaceRefillOrders: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      old, priceSell, PriceToPips(stopLevel));
       }
@@ -1198,7 +1198,7 @@ void InitStrategy()
    stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
 
-   double distSell = MathAbs(priceSell - Ask);
+   double distSell = MathAbs(Bid - priceSell);
    if(distSell < freezeLevel)
       PrintFormat("InitStrategy: SellLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceSell, PriceToPips(freezeLevel));
@@ -1207,7 +1207,7 @@ void InitStrategy()
       if(distSell < stopLevel)
       {
          double oldS = priceSell;
-         priceSell = NormalizeDouble(Ask + stopLevel, Digits);
+         priceSell = NormalizeDouble(Bid + stopLevel, Digits);
          PrintFormat("InitStrategy: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      oldS, priceSell, PriceToPips(stopLevel));
       }
