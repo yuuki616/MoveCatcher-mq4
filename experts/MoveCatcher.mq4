@@ -160,6 +160,79 @@ double NormalizeLot(const double lotCandidate)
    return(lot);
 }
 
+bool SaveDMCState(const string system,const CDecompMC &state,int &err)
+{
+   err=0; bool ok=true;
+   string data=state.Serialize();
+   string parts[]; int cnt=StringSplit(data,'|',parts);
+   if(cnt==3)
+   {
+      int stock=(int)StringToInteger(parts[0]);
+      int streak=(int)StringToInteger(parts[1]);
+      string seqParts[]; int n=StringSplit(parts[2],',',seqParts);
+
+      string prefix="MoveCatcher_"+system+"_";
+      ResetLastError(); GlobalVariableSet(prefix+"stock",stock); int e=GetLastError(); if(e!=0){if(err==0)err=e; ok=false;}
+      ResetLastError(); GlobalVariableSet(prefix+"streak",streak); e=GetLastError(); if(e!=0){if(err==0)err=e; ok=false;}
+      ResetLastError(); GlobalVariableSet(prefix+"seq_size",n); e=GetLastError(); if(e!=0){if(err==0)err=e; ok=false;}
+      for(int i=0;i<n;i++)
+      {
+         string name=prefix+"seq_"+IntegerToString(i);
+         ResetLastError(); GlobalVariableSet(name,(double)StringToInteger(seqParts[i])); e=GetLastError(); if(e!=0){if(err==0)err=e; ok=false;}
+      }
+   }
+   else ok=false;
+
+   string filename="MoveCatcher_state_"+system+".dat";
+   int handle=FileOpen(filename,FILE_COMMON|FILE_WRITE|FILE_TXT);
+   if(handle==INVALID_HANDLE){int e=GetLastError(); if(err==0)err=e; ok=false;}
+   else
+   {
+      if(FileWrite(handle,data)<=0){int e=GetLastError(); if(err==0)err=e; ok=false;}
+      FileClose(handle);
+   }
+   return(ok);
+}
+
+bool LoadDMCState(const string system,CDecompMC &state)
+{
+   string prefix="MoveCatcher_"+system+"_";
+   if(GlobalVariableCheck(prefix+"seq_size") && GlobalVariableCheck(prefix+"stock") && GlobalVariableCheck(prefix+"streak"))
+   {
+      int n=(int)MathRound(GlobalVariableGet(prefix+"seq_size"));
+      int stock=(int)MathRound(GlobalVariableGet(prefix+"stock"));
+      int streak=(int)MathRound(GlobalVariableGet(prefix+"streak"));
+      string seqStr=""; bool ok=true;
+      for(int i=0;i<n;i++)
+      {
+         string name=prefix+"seq_"+IntegerToString(i);
+         if(!GlobalVariableCheck(name)){ok=false; break;}
+         int v=(int)MathRound(GlobalVariableGet(name));
+         if(i) seqStr+=","; seqStr+=IntegerToString(v);
+      }
+      if(ok)
+      {
+         string data=IntegerToString(stock)+"|"+IntegerToString(streak)+"|"+seqStr;
+         if(state.Deserialize(data)) return(true);
+      }
+   }
+
+   string filename="MoveCatcher_state_"+system+".dat";
+   if(FileIsExist(filename,FILE_COMMON))
+   {
+      int handle=FileOpen(filename,FILE_COMMON|FILE_READ|FILE_TXT);
+      if(handle!=INVALID_HANDLE)
+      {
+         string data=FileReadString(handle);
+         FileClose(handle);
+         if(state.Deserialize(data)) return(true);
+      }
+   }
+
+   state.Init();
+   return(false);
+}
+
 //+------------------------------------------------------------------+
 //| Check spread and distance band for a candidate order price       |
 //+------------------------------------------------------------------+
@@ -1221,8 +1294,8 @@ int OnInit()
 
    s   = GridPips / 2.0;
 
-   stateA.Init();
-   stateB.Init();
+   LoadDMCState("A", stateA);
+   LoadDMCState("B", stateB);
 
    string gvA = "MoveCatcher_state_A";
    string gvB = "MoveCatcher_state_B";
@@ -1398,5 +1471,58 @@ void OnDeinit(const int reason)
    string gvB = "MoveCatcher_state_B";
    GlobalVariableSet(gvA, state_A);
    GlobalVariableSet(gvB, state_B);
+
+   int err;
+   if(!SaveDMCState("A", stateA, err))
+   {
+      LogRecord rec;
+      rec.Time      = TimeCurrent();
+      rec.Symbol    = Symbol();
+      rec.System    = "A";
+      rec.Reason    = "STATE_SAVE_FAIL";
+      rec.Spread    = 0;
+      rec.Dist      = 0;
+      rec.GridPips  = GridPips;
+      rec.s         = s;
+      rec.lotFactor = 0;
+      rec.BaseLot   = BaseLot;
+      rec.MaxLot    = MaxLot;
+      rec.actualLot = 0;
+      rec.seqStr    = "";
+      rec.CommentTag= "";
+      rec.Magic     = MagicNumber;
+      rec.OrderType = "";
+      rec.EntryPrice= 0;
+      rec.SL        = 0;
+      rec.TP        = 0;
+      rec.ErrorCode = err;
+      WriteLog(rec);
+   }
+
+   if(!SaveDMCState("B", stateB, err))
+   {
+      LogRecord rec;
+      rec.Time      = TimeCurrent();
+      rec.Symbol    = Symbol();
+      rec.System    = "B";
+      rec.Reason    = "STATE_SAVE_FAIL";
+      rec.Spread    = 0;
+      rec.Dist      = 0;
+      rec.GridPips  = GridPips;
+      rec.s         = s;
+      rec.lotFactor = 0;
+      rec.BaseLot   = BaseLot;
+      rec.MaxLot    = MaxLot;
+      rec.actualLot = 0;
+      rec.seqStr    = "";
+      rec.CommentTag= "";
+      rec.Magic     = MagicNumber;
+      rec.OrderType = "";
+      rec.EntryPrice= 0;
+      rec.SL        = 0;
+      rec.TP        = 0;
+      rec.ErrorCode = err;
+      WriteLog(rec);
+   }
 }
 
