@@ -153,12 +153,28 @@ double NormalizeLot(const double lotCandidate)
 
    double lot = lotCandidate;
    if(lotStep > 0)
-      lot = MathRound(lot / lotStep) * lotStep;
+      lot = MathFloor(lot / lotStep) * lotStep;
+
+   if(lot > MaxLot)
+   {
+      if(lotStep > 0)
+         lot = MathFloor(MaxLot / lotStep) * lotStep;
+      else
+         lot = MaxLot;
+   }
 
    if(lot < minLot)
       lot = minLot;
    if(lot > maxLot)
       lot = maxLot;
+
+   if(lot > MaxLot)
+   {
+      if(lotStep > 0)
+         lot = MathFloor(MaxLot / lotStep) * lotStep;
+      else
+         lot = MaxLot;
+   }
 
    return(lot);
 }
