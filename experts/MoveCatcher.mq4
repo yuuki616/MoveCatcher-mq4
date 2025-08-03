@@ -435,7 +435,7 @@ void InitCloseTimes()
 //+------------------------------------------------------------------+
 void ProcessClosedTrades(const string system)
 {
-   datetime &lastTime = (system == "A") ? lastCloseTimeA : lastCloseTimeB;
+   datetime lastTime = (system == "A") ? lastCloseTimeA : lastCloseTimeB;
    int tickets[];
    datetime times[];
    for(int i = OrdersHistoryTotal()-1; i >= 0; i--)
@@ -468,10 +468,15 @@ void ProcessClosedTrades(const string system)
       double profit = OrderProfit() + OrderSwap() + OrderCommission();
       bool win = (profit >= 0);
       if(system == "A")
+      {
          stateA.OnTrade(win);
+         lastCloseTimeA = times[i];
+      }
       else
+      {
          stateB.OnTrade(win);
-      lastTime = times[i];
+         lastCloseTimeB = times[i];
+      }
    }
 }
 
@@ -1300,17 +1305,25 @@ void InitStrategy()
 void HandleOCODetectionFor(const string system)
 {
    ProcessClosedTrades(system);
-   int &retryTicket = (system == "A") ? retryTicketA : retryTicketB;
    int posTicket = -1;
-   if(retryTicket != -1)
+   if(system == "A")
    {
-      if(OrderSelect(retryTicket, SELECT_BY_TICKET))
+      if(retryTicketA != -1)
       {
-         posTicket = retryTicket;
+         if(OrderSelect(retryTicketA, SELECT_BY_TICKET))
+            posTicket = retryTicketA;
+         else
+            retryTicketA = -1;
       }
-      else
+   }
+   else
+   {
+      if(retryTicketB != -1)
       {
-         retryTicket = -1;
+         if(OrderSelect(retryTicketB, SELECT_BY_TICKET))
+            posTicket = retryTicketB;
+         else
+            retryTicketB = -1;
       }
    }
    if(posTicket == -1)
@@ -1333,19 +1346,28 @@ void HandleOCODetectionFor(const string system)
    }
    if(posTicket == -1)
    {
-      retryTicket = -1;
+      if(system == "A")
+         retryTicketA = -1;
+      else
+         retryTicketB = -1;
       return;
    }
 
    if(!OrderSelect(posTicket, SELECT_BY_TICKET))
    {
-      retryTicket = -1;
+      if(system == "A")
+         retryTicketA = -1;
+      else
+         retryTicketB = -1;
       return;
    }
 
    if(OrderStopLoss() != 0 && OrderTakeProfit() != 0)
    {
-      retryTicket = -1;
+      if(system == "A")
+         retryTicketA = -1;
+      else
+         retryTicketB = -1;
       return; // already processed
    }
 
@@ -1451,11 +1473,17 @@ void HandleOCODetectionFor(const string system)
       lrFail.ErrorCode  = err;
       WriteLog(lrFail);
 
-      retryTicket = posTicket;
+      if(system == "A")
+         retryTicketA = posTicket;
+      else
+         retryTicketB = posTicket;
       return;
    }
 
-   retryTicket = -1;
+   if(system == "A")
+      retryTicketA = -1;
+   else
+      retryTicketB = -1;
    EnsureShadowOrder(posTicket, system);
 
    string sys2, seq2;
