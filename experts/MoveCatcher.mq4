@@ -547,10 +547,20 @@ void EnsureTPSL(const int ticket)
    }
    desiredSL = NormalizeDouble(desiredSL, Digits);
    desiredTP = NormalizeDouble(desiredTP, Digits);
-   if(OrderStopLoss() == 0 || OrderTakeProfit() == 0)
+   double tol = Point * 0.5;
+   bool needModify = (OrderStopLoss() == 0 || OrderTakeProfit() == 0 ||
+                      MathAbs(OrderStopLoss() - desiredSL) > tol ||
+                      MathAbs(OrderTakeProfit() - desiredTP) > tol);
+   if(needModify)
    {
       if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
-         PrintFormat("EnsureTPSL: failed to set TP/SL for ticket %d err=%d", ticket, GetLastError());
+      {
+         int err = GetLastError();
+         if(err == 130 || err == 145)
+            PrintFormat("EnsureTPSL: TP/SL for ticket %d within stop/freeze level, retry next tick err=%d", ticket, err);
+         else
+            PrintFormat("EnsureTPSL: failed to set TP/SL for ticket %d err=%d", ticket, err);
+      }
    }
 }
 
