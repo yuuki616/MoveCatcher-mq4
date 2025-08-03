@@ -404,7 +404,7 @@ void EnsureShadowOrder(const int ticket,const string system)
 //+------------------------------------------------------------------+
 //| Delete all pending orders for specified system                    |
 //+------------------------------------------------------------------+
-void DeletePendings(const string system)
+void DeletePendings(const string system,const string reason)
 {
    for(int i = OrdersTotal()-1; i >= 0; i--)
    {
@@ -429,7 +429,7 @@ void DeletePendings(const string system)
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
       lr.System     = system;
-      lr.Reason     = "SL";
+      lr.Reason     = reason;
       lr.Spread     = PriceToPips(Ask - Bid);
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
@@ -458,7 +458,7 @@ void DeletePendings(const string system)
 void RecoverAfterSL(const string system)
 {
    RefreshRates();
-   DeletePendings(system);
+   DeletePendings(system, "SL");
 
    int lastType = -1;
    for(int i = OrdersHistoryTotal()-1; i >= 0; i--)
@@ -615,6 +615,145 @@ void CloseAllOrders(const string reason)
          if(!ok)
             PrintFormat("CloseAllOrders: failed to delete %d err=%d", ticket, err);
       }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Ensure only one position per system                              |
+//+------------------------------------------------------------------+
+void CorrectDuplicatePositions()
+{
+   RefreshRates();
+
+   int ticketsA[]; datetime timesA[];
+   int ticketsB[]; datetime timesB[];
+
+   for(int i = OrdersTotal()-1; i >= 0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      int type = OrderType();
+      if(type != OP_BUY && type != OP_SELL)
+         continue;
+      string sys, seq;
+      if(!ParseComment(OrderComment(), sys, seq))
+         continue;
+      if(sys == "A")
+      {
+         int idx = ArraySize(ticketsA);
+         ArrayResize(ticketsA, idx + 1);
+         ArrayResize(timesA, idx + 1);
+         ticketsA[idx] = OrderTicket();
+         timesA[idx]   = OrderOpenTime();
+      }
+      else if(sys == "B")
+      {
+         int idx = ArraySize(ticketsB);
+         ArrayResize(ticketsB, idx + 1);
+         ArrayResize(timesB, idx + 1);
+         ticketsB[idx] = OrderTicket();
+         timesB[idx]   = OrderOpenTime();
+      }
+   }
+
+   int countA = ArraySize(ticketsA);
+   if(countA > 1)
+   {
+      int keep = 0;
+      for(int i = 1; i < countA; i++)
+         if(timesA[i] < timesA[keep])
+            keep = i;
+      for(int i = 0; i < countA; i++)
+      {
+         if(i == keep)
+            continue;
+         int tk = ticketsA[i];
+         if(!OrderSelect(tk, SELECT_BY_TICKET))
+            continue;
+         double price = (OrderType() == OP_BUY) ? Bid : Ask;
+         int err = 0;
+         bool ok = OrderClose(tk, OrderLots(), price, 0, clrNONE);
+         if(!ok)
+            err = GetLastError();
+         LogRecord lr;
+         lr.Time       = TimeCurrent();
+         lr.Symbol     = Symbol();
+         lr.System     = "A";
+         lr.Reason     = "RESET_DUP";
+         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Dist       = 0;
+         lr.GridPips   = GridPips;
+         lr.s          = s;
+         lr.lotFactor  = OrderLots()/BaseLot;
+         lr.BaseLot    = BaseLot;
+         lr.MaxLot     = MaxLot;
+         lr.actualLot  = OrderLots();
+         string sysTmp, seqTmp;
+         ParseComment(OrderComment(), sysTmp, seqTmp);
+         lr.seqStr     = seqTmp;
+         lr.CommentTag = OrderComment();
+         lr.Magic      = MagicNumber;
+         lr.OrderType  = OrderTypeToStr(OrderType());
+         lr.EntryPrice = OrderOpenPrice();
+         lr.SL         = OrderStopLoss();
+         lr.TP         = OrderTakeProfit();
+         lr.ErrorCode  = err;
+         WriteLog(lr);
+         if(!ok)
+            PrintFormat("CorrectDuplicatePositions: failed to close %d err=%d", tk, err);
+      }
+      DeletePendings("A", "RESET_DUP");
+   }
+
+   int countB = ArraySize(ticketsB);
+   if(countB > 1)
+   {
+      int keepB = 0;
+      for(int i = 1; i < countB; i++)
+         if(timesB[i] < timesB[keepB])
+            keepB = i;
+      for(int i = 0; i < countB; i++)
+      {
+         if(i == keepB)
+            continue;
+         int tk = ticketsB[i];
+         if(!OrderSelect(tk, SELECT_BY_TICKET))
+            continue;
+         double price = (OrderType() == OP_BUY) ? Bid : Ask;
+         int err = 0;
+         bool ok = OrderClose(tk, OrderLots(), price, 0, clrNONE);
+         if(!ok)
+            err = GetLastError();
+         LogRecord lr;
+         lr.Time       = TimeCurrent();
+         lr.Symbol     = Symbol();
+         lr.System     = "B";
+         lr.Reason     = "RESET_DUP";
+         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Dist       = 0;
+         lr.GridPips   = GridPips;
+         lr.s          = s;
+         lr.lotFactor  = OrderLots()/BaseLot;
+         lr.BaseLot    = BaseLot;
+         lr.MaxLot     = MaxLot;
+         lr.actualLot  = OrderLots();
+         string sysTmp2, seqTmp2;
+         ParseComment(OrderComment(), sysTmp2, seqTmp2);
+         lr.seqStr     = seqTmp2;
+         lr.CommentTag = OrderComment();
+         lr.Magic      = MagicNumber;
+         lr.OrderType  = OrderTypeToStr(OrderType());
+         lr.EntryPrice = OrderOpenPrice();
+         lr.SL         = OrderStopLoss();
+         lr.TP         = OrderTakeProfit();
+         lr.ErrorCode  = err;
+         WriteLog(lr);
+         if(!ok)
+            PrintFormat("CorrectDuplicatePositions: failed to close %d err=%d", tk, err);
+      }
+      DeletePendings("B", "RESET_DUP");
    }
 }
 
@@ -1026,6 +1165,7 @@ int OnInit()
 void OnTick()
 {
    HandleOCODetection();
+   CorrectDuplicatePositions();
 
    bool hasA = false;
    bool hasB = false;
