@@ -185,6 +185,174 @@ SystemState UpdateState(const SystemState prev,const bool exists)
 }
 
 //+------------------------------------------------------------------+
+//| Find existing shadow pending order for a position                |
+//+------------------------------------------------------------------+
+bool FindShadowPending(const string system,const double entry,const bool isBuy,int &ticket)
+{
+   double target = isBuy ? entry + PipsToPrice(GridPips)
+                         : entry - PipsToPrice(GridPips);
+   double tol = Point * 0.5;
+   for(int i = OrdersTotal()-1; i >= 0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      int type = OrderType();
+      if(type != OP_BUYLIMIT && type != OP_SELLLIMIT)
+         continue;
+      string sys, seq;
+      if(!ParseComment(OrderComment(), sys, seq))
+         continue;
+      if(sys != system)
+         continue;
+      if((isBuy && type == OP_SELLLIMIT) || (!isBuy && type == OP_BUYLIMIT))
+      {
+         if(MathAbs(OrderOpenPrice() - target) <= tol)
+         {
+            ticket = OrderTicket();
+            return(true);
+         }
+      }
+   }
+   ticket = -1;
+   return(false);
+}
+
+//+------------------------------------------------------------------+
+//| Ensure TP/SL are set for a position                              |
+//+------------------------------------------------------------------+
+void EnsureTPSL(const int ticket)
+{
+   if(!OrderSelect(ticket, SELECT_BY_TICKET))
+      return;
+   double entry = OrderOpenPrice();
+   double desiredSL, desiredTP;
+   if(OrderType() == OP_BUY)
+   {
+      desiredSL = entry - PipsToPrice(GridPips);
+      desiredTP = entry + PipsToPrice(GridPips);
+   }
+   else
+   {
+      desiredSL = entry + PipsToPrice(GridPips);
+      desiredTP = entry - PipsToPrice(GridPips);
+   }
+   if(OrderStopLoss() == 0 || OrderTakeProfit() == 0)
+   {
+      if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
+         PrintFormat("EnsureTPSL: failed to set TP/SL for ticket %d err=%d", ticket, GetLastError());
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Ensure shadow limit order exists for a position                   |
+//+------------------------------------------------------------------+
+void EnsureShadowOrder(const int ticket,const string system)
+{
+   if(!OrderSelect(ticket, SELECT_BY_TICKET))
+      return;
+   double entry = OrderOpenPrice();
+   bool   isBuy = (OrderType() == OP_BUY);
+   int    pendTicket;
+   if(FindShadowPending(system, entry, isBuy, pendTicket))
+      return; // already exists
+   string seq;
+   double lot = CalcLot(system, seq);
+   if(lot <= 0)
+      return;
+   double price = isBuy ? entry + PipsToPrice(GridPips)
+                        : entry - PipsToPrice(GridPips);
+   int type = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
+   string comment = MakeComment(system, seq);
+   int tk = OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrNONE);
+   if(tk < 0)
+      PrintFormat("EnsureShadowOrder: failed to place shadow order for %s err=%d", system, GetLastError());
+}
+
+//+------------------------------------------------------------------+
+//| Delete all pending orders for specified system                    |
+//+------------------------------------------------------------------+
+void DeletePendings(const string system)
+{
+   for(int i = OrdersTotal()-1; i >= 0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      int type = OrderType();
+      if(type != OP_BUYLIMIT && type != OP_SELLLIMIT && type != OP_BUYSTOP && type != OP_SELLSTOP)
+         continue;
+      string sys, seq;
+      if(!ParseComment(OrderComment(), sys, seq))
+         continue;
+      if(sys != system)
+         continue;
+      int tk = OrderTicket();
+      if(!OrderDelete(tk))
+         PrintFormat("DeletePendings: failed to delete %d err=%d", tk, GetLastError());
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Re-enter position after SL according to UseProtectedLimit         |
+//+------------------------------------------------------------------+
+void RecoverAfterSL(const string system)
+{
+   RefreshRates();
+   DeletePendings(system);
+
+   int lastType = -1;
+   for(int i = OrdersHistoryTotal()-1; i >= 0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      string sys, seq;
+      if(!ParseComment(OrderComment(), sys, seq))
+         continue;
+      if(sys != system)
+         continue;
+      int type = OrderType();
+      if(type == OP_BUY || type == OP_SELL)
+      {
+         lastType = type;
+         break;
+      }
+   }
+   if(lastType == -1)
+      return;
+
+   string seq;
+   double lot = CalcLot(system, seq);
+   if(lot <= 0)
+      return;
+
+   bool   isBuy    = (lastType == OP_BUY);
+   int    slippage = UseProtectedLimit ? (int)(SlippagePips * Pip() / Point) : 0;
+   double price    = isBuy ? Ask : Bid;
+   double sl       = isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips);
+   double tp       = isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips);
+   string comment  = MakeComment(system, seq);
+   int ticket      = OrderSend(Symbol(), isBuy ? OP_BUY : OP_SELL, lot, price,
+                               slippage, sl, tp, comment, MagicNumber, 0, clrNONE);
+   if(ticket < 0)
+   {
+      PrintFormat("RecoverAfterSL: failed to reopen %s err=%d", system, GetLastError());
+      return;
+   }
+
+   EnsureShadowOrder(ticket, system);
+
+   if(system == "A")
+      state_A = Alive;
+   else if(system == "B")
+      state_B = Alive;
+}
+
+//+------------------------------------------------------------------+
 //| Place initial market order for system A and OCO limits for B     |
 //+------------------------------------------------------------------+
 void InitStrategy()
@@ -222,6 +390,8 @@ void InitStrategy()
    if(!OrderSelect(ticketA, SELECT_BY_TICKET))
       return;
    double entryPrice = OrderOpenPrice();
+
+   EnsureShadowOrder(ticketA, "A");
 
    //---- system B OCO pending orders
    if(!CanPlace(true))
@@ -304,6 +474,8 @@ void HandleOCODetection()
       if(!OrderModify(bPosTicket, entry, sl, tp, 0, clrNONE))
          PrintFormat("Failed to set TP/SL for ticket %d err=%d", bPosTicket, GetLastError());
    }
+
+   EnsureShadowOrder(bPosTicket, "B");
 }
 
 int OnInit()
@@ -390,14 +562,26 @@ void OnTick()
       string system, seq;
       if(!ParseComment(OrderComment(), system, seq))
          continue;
-      if(system == "A")
-         hasA = true;
-      else if(system == "B")
-         hasB = true;
+      int type = OrderType();
+      if(type == OP_BUY || type == OP_SELL)
+      {
+         if(system == "A")
+            hasA = true;
+         else if(system == "B")
+            hasB = true;
+
+         EnsureTPSL(OrderTicket());
+         EnsureShadowOrder(OrderTicket(), system);
+      }
    }
 
    state_A = UpdateState(state_A, hasA);
    state_B = UpdateState(state_B, hasB);
+
+   if(state_A == Missing)
+      RecoverAfterSL("A");
+   if(state_B == Missing)
+      RecoverAfterSL("B");
 }
 
 void OnDeinit(const int reason)
