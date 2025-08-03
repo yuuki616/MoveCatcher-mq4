@@ -71,24 +71,23 @@ double NormalizeLot(const double lotCandidate)
 }
 
 //+------------------------------------------------------------------+
-//| Check spread and optional distance band before placing orders    |
-//| checkSpread=true  -> also verify spread                          |
+//| Check spread and distance band for a candidate order price       |
 //+------------------------------------------------------------------+
-bool CanPlace(const bool checkSpread)
+bool CanPlaceOrder(const double price)
 {
-   if(checkSpread)
+   RefreshRates();
+
+   double spread = PriceToPips(Ask - Bid);
+   if(spread > MaxSpreadPips)
    {
-      double spread = PriceToPips(Ask - Bid);
-      if(spread > MaxSpreadPips)
-      {
-         PrintFormat("Spread %.1f exceeds MaxSpreadPips %.1f", spread, MaxSpreadPips);
-         return(false);
-      }
+      PrintFormat("Spread %.1f exceeds MaxSpreadPips %.1f", spread, MaxSpreadPips);
+      return(false);
    }
 
    if(UseDistanceBand)
    {
-      double dist = PriceToPips(MathAbs(Ask - Bid));
+      double ref = (MathAbs(price - Ask) < MathAbs(price - Bid)) ? Ask : Bid;
+      double dist = PriceToPips(MathAbs(price - ref));
       if(dist < MinDistancePips || dist > MaxDistancePips)
       {
          PrintFormat("Distance %.1f outside band [%.1f, %.1f]", dist, MinDistancePips, MaxDistancePips);
@@ -389,27 +388,31 @@ void CloseAllOrders()
 void PlaceRefillOrders(const string system,const double refPrice)
 {
    RefreshRates();
-   if(!CanPlace(true))
-      return;
 
    string seq;
    double lot = CalcLot(system, seq);
    if(lot <= 0)
       return;
 
-   string comment = MakeComment(system, seq);
+   string comment  = MakeComment(system, seq);
    double priceSell = refPrice + PipsToPrice(s);
    double priceBuy  = refPrice - PipsToPrice(s);
 
-   int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
-                              0, 0, 0, comment, MagicNumber, 0, clrNONE);
-   if(ticketSell < 0)
-      PrintFormat("PlaceRefillOrders: failed to place SellLimit for %s err=%d", system, GetLastError());
+   if(CanPlaceOrder(priceSell))
+   {
+      int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
+                                 0, 0, 0, comment, MagicNumber, 0, clrNONE);
+      if(ticketSell < 0)
+         PrintFormat("PlaceRefillOrders: failed to place SellLimit for %s err=%d", system, GetLastError());
+   }
 
-   int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
-                             0, 0, 0, comment, MagicNumber, 0, clrNONE);
-   if(ticketBuy < 0)
-      PrintFormat("PlaceRefillOrders: failed to place BuyLimit for %s err=%d", system, GetLastError());
+   if(CanPlaceOrder(priceBuy))
+   {
+      int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
+                                0, 0, 0, comment, MagicNumber, 0, clrNONE);
+      if(ticketBuy < 0)
+         PrintFormat("PlaceRefillOrders: failed to place BuyLimit for %s err=%d", system, GetLastError());
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -454,9 +457,6 @@ void InitStrategy()
    EnsureShadowOrder(ticketA, "A");
 
    //---- system B OCO pending orders
-   if(!CanPlace(true))
-      return;
-
    string seqB; double lotB = CalcLot("B", seqB);
    if(lotB <= 0) return;
    string commentB = MakeComment("B", seqB);
@@ -464,15 +464,21 @@ void InitStrategy()
    double priceSell = entryPrice + PipsToPrice(s);
    double priceBuy  = entryPrice - PipsToPrice(s);
 
-   int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
-                              0, 0, 0, commentB, MagicNumber, 0, clrNONE);
-   if(ticketSell < 0)
-      PrintFormat("InitStrategy: failed to place SellLimit, err=%d", GetLastError());
+   if(CanPlaceOrder(priceSell))
+   {
+      int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
+                                 0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+      if(ticketSell < 0)
+         PrintFormat("InitStrategy: failed to place SellLimit, err=%d", GetLastError());
+   }
 
-   int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
-                             0, 0, 0, commentB, MagicNumber, 0, clrNONE);
-   if(ticketBuy < 0)
-      PrintFormat("InitStrategy: failed to place BuyLimit, err=%d", GetLastError());
+   if(CanPlaceOrder(priceBuy))
+   {
+      int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
+                                0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+      if(ticketBuy < 0)
+         PrintFormat("InitStrategy: failed to place BuyLimit, err=%d", GetLastError());
+   }
 }
 
 //+------------------------------------------------------------------+
