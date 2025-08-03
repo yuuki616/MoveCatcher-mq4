@@ -664,7 +664,8 @@ void EnsureShadowOrder(const int ticket,const string system)
       lru.Time       = TimeCurrent();
       lru.Symbol     = Symbol();
       lru.System     = system;
-      lru.Reason     = "REFILL_UPDATE";
+      // REFILL: 影指値の更新
+      lru.Reason     = "REFILL";
       lru.Spread     = PriceToPips(Ask - Bid);
       lru.Dist       = GridPips;
       lru.GridPips   = GridPips;
@@ -1937,7 +1938,8 @@ void OnDeinit(const int reason)
       rec.Time      = TimeCurrent();
       rec.Symbol    = Symbol();
       rec.System    = "A";
-      rec.Reason    = "STATE_SAVE_FAIL";
+      // RESET_ALIVE: 保存失敗時も規定の Reason に収める
+      rec.Reason    = "RESET_ALIVE";
       rec.Spread    = 0;
       rec.Dist      = 0;
       rec.GridPips  = GridPips;
@@ -1963,7 +1965,8 @@ void OnDeinit(const int reason)
       rec.Time      = TimeCurrent();
       rec.Symbol    = Symbol();
       rec.System    = "B";
-      rec.Reason    = "STATE_SAVE_FAIL";
+      // RESET_ALIVE: 保存失敗時も規定の Reason に収める
+      rec.Reason    = "RESET_ALIVE";
       rec.Spread    = 0;
       rec.Dist      = 0;
       rec.GridPips  = GridPips;
