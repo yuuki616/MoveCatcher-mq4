@@ -25,6 +25,10 @@ double s;   // Half grid distance
 CDecompMC stateA; // DMCMM state for system A
 CDecompMC stateB; // DMCMM state for system B
 
+enum SystemState { Alive, Missing, MissingRecovered, None };
+SystemState state_A = None;
+SystemState state_B = None;
+
 bool IsStep(const double value,const double step)
 {
    double scaled = value/step;
@@ -138,6 +142,19 @@ bool ParseComment(const string comment,string &system,string &seq)
    return(true);
 }
 
+SystemState UpdateState(const SystemState prev,const bool exists)
+{
+   if(exists)
+   {
+      if(prev == Missing)
+         return(MissingRecovered);
+      return(Alive);
+   }
+   if(prev == Alive || prev == MissingRecovered)
+      return(Missing);
+   return(None);
+}
+
 int OnInit()
 {
    if(GridPips <= 0)
@@ -189,16 +206,49 @@ int OnInit()
    stateA.Init();
    stateB.Init();
 
+   string gvA = "MoveCatcher_state_A";
+   string gvB = "MoveCatcher_state_B";
+   if(GlobalVariableCheck(gvA))
+      state_A = (SystemState)MathRound(GlobalVariableGet(gvA));
+   else
+      state_A = None;
+   if(GlobalVariableCheck(gvB))
+      state_B = (SystemState)MathRound(GlobalVariableGet(gvB));
+   else
+      state_B = None;
+
    return(INIT_SUCCEEDED);
 }
 
 void OnTick()
 {
-   // Placeholder for tick processing
+   bool hasA = false;
+   bool hasB = false;
+
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      string system, seq;
+      if(!ParseComment(OrderComment(), system, seq))
+         continue;
+      if(system == "A")
+         hasA = true;
+      else if(system == "B")
+         hasB = true;
+   }
+
+   state_A = UpdateState(state_A, hasA);
+   state_B = UpdateState(state_B, hasB);
 }
 
 void OnDeinit(const int reason)
 {
-   // Cleanup if necessary
+   string gvA = "MoveCatcher_state_A";
+   string gvB = "MoveCatcher_state_B";
+   GlobalVariableSet(gvA, state_A);
+   GlobalVariableSet(gvB, state_B);
 }
 
