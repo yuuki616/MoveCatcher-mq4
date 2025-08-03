@@ -471,6 +471,7 @@ void ProcessClosedTrades(const string system)
          continue;
       double profit = OrderProfit() + OrderSwap() + OrderCommission();
       bool win = (profit >= 0);
+      int type  = OrderType();
       if(system == "A")
       {
          stateA.OnTrade(win);
@@ -483,6 +484,34 @@ void ProcessClosedTrades(const string system)
          if(times[i] > lastCloseTimeB)
             lastCloseTimeB = times[i];
       }
+
+      string sysTmp, seq;
+      if(!ParseComment(OrderComment(), sysTmp, seq))
+         seq = "";
+      bool isTP = (type == OP_BUY) ? (OrderClosePrice() >= OrderOpenPrice())
+                                   : (OrderClosePrice() <= OrderOpenPrice());
+      LogRecord lr;
+      lr.Time       = times[i];
+      lr.Symbol     = Symbol();
+      lr.System     = system;
+      lr.Reason     = isTP ? "TP" : "SL";
+      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Dist       = 0;
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = 0;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = OrderLots();
+      lr.seqStr     = seq;
+      lr.CommentTag = OrderComment();
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = OrderTypeToStr(type);
+      lr.EntryPrice = OrderOpenPrice();
+      lr.SL         = OrderStopLoss();
+      lr.TP         = OrderTakeProfit();
+      lr.ErrorCode  = 0;
+      WriteLog(lr);
    }
 }
 
