@@ -920,7 +920,7 @@ void CorrectDuplicatePositions()
          lr.Time       = TimeCurrent();
          lr.Symbol     = Symbol();
          lr.System     = "A";
-         lr.Reason     = "RESET_DUP";
+         lr.Reason     = "RESET_ALIVE";
          lr.Spread     = PriceToPips(Ask - Bid);
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
@@ -944,7 +944,7 @@ void CorrectDuplicatePositions()
             PrintFormat("CorrectDuplicatePositions: failed to close %d err=%d", tk, err);
       }
       ProcessClosedTrades("A");
-      DeletePendings("A", "RESET_DUP");
+      DeletePendings("A", "RESET_ALIVE");
    }
 
    int countB = ArraySize(ticketsB);
@@ -970,7 +970,7 @@ void CorrectDuplicatePositions()
          lr.Time       = TimeCurrent();
          lr.Symbol     = Symbol();
          lr.System     = "B";
-         lr.Reason     = "RESET_DUP";
+         lr.Reason     = "RESET_ALIVE";
          lr.Spread     = PriceToPips(Ask - Bid);
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
@@ -994,7 +994,7 @@ void CorrectDuplicatePositions()
             PrintFormat("CorrectDuplicatePositions: failed to close %d err=%d", tk, err);
       }
       ProcessClosedTrades("B");
-      DeletePendings("B", "RESET_DUP");
+      DeletePendings("B", "RESET_ALIVE");
    }
 }
 
