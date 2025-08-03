@@ -238,8 +238,9 @@ bool LoadDMCState(const string system,CDecompMC &state)
 
 //+------------------------------------------------------------------+
 //| Check spread and distance band for a candidate order price       |
+//| refPrice: entry price of the other system for distance band      |
 //+------------------------------------------------------------------+
-bool CanPlaceOrder(double &price,const bool isBuy)
+bool CanPlaceOrder(double &price,const bool isBuy,const double refPrice)
 {
    RefreshRates();
 
@@ -274,10 +275,10 @@ bool CanPlaceOrder(double &price,const bool isBuy)
 
    if(UseDistanceBand)
    {
-      dist = PriceToPips(MathAbs(price - ref));
-      if(dist < MinDistancePips || dist > MaxDistancePips)
+      double bandDist = PriceToPips(MathAbs(price - refPrice));
+      if(bandDist < MinDistancePips || bandDist > MaxDistancePips)
       {
-         PrintFormat("Distance %.1f outside band [%.1f, %.1f]", dist, MinDistancePips, MaxDistancePips);
+         PrintFormat("Distance %.1f outside band [%.1f, %.1f]", bandDist, MinDistancePips, MaxDistancePips);
          return(false);
       }
    }
@@ -1191,7 +1192,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
          PrintFormat("PlaceRefillOrders: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      old, priceSell, PriceToPips(stopLevel));
       }
-      if(CanPlaceOrder(priceSell, false))
+      if(CanPlaceOrder(priceSell, false, refPrice))
       {
          int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
                                     0, 0, 0, comment, MagicNumber, 0, clrNONE);
@@ -1235,7 +1236,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
          PrintFormat("PlaceRefillOrders: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      oldB, priceBuy, PriceToPips(stopLevel));
       }
-      if(CanPlaceOrder(priceBuy, true))
+      if(CanPlaceOrder(priceBuy, true, refPrice))
       {
          int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
                                    0, 0, 0, comment, MagicNumber, 0, clrNONE);
@@ -1378,7 +1379,7 @@ void InitStrategy()
          PrintFormat("InitStrategy: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      oldS, priceSell, PriceToPips(stopLevel));
       }
-      if(CanPlaceOrder(priceSell, false))
+      if(CanPlaceOrder(priceSell, false, entryPrice))
       {
          int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
                                     0, 0, 0, commentB, MagicNumber, 0, clrNONE);
@@ -1422,7 +1423,7 @@ void InitStrategy()
          PrintFormat("InitStrategy: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      oldB, priceBuy, PriceToPips(stopLevel));
       }
-      if(CanPlaceOrder(priceBuy, true))
+      if(CanPlaceOrder(priceBuy, true, entryPrice))
       {
          int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
                                    0, 0, 0, commentB, MagicNumber, 0, clrNONE);
