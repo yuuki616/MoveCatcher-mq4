@@ -284,6 +284,13 @@ double CalcLot(const string system,string &seq)
    if(lotCandidate > MaxLot)
    {
       state.Init();
+
+      lotFactor    = state.NextLot();
+      seq          = "(" + state.Seq() + ")";
+      lotCandidate = BaseLot * lotFactor;
+
+      double lotActual = NormalizeLot(MathMin(lotCandidate, MaxLot));
+
       LogRecord lr;
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
@@ -296,7 +303,7 @@ double CalcLot(const string system,string &seq)
       lr.lotFactor  = lotFactor;
       lr.BaseLot    = BaseLot;
       lr.MaxLot     = MaxLot;
-      lr.actualLot  = lotCandidate;
+      lr.actualLot  = lotActual;
       lr.seqStr     = seq;
       lr.CommentTag = "";
       lr.Magic      = MagicNumber;
@@ -306,13 +313,12 @@ double CalcLot(const string system,string &seq)
       lr.TP         = 0;
       lr.ErrorCode  = 0;
       WriteLog(lr);
-      lotFactor    = state.NextLot();
-      seq          = "(" + state.Seq() + ")";
-      lotCandidate = BaseLot * lotFactor;
+
+      return(lotActual);
    }
 
-   double lotActual = MathMin(lotCandidate, MaxLot);
-   return(NormalizeLot(lotActual));
+   double lotActual = NormalizeLot(MathMin(lotCandidate, MaxLot));
+   return(lotActual);
 }
 
 //+------------------------------------------------------------------+
