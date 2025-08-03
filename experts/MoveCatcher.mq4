@@ -765,16 +765,52 @@ void RecoverAfterSL(const string system)
    lr.CommentTag = comment;
    lr.Magic      = MagicNumber;
    lr.OrderType  = OrderTypeToStr(type);
-   lr.EntryPrice = price;
-   lr.SL         = sl;
-   lr.TP         = tp;
    lr.ErrorCode  = (ticket < 0) ? GetLastError() : 0;
-   WriteLog(lr);
    if(ticket < 0)
    {
+      WriteLog(lr);
       PrintFormat("RecoverAfterSL: failed to reopen %s err=%d", system, lr.ErrorCode);
       return;
    }
+
+   if(!OrderSelect(ticket, SELECT_BY_TICKET))
+   {
+      lr.ErrorCode = GetLastError();
+      WriteLog(lr);
+      PrintFormat("RecoverAfterSL: failed to select reopened order for %s err=%d", system, lr.ErrorCode);
+      return;
+   }
+   double entry = OrderOpenPrice();
+   double desiredSL = isBuy ? entry - PipsToPrice(GridPips) : entry + PipsToPrice(GridPips);
+   double desiredTP = isBuy ? entry + PipsToPrice(GridPips) : entry - PipsToPrice(GridPips);
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   double minLevel    = MathMax(stopLevel, freezeLevel);
+   if(isBuy)
+   {
+      if(Bid - desiredSL < minLevel)
+         desiredSL = Bid - minLevel;
+      if(desiredTP - Ask < minLevel)
+         desiredTP = Ask + minLevel;
+   }
+   else
+   {
+      if(desiredSL - Ask < minLevel)
+         desiredSL = Ask + minLevel;
+      if(Bid - desiredTP < minLevel)
+         desiredTP = Bid - minLevel;
+   }
+   desiredSL = NormalizeDouble(desiredSL, Digits);
+   desiredTP = NormalizeDouble(desiredTP, Digits);
+   if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
+   {
+      int err = GetLastError();
+      PrintFormat("RecoverAfterSL: failed to adjust TP/SL for %s ticket %d err=%d", system, ticket, err);
+   }
+   lr.EntryPrice = entry;
+   lr.SL         = desiredSL;
+   lr.TP         = desiredTP;
+   WriteLog(lr);
 
    EnsureShadowOrder(ticket, system);
 
