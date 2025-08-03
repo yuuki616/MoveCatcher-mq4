@@ -489,7 +489,8 @@ void ProcessClosedTrades(const string system)
 //+------------------------------------------------------------------+
 //| Find existing shadow pending order for a position                |
 //+------------------------------------------------------------------+
-bool FindShadowPending(const string system,const double entry,const bool isBuy,int &ticket)
+bool FindShadowPending(const string system,const double entry,const bool isBuy,
+                      int &ticket,double &lot,string &comment)
 {
    double target = isBuy ? entry + PipsToPrice(GridPips)
                          : entry - PipsToPrice(GridPips);
@@ -512,12 +513,16 @@ bool FindShadowPending(const string system,const double entry,const bool isBuy,i
       {
          if(MathAbs(OrderOpenPrice() - target) <= tol)
          {
-            ticket = OrderTicket();
+            ticket  = OrderTicket();
+            lot     = OrderLots();
+            comment = OrderComment();
             return(true);
          }
       }
    }
-   ticket = -1;
+   ticket  = -1;
+   lot     = 0;
+   comment = "";
    return(false);
 }
 
@@ -579,19 +584,70 @@ void EnsureShadowOrder(const int ticket,const string system)
       return;
    double entry = OrderOpenPrice();
    bool   isBuy = (OrderType() == OP_BUY);
-   int    pendTicket;
-   if(FindShadowPending(system, entry, isBuy, pendTicket))
-      return; // already exists
    string seq;
    double lotFactor;
    double lot = CalcLot(system, seq, lotFactor);
    if(lot <= 0)
       return;
+   string comment = MakeComment(system, seq);
+
+   int    pendTicket;
+   double pendLot;
+   string pendComment;
+   if(FindShadowPending(system, entry, isBuy, pendTicket, pendLot, pendComment))
+   {
+      double lotStep = MarketInfo(Symbol(), MODE_LOTSTEP);
+      double lotTol  = (lotStep > 0) ? lotStep * 0.5 : 1e-8;
+      if(MathAbs(pendLot - lot) <= lotTol && pendComment == comment)
+         return; // already exists with expected lot/comment
+
+      int pendType  = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
+      double pendPrice = isBuy ? entry + PipsToPrice(GridPips)
+                               : entry - PipsToPrice(GridPips);
+      if(OrderSelect(pendTicket, SELECT_BY_TICKET))
+      {
+         pendType  = OrderType();
+         pendPrice = OrderOpenPrice();
+      }
+      int err = 0;
+      bool ok = OrderDelete(pendTicket);
+      if(!ok)
+         err = GetLastError();
+
+      LogRecord lru;
+      lru.Time       = TimeCurrent();
+      lru.Symbol     = Symbol();
+      lru.System     = system;
+      lru.Reason     = "REFILL_UPDATE";
+      lru.Spread     = PriceToPips(Ask - Bid);
+      lru.Dist       = GridPips;
+      lru.GridPips   = GridPips;
+      lru.s          = s;
+      lru.lotFactor  = 0;
+      lru.BaseLot    = BaseLot;
+      lru.MaxLot     = MaxLot;
+      lru.actualLot  = pendLot;
+      lru.seqStr     = "";
+      lru.CommentTag = pendComment;
+      lru.Magic      = MagicNumber;
+      lru.OrderType  = OrderTypeToStr(pendType);
+      lru.EntryPrice = pendPrice;
+      lru.SL         = 0;
+      lru.TP         = 0;
+      lru.ErrorCode  = err;
+      WriteLog(lru);
+      if(!ok)
+      {
+         PrintFormat("EnsureShadowOrder: failed to delete shadow order for %s err=%d", system, err);
+         return;
+      }
+      PrintFormat("EnsureShadowOrder: replaced shadow order for %s", system);
+   }
+
    double price = isBuy ? entry + PipsToPrice(GridPips)
                         : entry - PipsToPrice(GridPips);
    price = NormalizeDouble(price, Digits);
    int type = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
-   string comment = MakeComment(system, seq);
 
    RefreshRates();
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
