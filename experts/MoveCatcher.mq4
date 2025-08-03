@@ -1066,7 +1066,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       }
    }
 
-   double distBuy = MathAbs(Bid - priceBuy);
+   double distBuy = MathAbs(Ask - priceBuy);
    if(distBuy < freezeLevel)
       PrintFormat("PlaceRefillOrders: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceBuy, PriceToPips(freezeLevel));
@@ -1075,7 +1075,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       if(distBuy < stopLevel)
       {
          double oldB = priceBuy;
-         priceBuy = NormalizeDouble(Bid - stopLevel, Digits);
+         priceBuy = NormalizeDouble(Ask - stopLevel, Digits);
          PrintFormat("PlaceRefillOrders: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      oldB, priceBuy, PriceToPips(stopLevel));
       }
@@ -1253,7 +1253,7 @@ void InitStrategy()
       }
    }
 
-   double distBuy = MathAbs(Bid - priceBuy);
+   double distBuy = MathAbs(Ask - priceBuy);
    if(distBuy < freezeLevel)
       PrintFormat("InitStrategy: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceBuy, PriceToPips(freezeLevel));
@@ -1262,7 +1262,7 @@ void InitStrategy()
       if(distBuy < stopLevel)
       {
          double oldB = priceBuy;
-         priceBuy = NormalizeDouble(Bid - stopLevel, Digits);
+         priceBuy = NormalizeDouble(Ask - stopLevel, Digits);
          PrintFormat("InitStrategy: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      oldB, priceBuy, PriceToPips(stopLevel));
       }
