@@ -19,12 +19,44 @@ input int    MagicNumber       = 246810;// Magic number for order identification
 
 // Derived values
 double s;   // Half grid distance
-double Pip; // Point-to-pip conversion
 
 bool IsStep(const double value,const double step)
 {
    double scaled = value/step;
    return(MathAbs(scaled - MathRound(scaled)) < 1e-8);
+}
+
+double Pip()
+{
+   return((Digits == 3 || Digits == 5) ? 10 * Point : Point);
+}
+
+double PipsToPrice(const double p)
+{
+   return(p * Pip());
+}
+
+double PriceToPips(const double priceDiff)
+{
+   return(priceDiff / Pip());
+}
+
+double NormalizeLot(const double lotCandidate)
+{
+   double minLot  = MarketInfo(Symbol(), MODE_MINLOT);
+   double maxLot  = MarketInfo(Symbol(), MODE_MAXLOT);
+   double lotStep = MarketInfo(Symbol(), MODE_LOTSTEP);
+
+   double lot = lotCandidate;
+   if(lotStep > 0)
+      lot = MathRound(lot / lotStep) * lotStep;
+
+   if(lot < minLot)
+      lot = minLot;
+   if(lot > maxLot)
+      lot = maxLot;
+
+   return(lot);
 }
 
 int OnInit()
@@ -74,7 +106,6 @@ int OnInit()
    }
 
    s   = GridPips / 2.0;
-   Pip = (Digits == 3 || Digits == 5) ? 10 * Point : Point;
 
    return(INIT_SUCCEEDED);
 }
