@@ -1473,6 +1473,9 @@ void OnTick()
    HandleOCODetection();
    CorrectDuplicatePositions();
 
+   SystemState prevA = state_A;
+   SystemState prevB = state_B;
+
    bool hasA = false;
    bool hasB = false;
    bool pendA = false;
@@ -1564,35 +1567,43 @@ void OnTick()
       }
    }
 
-   if(posCount == 0 && (pendA || pendB))
+   SystemState nextA = UpdateState(prevA, hasA);
+   SystemState nextB = UpdateState(prevB, hasB);
+
+   if(posCount == 0)
    {
-      LogRecord lr;
-      lr.Time       = TimeCurrent();
-      lr.Symbol     = Symbol();
-      lr.System     = "";
-      lr.Reason     = "RESET_ALIVE";
-      lr.Spread     = PriceToPips(Ask - Bid);
-      lr.Dist       = 0;
-      lr.GridPips   = GridPips;
-      lr.s          = s;
-      lr.lotFactor  = 0;
-      lr.BaseLot    = BaseLot;
-      lr.MaxLot     = MaxLot;
-      lr.actualLot  = 0;
-      lr.seqStr     = "";
-      lr.CommentTag = "";
-      lr.Magic      = MagicNumber;
-      lr.OrderType  = "";
-      lr.EntryPrice = 0;
-      lr.SL         = 0;
-      lr.TP         = 0;
-      lr.ErrorCode  = 0;
-      WriteLog(lr);
-      CloseAllOrders("RESET_ALIVE");
-      state_A = None;
-      state_B = None;
-      InitStrategy();
-      return;
+      bool aMissingBClosed = (prevA == Missing && (prevB == Alive || prevB == MissingRecovered) && nextA == Missing && nextB == Missing);
+      bool bMissingAClosed = (prevB == Missing && (prevA == Alive || prevA == MissingRecovered) && nextB == Missing && nextA == Missing);
+      if(aMissingBClosed || bMissingAClosed)
+      {
+         LogRecord lr;
+         lr.Time       = TimeCurrent();
+         lr.Symbol     = Symbol();
+         lr.System     = "";
+         lr.Reason     = "RESET_ALIVE";
+         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Dist       = 0;
+         lr.GridPips   = GridPips;
+         lr.s          = s;
+         lr.lotFactor  = 0;
+         lr.BaseLot    = BaseLot;
+         lr.MaxLot     = MaxLot;
+         lr.actualLot  = 0;
+         lr.seqStr     = "";
+         lr.CommentTag = "";
+         lr.Magic      = MagicNumber;
+         lr.OrderType  = "";
+         lr.EntryPrice = 0;
+         lr.SL         = 0;
+         lr.TP         = 0;
+         lr.ErrorCode  = 0;
+         WriteLog(lr);
+         CloseAllOrders("RESET_ALIVE");
+         state_A = None;
+         state_B = None;
+         InitStrategy();
+         return;
+      }
    }
 
    if(posCount == 1)
@@ -1609,8 +1620,8 @@ void OnTick()
       }
    }
 
-   state_A = UpdateState(state_A, hasA);
-   state_B = UpdateState(state_B, hasB);
+   state_A = nextA;
+   state_B = nextB;
 
    if(state_A == Missing)
       RecoverAfterSL("A");
