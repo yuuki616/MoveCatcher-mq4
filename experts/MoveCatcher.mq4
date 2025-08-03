@@ -315,6 +315,8 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       lotCandidate = BaseLot * lotFactor;
       lotCandidate = MathMin(lotCandidate, MaxLot);
       double lotActual = NormalizeLot(lotCandidate);
+      if(lotActual > MaxLot)
+         lotActual = NormalizeLot(MaxLot);
 
       LogRecord lr;
       lr.Time       = TimeCurrent();
@@ -344,6 +346,8 @@ double CalcLot(const string system,string &seq,double &lotFactor)
 
    lotCandidate = MathMin(lotCandidate, MaxLot);
    double lotActual = NormalizeLot(lotCandidate);
+   if(lotActual > MaxLot)
+      lotActual = NormalizeLot(MaxLot);
    return(lotActual);
 }
 
