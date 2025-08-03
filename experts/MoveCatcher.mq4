@@ -952,6 +952,7 @@ void CorrectDuplicatePositions()
          if(!ok)
             PrintFormat("CorrectDuplicatePositions: failed to close %d err=%d", tk, err);
       }
+      ProcessClosedTrades("A");
       DeletePendings("A", "RESET_DUP");
    }
 
@@ -1001,6 +1002,7 @@ void CorrectDuplicatePositions()
          if(!ok)
             PrintFormat("CorrectDuplicatePositions: failed to close %d err=%d", tk, err);
       }
+      ProcessClosedTrades("B");
       DeletePendings("B", "RESET_DUP");
    }
 }
