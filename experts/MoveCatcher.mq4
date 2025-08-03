@@ -29,6 +29,8 @@ enum SystemState { Alive, Missing, MissingRecovered, None };
 SystemState state_A = None;
 SystemState state_B = None;
 
+int lastSnapBar = -1; // last bar index when tick snap reset occurred
+
 bool IsStep(const double value,const double step)
 {
    double scaled = value/step;
@@ -627,6 +629,8 @@ void OnTick()
    bool pendB = false;
    int  ticketA = -1;
    int  ticketB = -1;
+   double priceA = 0.0;
+   double priceB = 0.0;
 
    for(int i = OrdersTotal() - 1; i >= 0; i--)
    {
@@ -638,18 +642,20 @@ void OnTick()
       if(!ParseComment(OrderComment(), system, seq))
          continue;
       int type = OrderType();
-      if(type == OP_BUY || type == OP_SELL)
-      {
-         if(system == "A")
+         if(type == OP_BUY || type == OP_SELL)
          {
-            hasA = true;
-            ticketA = OrderTicket();
-         }
-         else if(system == "B")
-         {
-            hasB = true;
-            ticketB = OrderTicket();
-         }
+            if(system == "A")
+            {
+               hasA = true;
+               ticketA = OrderTicket();
+               priceA  = OrderOpenPrice();
+            }
+            else if(system == "B")
+            {
+               hasB = true;
+               ticketB = OrderTicket();
+               priceB  = OrderOpenPrice();
+            }
 
          EnsureTPSL(OrderTicket());
          EnsureShadowOrder(OrderTicket(), system);
@@ -665,6 +671,26 @@ void OnTick()
    }
 
    int posCount = (hasA ? 1 : 0) + (hasB ? 1 : 0);
+
+   if(UseTickSnap && posCount == 2)
+   {
+      double dist = PriceToPips(MathAbs(priceA - priceB));
+      double lower = s - EpsilonPips;
+      double upper = s + EpsilonPips;
+      if(dist < lower || dist > upper)
+      {
+         int currentBar = Bars;
+         if(lastSnapBar == -1 || currentBar - lastSnapBar >= SnapCooldownBars)
+         {
+            CloseAllOrders();
+            state_A = None;
+            state_B = None;
+            InitStrategy();
+            lastSnapBar = currentBar;
+            return;
+         }
+      }
+   }
 
    if(posCount == 0 && (pendA || pendB))
    {
