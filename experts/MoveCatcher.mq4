@@ -1685,9 +1685,10 @@ void HandleOCODetectionFor(const string system)
          WriteLog(lr);
          if(!ok)
             PrintFormat("Failed to delete pending order %d err=%d", delTicket, err);
-      }
    }
+  }
 
+   RefreshRates(); // 最新の Bid/Ask を取得
    double entry = OrderOpenPrice();
    double sl, tp;
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
