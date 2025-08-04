@@ -1802,6 +1802,49 @@ void HandleOCODetectionFor(const string system)
 
    string seqAdj; double lotFactorAdj;
    double expectedLot = CalcLot(system, seqAdj, lotFactorAdj);
+   if(expectedLot <= 0)
+   {
+      string tmpComment = MakeComment(system, seqAdj);
+      bool shouldLog = true;
+      if(system == "A")
+      {
+         if(retryTicketA == posTicket)
+            shouldLog = false;
+         retryTicketA = posTicket;
+      }
+      else
+      {
+         if(retryTicketB == posTicket)
+            shouldLog = false;
+         retryTicketB = posTicket;
+      }
+      if(shouldLog)
+      {
+         LogRecord lrSkip;
+         lrSkip.Time       = TimeCurrent();
+         lrSkip.Symbol     = Symbol();
+         lrSkip.System     = system;
+         lrSkip.Reason     = "REFILL";
+         lrSkip.Spread     = PriceToPips(Ask - Bid);
+         lrSkip.Dist       = 0;
+         lrSkip.GridPips   = GridPips;
+         lrSkip.s          = s;
+         lrSkip.lotFactor  = lotFactorAdj;
+         lrSkip.BaseLot    = BaseLot;
+         lrSkip.MaxLot     = MaxLot;
+         lrSkip.actualLot  = 0;
+         lrSkip.seqStr     = seqAdj;
+         lrSkip.CommentTag = tmpComment;
+         lrSkip.Magic      = MagicNumber;
+         lrSkip.OrderType  = "";
+         lrSkip.EntryPrice = 0;
+         lrSkip.SL         = 0;
+         lrSkip.TP         = 0;
+         lrSkip.ErrorCode  = 0;
+         WriteLog(lrSkip);
+      }
+      return;
+   }
    string expectedComment = MakeComment(system, seqAdj);
    if(MathAbs(OrderLots() - expectedLot) > 1e-8 || OrderComment() != expectedComment)
    {
@@ -2291,6 +2334,9 @@ void OnTick()
       RecoverAfterSL("A");
    if(state_B == Missing)
       RecoverAfterSL("B");
+
+   if(retryTicketA != -1 || retryTicketB != -1)
+      HandleOCODetection();
 }
 
 void OnDeinit(const int reason)
