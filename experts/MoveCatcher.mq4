@@ -2214,6 +2214,8 @@ void HandleOCODetectionFor(const string system)
          return;
       }
 
+      ProcessClosedTrades(system, false);
+
       RefreshRates();
       double price = (type == OP_BUY) ? Ask : Bid;
       double dist = DistanceToExistingPositions(price);
