@@ -585,6 +585,7 @@ bool FindShadowPending(const string system,const double entry,const bool isBuy,
 //+------------------------------------------------------------------+
 void EnsureTPSL(const int ticket)
 {
+   RefreshRates();
    if(!OrderSelect(ticket, SELECT_BY_TICKET))
       return;
    double entry = OrderOpenPrice();
