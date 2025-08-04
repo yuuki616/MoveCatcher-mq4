@@ -1819,6 +1819,11 @@ int OnInit()
          return(INIT_PARAMETERS_INCORRECT);
       }
    }
+   if(SnapCooldownBars < 0)
+   {
+      Print("SnapCooldownBars must be non-negative");
+      return(INIT_PARAMETERS_INCORRECT);
+   }
    if(BaseLot <= 0 || !IsStep(BaseLot,0.01))
    {
       Print("BaseLot must be positive and in 0.01 increments");
