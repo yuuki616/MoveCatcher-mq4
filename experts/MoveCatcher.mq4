@@ -456,6 +456,7 @@ void InitCloseTimes()
 //+------------------------------------------------------------------+
 void ProcessClosedTrades(const string system,const bool updateDMC)
 {
+   RefreshRates();
    datetime lastTime = (system == "A") ? lastCloseTimeA : lastCloseTimeB;
    int tickets[];
    datetime times[];
