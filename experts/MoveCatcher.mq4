@@ -2573,10 +2573,49 @@ int OnInit()
    else
       state_B = None;
 
+   // Check for existing positions or orders for this EA
+   bool hasAny = false;
+   bool hasA   = false;
+   bool hasB   = false;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      hasAny = true;
+      int type = OrderType();
+      string sys, seq;
+      if(!ParseComment(OrderComment(), sys, seq))
+         continue;
+      if(type == OP_BUY || type == OP_SELL)
+      {
+         if(sys == "A")
+            hasA = true;
+         else if(sys == "B")
+            hasB = true;
+      }
+      else if(type == OP_BUYLIMIT || type == OP_SELLLIMIT ||
+              type == OP_BUYSTOP  || type == OP_SELLSTOP)
+      {
+         // pending orders exist for this EA
+      }
+   }
+
+   SystemState prevA = state_A;
+   SystemState prevB = state_B;
+   state_A = UpdateState(prevA, hasA);
+   state_B = UpdateState(prevB, hasB);
+
    MathSrand(GetTickCount());
    InitCloseTimes();
-   if(!InitStrategy())
-      Print("InitStrategy failed, will retry on next tick");
+   if(hasAny)
+      Print("Existing entries found, InitStrategy skipped");
+   else
+   {
+      if(!InitStrategy())
+         Print("InitStrategy failed, will retry on next tick");
+   }
 
    return(INIT_SUCCEEDED);
 }
