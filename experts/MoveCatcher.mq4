@@ -825,8 +825,8 @@ void RecoverAfterSL(const string system)
    bool   isBuy    = (lastType == OP_BUY);
    int    slippage = UseProtectedLimit ? (int)(SlippagePips * Pip() / Point) : 0;
    double price    = isBuy ? Ask : Bid;
-   double sl       = isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips);
-   double tp       = isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips);
+   double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);
+   double tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), Digits);
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
    double minLevel    = MathMax(stopLevel, freezeLevel);
