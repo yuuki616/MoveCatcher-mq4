@@ -871,10 +871,13 @@ void RecoverAfterSL(const string system)
    lr.CommentTag = comment;
    lr.Magic      = MagicNumber;
    lr.OrderType  = OrderTypeToStr(type);
+   lr.EntryPrice = price;
+   lr.SL         = sl;
+   lr.TP         = tp;
    lr.ErrorCode  = (ticket < 0) ? GetLastError() : 0;
+   WriteLog(lr);
    if(ticket < 0)
    {
-      WriteLog(lr);
       PrintFormat("RecoverAfterSL: failed to reopen %s err=%d", system, lr.ErrorCode);
       return;
    }
