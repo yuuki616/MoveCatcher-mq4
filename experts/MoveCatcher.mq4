@@ -451,8 +451,9 @@ void InitCloseTimes()
 
 //+------------------------------------------------------------------+
 //| Process newly closed trades for specified system                  |
+//| updateDMC=false で DMCMM 状態更新を抑制しログのみ残す           |
 //+------------------------------------------------------------------+
-void ProcessClosedTrades(const string system)
+void ProcessClosedTrades(const string system,const bool updateDMC)
 {
    datetime lastTime = (system == "A") ? lastCloseTimeA : lastCloseTimeB;
    int tickets[];
@@ -489,13 +490,15 @@ void ProcessClosedTrades(const string system)
       int type  = OrderType();
       if(system == "A")
       {
-         stateA.OnTrade(win);
+         if(updateDMC)
+            stateA.OnTrade(win);
          if(times[i] > lastCloseTimeA)
             lastCloseTimeA = times[i];
       }
       else
       {
-         stateB.OnTrade(win);
+         if(updateDMC)
+            stateB.OnTrade(win);
          if(times[i] > lastCloseTimeB)
             lastCloseTimeB = times[i];
       }
@@ -799,7 +802,7 @@ void DeletePendings(const string system,const string reason)
 void RecoverAfterSL(const string system)
 {
    RefreshRates();
-   ProcessClosedTrades(system);
+   ProcessClosedTrades(system, true);
    DeletePendings(system, "SL");
 
    int lastType = -1;
@@ -999,7 +1002,7 @@ void CloseAllOrders(const string reason)
          if(!ok)
             PrintFormat("CloseAllOrders: failed to close %d err=%d", ticket, err);
          else if(updateDMC)
-            ProcessClosedTrades(sysTmp);
+            ProcessClosedTrades(sysTmp, true);
       }
       else if(type == OP_BUYLIMIT || type == OP_SELLLIMIT ||
               type == OP_BUYSTOP  || type == OP_SELLSTOP)
@@ -1126,7 +1129,7 @@ void CorrectDuplicatePositions()
          if(!ok)
             PrintFormat("CorrectDuplicatePositions: failed to close %d err=%d", tk, err);
       }
-      ProcessClosedTrades("A");
+      ProcessClosedTrades("A", false);
       DeletePendings("A", "RESET_ALIVE");
    }
 
@@ -1176,7 +1179,7 @@ void CorrectDuplicatePositions()
          if(!ok)
             PrintFormat("CorrectDuplicatePositions: failed to close %d err=%d", tk, err);
       }
-      ProcessClosedTrades("B");
+      ProcessClosedTrades("B", false);
       DeletePendings("B", "RESET_ALIVE");
    }
 }
@@ -1482,7 +1485,7 @@ void InitStrategy()
 //+------------------------------------------------------------------+
 void HandleOCODetectionFor(const string system)
 {
-   ProcessClosedTrades(system);
+   ProcessClosedTrades(system, true);
    int posTicket = -1;
    if(system == "A")
    {
