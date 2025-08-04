@@ -239,6 +239,31 @@ bool LoadDMCState(const string system,CDecompMC &state)
 }
 
 //+------------------------------------------------------------------+
+//| Calculate distance (pips) from a price to existing positions      |
+//| Returns -1 if there are no existing positions                    |
+//+------------------------------------------------------------------+
+double DistanceToExistingPositions(const double price)
+{
+   double minDist = DBL_MAX;
+   for(int i = OrdersTotal()-1; i >= 0; i--)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      int type = OrderType();
+      if(type != OP_BUY && type != OP_SELL)
+         continue;
+      double d = MathAbs(price - OrderOpenPrice());
+      if(d < minDist)
+         minDist = d;
+   }
+   if(minDist == DBL_MAX)
+      return(-1);
+   return PriceToPips(minDist);
+}
+
+//+------------------------------------------------------------------+
 //| Check spread and distance band for a candidate order price       |
 //| refPrice: entry price of the other system for distance band      |
 //+------------------------------------------------------------------+
@@ -927,6 +952,35 @@ void RecoverAfterSL(const string system)
                   oldTP, tp, PriceToPips(minLevel));
    }
    string comment  = MakeComment(system, seq);
+   double dist     = DistanceToExistingPositions(price);
+   if(UseDistanceBand && dist >= 0 && (dist < MinDistancePips || dist > MaxDistancePips))
+   {
+      LogRecord lrSkip;
+      lrSkip.Time       = TimeCurrent();
+      lrSkip.Symbol     = Symbol();
+      lrSkip.System     = system;
+      lrSkip.Reason     = "SL";
+      lrSkip.Spread     = PriceToPips(Ask - Bid);
+      lrSkip.Dist       = dist;
+      lrSkip.GridPips   = GridPips;
+      lrSkip.s          = s;
+      lrSkip.lotFactor  = lotFactor;
+      lrSkip.BaseLot    = BaseLot;
+      lrSkip.MaxLot     = MaxLot;
+      lrSkip.actualLot  = lot;
+      lrSkip.seqStr     = seq;
+      lrSkip.CommentTag = comment;
+      lrSkip.Magic      = MagicNumber;
+      lrSkip.OrderType  = OrderTypeToStr(isBuy ? OP_BUY : OP_SELL);
+      lrSkip.EntryPrice = price;
+      lrSkip.SL         = sl;
+      lrSkip.TP         = tp;
+      lrSkip.ErrorCode  = 0;
+      WriteLog(lrSkip);
+      PrintFormat("RecoverAfterSL: distance %.1f outside band [%.1f, %.1f], order skipped",
+                  dist, MinDistancePips, MaxDistancePips);
+      return;
+   }
    int type        = isBuy ? OP_BUY : OP_SELL;
    int ticket      = OrderSend(Symbol(), type, lot, price,
                                slippage, sl, tp, comment, MagicNumber, 0, clrNONE);
@@ -936,7 +990,7 @@ void RecoverAfterSL(const string system)
    lr.System     = system;
    lr.Reason     = "SL";
    lr.Spread     = PriceToPips(Ask - Bid);
-   lr.Dist       = 0;
+    lr.Dist       = (dist >= 0) ? dist : 0;
    lr.GridPips   = GridPips;
    lr.s          = s;
    lr.lotFactor  = lotFactor;
@@ -1592,8 +1646,36 @@ bool InitStrategy()
       PrintFormat("InitStrategy: TP adjusted from %.5f to %.5f due to min distance %.1f pips",
                   oldTP, entryTP, PriceToPips(minLevel));
    }
-
    string commentA = MakeComment("A", seqA);
+   double distA    = DistanceToExistingPositions(price);
+   if(UseDistanceBand && distA >= 0 && (distA < MinDistancePips || distA > MaxDistancePips))
+   {
+      LogRecord lrSkipA;
+      lrSkipA.Time       = TimeCurrent();
+      lrSkipA.Symbol     = Symbol();
+      lrSkipA.System     = "A";
+      lrSkipA.Reason     = "INIT";
+      lrSkipA.Spread     = PriceToPips(Ask - Bid);
+      lrSkipA.Dist       = distA;
+      lrSkipA.GridPips   = GridPips;
+      lrSkipA.s          = s;
+      lrSkipA.lotFactor  = lotFactorA;
+      lrSkipA.BaseLot    = BaseLot;
+      lrSkipA.MaxLot     = MaxLot;
+      lrSkipA.actualLot  = lotA;
+      lrSkipA.seqStr     = seqA;
+      lrSkipA.CommentTag = commentA;
+      lrSkipA.Magic      = MagicNumber;
+      lrSkipA.OrderType  = OrderTypeToStr(isBuy ? OP_BUY : OP_SELL);
+      lrSkipA.EntryPrice = price;
+      lrSkipA.SL         = entrySL;
+      lrSkipA.TP         = entryTP;
+      lrSkipA.ErrorCode  = 0;
+      WriteLog(lrSkipA);
+      PrintFormat("InitStrategy: distance %.1f outside band [%.1f, %.1f], order skipped",
+                  distA, MinDistancePips, MaxDistancePips);
+      return(false);
+   }
    int typeA   = isBuy ? OP_BUY : OP_SELL;
    int ticketA = OrderSend(Symbol(), typeA, lotA, price,
                            slippage, entrySL, entryTP, commentA, MagicNumber, 0, clrNONE);
@@ -1603,7 +1685,7 @@ bool InitStrategy()
    lrA.System     = "A";
    lrA.Reason     = "INIT";
    lrA.Spread     = PriceToPips(Ask - Bid);
-   lrA.Dist       = 0;
+   lrA.Dist       = (distA >= 0) ? distA : 0;
    lrA.GridPips   = GridPips;
    lrA.s          = s;
    lrA.lotFactor  = lotFactorA;
@@ -1645,17 +1727,17 @@ bool InitStrategy()
    int ticketBuy  = -1;
    bool okSell = true;
    bool okBuy  = true;
-
    double distSell = MathAbs(Bid - priceSell);
    if(distSell < freezeLevel)
    {
+      double distBand = DistanceToExistingPositions(priceSell);
       LogRecord lrS;
       lrS.Time       = TimeCurrent();
       lrS.Symbol     = Symbol();
       lrS.System     = "B";
       lrS.Reason     = "INIT";
       lrS.Spread     = PriceToPips(Ask - Bid);
-      lrS.Dist       = PriceToPips(MathAbs(priceSell - entryPrice));
+      lrS.Dist       = (distBand >= 0) ? distBand : 0;
       lrS.GridPips   = GridPips;
       lrS.s          = s;
       lrS.lotFactor  = lotFactorB;
@@ -1684,7 +1766,8 @@ bool InitStrategy()
          PrintFormat("InitStrategy: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      oldS, priceSell, PriceToPips(stopLevel));
       }
-      if(!CanPlaceOrder(priceSell, false, entryPrice))
+      double distBand = DistanceToExistingPositions(priceSell);
+      if(UseDistanceBand && distBand >= 0 && (distBand < MinDistancePips || distBand > MaxDistancePips))
       {
          LogRecord lrS;
          lrS.Time       = TimeCurrent();
@@ -1692,7 +1775,35 @@ bool InitStrategy()
          lrS.System     = "B";
          lrS.Reason     = "INIT";
          lrS.Spread     = PriceToPips(Ask - Bid);
-         lrS.Dist       = PriceToPips(MathAbs(priceSell - entryPrice));
+         lrS.Dist       = distBand;
+         lrS.GridPips   = GridPips;
+         lrS.s          = s;
+         lrS.lotFactor  = lotFactorB;
+         lrS.BaseLot    = BaseLot;
+         lrS.MaxLot     = MaxLot;
+         lrS.actualLot  = lotB;
+         lrS.seqStr     = seqB;
+         lrS.CommentTag = commentB;
+         lrS.Magic      = MagicNumber;
+         lrS.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
+         lrS.EntryPrice = priceSell;
+         lrS.SL         = 0;
+         lrS.TP         = 0;
+         lrS.ErrorCode  = 0;
+         WriteLog(lrS);
+         PrintFormat("InitStrategy: SellLimit distance %.1f outside band [%.1f, %.1f]",
+                     distBand, MinDistancePips, MaxDistancePips);
+         okSell = false;
+      }
+      else if(!CanPlaceOrder(priceSell, false, entryPrice))
+      {
+         LogRecord lrS;
+         lrS.Time       = TimeCurrent();
+         lrS.Symbol     = Symbol();
+         lrS.System     = "B";
+         lrS.Reason     = "INIT";
+         lrS.Spread     = PriceToPips(Ask - Bid);
+         lrS.Dist       = distBand;
          lrS.GridPips   = GridPips;
          lrS.s          = s;
          lrS.lotFactor  = lotFactorB;
@@ -1720,7 +1831,7 @@ bool InitStrategy()
          lrS.System     = "B";
          lrS.Reason     = "INIT";
          lrS.Spread     = PriceToPips(Ask - Bid);
-         lrS.Dist       = PriceToPips(MathAbs(priceSell - entryPrice));
+         lrS.Dist       = distBand;
          lrS.GridPips   = GridPips;
          lrS.s          = s;
          lrS.lotFactor  = lotFactorB;
@@ -1747,13 +1858,14 @@ bool InitStrategy()
    double distBuy = MathAbs(Ask - priceBuy);
    if(distBuy < freezeLevel)
    {
+      double distBandB = DistanceToExistingPositions(priceBuy);
       LogRecord lrB;
       lrB.Time       = TimeCurrent();
       lrB.Symbol     = Symbol();
       lrB.System     = "B";
       lrB.Reason     = "INIT";
       lrB.Spread     = PriceToPips(Ask - Bid);
-      lrB.Dist       = PriceToPips(MathAbs(priceBuy - entryPrice));
+      lrB.Dist       = (distBandB >= 0) ? distBandB : 0;
       lrB.GridPips   = GridPips;
       lrB.s          = s;
       lrB.lotFactor  = lotFactorB;
@@ -1782,7 +1894,8 @@ bool InitStrategy()
          PrintFormat("InitStrategy: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      oldB, priceBuy, PriceToPips(stopLevel));
       }
-      if(!CanPlaceOrder(priceBuy, true, entryPrice))
+      double distBandB = DistanceToExistingPositions(priceBuy);
+      if(UseDistanceBand && distBandB >= 0 && (distBandB < MinDistancePips || distBandB > MaxDistancePips))
       {
          LogRecord lrB;
          lrB.Time       = TimeCurrent();
@@ -1790,7 +1903,35 @@ bool InitStrategy()
          lrB.System     = "B";
          lrB.Reason     = "INIT";
          lrB.Spread     = PriceToPips(Ask - Bid);
-         lrB.Dist       = PriceToPips(MathAbs(priceBuy - entryPrice));
+         lrB.Dist       = distBandB;
+         lrB.GridPips   = GridPips;
+         lrB.s          = s;
+         lrB.lotFactor  = lotFactorB;
+         lrB.BaseLot    = BaseLot;
+         lrB.MaxLot     = MaxLot;
+         lrB.actualLot  = lotB;
+         lrB.seqStr     = seqB;
+         lrB.CommentTag = commentB;
+         lrB.Magic      = MagicNumber;
+         lrB.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
+         lrB.EntryPrice = priceBuy;
+         lrB.SL         = 0;
+         lrB.TP         = 0;
+         lrB.ErrorCode  = 0;
+         WriteLog(lrB);
+         PrintFormat("InitStrategy: BuyLimit distance %.1f outside band [%.1f, %.1f]",
+                     distBandB, MinDistancePips, MaxDistancePips);
+         okBuy = false;
+      }
+      else if(!CanPlaceOrder(priceBuy, true, entryPrice))
+      {
+         LogRecord lrB;
+         lrB.Time       = TimeCurrent();
+         lrB.Symbol     = Symbol();
+         lrB.System     = "B";
+         lrB.Reason     = "INIT";
+         lrB.Spread     = PriceToPips(Ask - Bid);
+         lrB.Dist       = distBandB;
          lrB.GridPips   = GridPips;
          lrB.s          = s;
          lrB.lotFactor  = lotFactorB;
@@ -1818,7 +1959,7 @@ bool InitStrategy()
          lrB.System     = "B";
          lrB.Reason     = "INIT";
          lrB.Spread     = PriceToPips(Ask - Bid);
-         lrB.Dist       = PriceToPips(MathAbs(priceBuy - entryPrice));
+         lrB.Dist       = distBandB;
          lrB.GridPips   = GridPips;
          lrB.s          = s;
          lrB.lotFactor  = lotFactorB;
@@ -1855,7 +1996,7 @@ bool InitStrategy()
       lrd.System     = "B";
       lrd.Reason     = "INIT";
       lrd.Spread     = PriceToPips(Ask - Bid);
-      lrd.Dist       = PriceToPips(MathAbs(priceSell - entryPrice));
+      lrd.Dist       = DistanceToExistingPositions(priceSell);
       lrd.GridPips   = GridPips;
       lrd.s          = s;
       lrd.lotFactor  = lotFactorB;
@@ -1890,7 +2031,7 @@ bool InitStrategy()
       lrd.System     = "B";
       lrd.Reason     = "INIT";
       lrd.Spread     = PriceToPips(Ask - Bid);
-      lrd.Dist       = PriceToPips(MathAbs(priceBuy - entryPrice));
+      lrd.Dist       = DistanceToExistingPositions(priceBuy);
       lrd.GridPips   = GridPips;
       lrd.s          = s;
       lrd.lotFactor  = lotFactorB;
@@ -2065,6 +2206,39 @@ void HandleOCODetectionFor(const string system)
 
       RefreshRates();
       double price = (type == OP_BUY) ? Ask : Bid;
+      double dist = DistanceToExistingPositions(price);
+      if(UseDistanceBand && dist >= 0 && (dist < MinDistancePips || dist > MaxDistancePips))
+      {
+         LogRecord lrSkip;
+         lrSkip.Time       = TimeCurrent();
+         lrSkip.Symbol     = Symbol();
+         lrSkip.System     = system;
+         lrSkip.Reason     = "REFILL";
+         lrSkip.Spread     = PriceToPips(Ask - Bid);
+         lrSkip.Dist       = dist;
+         lrSkip.GridPips   = GridPips;
+         lrSkip.s          = s;
+         lrSkip.lotFactor  = lotFactorAdj;
+         lrSkip.BaseLot    = BaseLot;
+         lrSkip.MaxLot     = MaxLot;
+         lrSkip.actualLot  = expectedLot;
+         lrSkip.seqStr     = seqAdj;
+         lrSkip.CommentTag = expectedComment;
+         lrSkip.Magic      = MagicNumber;
+         lrSkip.OrderType  = OrderTypeToStr(type);
+         lrSkip.EntryPrice = price;
+         lrSkip.SL         = 0;
+         lrSkip.TP         = 0;
+         lrSkip.ErrorCode  = 0;
+         WriteLog(lrSkip);
+         PrintFormat("HandleOCODetectionFor: distance %.1f outside band [%.1f, %.1f], order skipped",
+                     dist, MinDistancePips, MaxDistancePips);
+         if(system == "A")
+            retryTicketA = -1;
+         else
+            retryTicketB = -1;
+         return;
+      }
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
                                 (int)(SlippagePips * Pip() / Point), 0, 0,
                                 expectedComment, MagicNumber, 0, clrNONE);
@@ -2074,7 +2248,7 @@ void HandleOCODetectionFor(const string system)
       lrOpen.System     = system;
       lrOpen.Reason     = "REFILL";
       lrOpen.Spread     = PriceToPips(Ask - Bid);
-      lrOpen.Dist       = 0;
+      lrOpen.Dist       = (dist >= 0) ? dist : 0;
       lrOpen.GridPips   = GridPips;
       lrOpen.s          = s;
       lrOpen.lotFactor  = lotFactorAdj;
