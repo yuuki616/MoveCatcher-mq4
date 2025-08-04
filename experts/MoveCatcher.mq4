@@ -177,7 +177,18 @@ bool SaveDMCState(const string system,const CDecompMC &state,int &err)
       string seqParts[]; int n=StringSplit(parts[2],',',seqParts);
 
       string prefix="MoveCatcher_"+system+"_";
-      ResetLastError(); GlobalVariableSet(prefix+"stock",stock); int e=GetLastError(); if(e!=0){if(err==0)err=e; ok=false;}
+
+      int prevN=0;
+      ResetLastError(); double prevSize=GlobalVariableGet(prefix+"seq_size"); int e=GetLastError();
+      if(e==0) prevN=(int)prevSize;
+
+      for(int i=n;i<prevN;i++)
+      {
+         string name=prefix+"seq_"+IntegerToString(i);
+         ResetLastError(); GlobalVariableDel(name); e=GetLastError(); if(e!=0){if(err==0)err=e; ok=false;}
+      }
+
+      ResetLastError(); GlobalVariableSet(prefix+"stock",stock); e=GetLastError(); if(e!=0){if(err==0)err=e; ok=false;}
       ResetLastError(); GlobalVariableSet(prefix+"streak",streak); e=GetLastError(); if(e!=0){if(err==0)err=e; ok=false;}
       ResetLastError(); GlobalVariableSet(prefix+"seq_size",n); e=GetLastError(); if(e!=0){if(err==0)err=e; ok=false;}
       for(int i=0;i<n;i++)
