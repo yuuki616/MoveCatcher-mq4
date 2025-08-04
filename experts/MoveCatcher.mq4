@@ -2545,9 +2545,10 @@ int OnInit()
 
 void OnTick()
 {
-   // OCO detection should run once per tick at the beginning
-   HandleOCODetection();
+   // Correct duplicate positions before OCO detection
    CorrectDuplicatePositions();
+   // OCO detection should run once per tick after correction
+   HandleOCODetection();
 
    SystemState prevA = state_A;
    SystemState prevB = state_B;
