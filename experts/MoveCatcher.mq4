@@ -292,6 +292,15 @@ bool CanPlaceOrder(double &price,const bool isBuy,const double refPrice)
       price = NormalizeDouble(price, Digits);
       PrintFormat("CanPlaceOrder: price adjusted from %.5f to %.5f due to stop level %.1f pips",
                   oldPrice, price, PriceToPips(stopLevel));
+
+      // StopLevel 補正後に距離を再計算し、FreezeLevel を再チェック
+      dist = MathAbs(price - ref);
+      if(dist < freezeLevel)
+      {
+         PrintFormat("CanPlaceOrder: price %.5f within freeze level %.1f pips after stop adjustment, retry next tick",
+                     price, PriceToPips(freezeLevel));
+         return(false);
+      }
    }
 
    double spread = PriceToPips(Ask - Bid);
