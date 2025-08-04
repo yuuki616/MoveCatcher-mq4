@@ -263,7 +263,8 @@ bool CanPlaceOrder(double &price,const bool isBuy,const double refPrice)
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
 
-   double ref  = isBuy ? Ask : Bid;
+   // SellLimit の判定を Ask 基準に統一
+   double ref  = Ask;
    double dist = MathAbs(price - ref);
 
    if(dist < freezeLevel)
@@ -276,7 +277,7 @@ bool CanPlaceOrder(double &price,const bool isBuy,const double refPrice)
    if(dist < stopLevel)
    {
       double oldPrice = price;
-      price = isBuy ? ref + stopLevel : ref - stopLevel;
+      price = isBuy ? ref - stopLevel : ref + stopLevel;
       price = NormalizeDouble(price, Digits);
       PrintFormat("CanPlaceOrder: price adjusted from %.5f to %.5f due to stop level %.1f pips",
                   oldPrice, price, PriceToPips(stopLevel));
@@ -1204,7 +1205,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
 
-   double distSell = MathAbs(Bid - priceSell);
+   double distSell = MathAbs(Ask - priceSell);
    if(distSell < freezeLevel)
       PrintFormat("PlaceRefillOrders: SellLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceSell, PriceToPips(freezeLevel));
@@ -1213,7 +1214,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       if(distSell < stopLevel)
       {
          double old = priceSell;
-         priceSell = NormalizeDouble(Bid + stopLevel, Digits);
+         priceSell = NormalizeDouble(Ask + stopLevel, Digits);
          PrintFormat("PlaceRefillOrders: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      old, priceSell, PriceToPips(stopLevel));
       }
@@ -1391,7 +1392,7 @@ void InitStrategy()
    stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
 
-   double distSell = MathAbs(Bid - priceSell);
+   double distSell = MathAbs(Ask - priceSell);
    if(distSell < freezeLevel)
       PrintFormat("InitStrategy: SellLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceSell, PriceToPips(freezeLevel));
@@ -1400,7 +1401,7 @@ void InitStrategy()
       if(distSell < stopLevel)
       {
          double oldS = priceSell;
-         priceSell = NormalizeDouble(Bid + stopLevel, Digits);
+         priceSell = NormalizeDouble(Ask + stopLevel, Digits);
          PrintFormat("InitStrategy: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      oldS, priceSell, PriceToPips(stopLevel));
       }
