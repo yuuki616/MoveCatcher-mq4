@@ -389,7 +389,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       lr.MaxLot     = MaxLot;
       lr.actualLot  = lotActual;
       lr.seqStr     = seq;
-      lr.CommentTag = "";
+      lr.CommentTag = MakeComment(system, seq);
       lr.Magic      = MagicNumber;
       lr.OrderType  = "";
       lr.EntryPrice = 0;
