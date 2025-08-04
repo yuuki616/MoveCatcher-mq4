@@ -907,8 +907,8 @@ void DeletePendings(const string system,const string reason)
 }
 
 //+------------------------------------------------------------------+
-//| Re-enter position after SL; UseProtectedLimit selects method while |
-//| slippage always uses user input                                    |
+//| Re-enter position after SL. When UseProtectedLimit=false,         |
+//| slippage protection is disabled (slippage=0).                     |
 //+------------------------------------------------------------------+
 void RecoverAfterSL(const string system)
 {
@@ -945,7 +945,7 @@ void RecoverAfterSL(const string system)
       return;
 
    bool   isBuy    = (lastType == OP_BUY);
-   int    slippage = (int)(SlippagePips * Pip() / Point); // respect user-defined slippage
+   int    slippage = UseProtectedLimit ? (int)(SlippagePips * Pip() / Point) : 0;
    double price    = isBuy ? Ask : Bid;
    double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);
    double tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), Digits);
@@ -2262,7 +2262,7 @@ void HandleOCODetectionFor(const string system)
             retryTicketB = -1;
          return;
       }
-      int    slippage = (int)(SlippagePips * Pip() / Point);
+      int    slippage = UseProtectedLimit ? (int)(SlippagePips * Pip() / Point) : 0;
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
                                 slippage, 0, 0,
                                 expectedComment, MagicNumber, 0, clrNONE);
