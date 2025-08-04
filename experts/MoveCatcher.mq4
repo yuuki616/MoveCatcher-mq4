@@ -505,13 +505,18 @@ void ProcessClosedTrades(const string system)
       string sysTmp, seq;
       if(!ParseComment(OrderComment(), sysTmp, seq))
          seq = "";
-      bool isTP = (type == OP_BUY) ? (OrderClosePrice() >= OrderOpenPrice())
-                                   : (OrderClosePrice() <= OrderOpenPrice());
+      double closePrice = OrderClosePrice();
+      double tol        = Point * 0.5;
+      bool isTP = (MathAbs(closePrice - OrderTakeProfit()) <= tol);
+      bool isSL = (MathAbs(closePrice - OrderStopLoss())  <= tol);
+      string reason = isTP ? "TP" : "SL";
+      if(!isTP && !isSL)
+         reason = (profit >= 0) ? "TP" : "SL";
       LogRecord lr;
       lr.Time       = times[i];
       lr.Symbol     = Symbol();
       lr.System     = system;
-      lr.Reason     = isTP ? "TP" : "SL";
+      lr.Reason     = reason;
       lr.Spread     = PriceToPips(Ask - Bid);
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
