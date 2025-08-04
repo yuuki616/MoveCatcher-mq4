@@ -754,6 +754,11 @@ void DeletePendings(const string system,const string reason)
       if(sys != system)
          continue;
       int tk = OrderTicket();
+      double lots = OrderLots();
+      double entry = OrderOpenPrice();
+      double sl    = OrderStopLoss();
+      double tp    = OrderTakeProfit();
+      string comment = OrderComment();
       int err = 0;
       bool ok = OrderDelete(tk);
       if(!ok)
@@ -770,14 +775,14 @@ void DeletePendings(const string system,const string reason)
       lr.lotFactor  = 0;
       lr.BaseLot    = BaseLot;
       lr.MaxLot     = MaxLot;
-      lr.actualLot  = OrderLots();
+      lr.actualLot  = lots;
       lr.seqStr     = seq;
-      lr.CommentTag = OrderComment();
+      lr.CommentTag = comment;
       lr.Magic      = MagicNumber;
       lr.OrderType  = OrderTypeToStr(type);
-      lr.EntryPrice = OrderOpenPrice();
-      lr.SL         = OrderStopLoss();
-      lr.TP         = OrderTakeProfit();
+      lr.EntryPrice = entry;
+      lr.SL         = sl;
+      lr.TP         = tp;
       lr.ErrorCode  = err;
       WriteLog(lr);
       if(!ok)
