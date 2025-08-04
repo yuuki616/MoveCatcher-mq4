@@ -1036,6 +1036,8 @@ void CloseAllOrders(const string reason)
             PrintFormat("CloseAllOrders: failed to delete %d err=%d", ticket, err);
       }
    }
+   if(!updateDMC)
+      InitCloseTimes();
 }
 
 //+------------------------------------------------------------------+
