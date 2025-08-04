@@ -1589,7 +1589,8 @@ void HandleOCODetectionFor(const string system)
 
       RefreshRates();
       double price = (type == OP_BUY) ? Ask : Bid;
-      int newTicket = OrderSend(Symbol(), type, expectedLot, price, 0, 0, 0,
+      int newTicket = OrderSend(Symbol(), type, expectedLot, price,
+                                (int)(SlippagePips * Pip() / Point), 0, 0,
                                 expectedComment, MagicNumber, 0, clrNONE);
       LogRecord lrOpen;
       lrOpen.Time       = TimeCurrent();
