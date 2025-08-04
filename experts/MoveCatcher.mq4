@@ -887,7 +887,8 @@ void DeletePendings(const string system,const string reason)
 }
 
 //+------------------------------------------------------------------+
-//| Re-enter position after SL according to UseProtectedLimit         |
+//| Re-enter position after SL; UseProtectedLimit selects method while |
+//| slippage always uses user input                                    |
 //+------------------------------------------------------------------+
 void RecoverAfterSL(const string system)
 {
@@ -924,7 +925,7 @@ void RecoverAfterSL(const string system)
       return;
 
    bool   isBuy    = (lastType == OP_BUY);
-   int    slippage = UseProtectedLimit ? (int)(SlippagePips * Pip() / Point) : 0;
+   int    slippage = (int)(SlippagePips * Pip() / Point); // respect user-defined slippage
    double price    = isBuy ? Ask : Bid;
    double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);
    double tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), Digits);
