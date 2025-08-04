@@ -152,8 +152,13 @@ double NormalizeLot(const double lotCandidate)
    double lotStep = MarketInfo(Symbol(), MODE_LOTSTEP);
 
    double lot = lotCandidate;
+   int lotDigits = 0;
    if(lotStep > 0)
+   {
       lot = MathRound(lot / lotStep) * lotStep;
+      lotDigits = (int)MathRound(-MathLog10(lotStep));
+      lot = NormalizeDouble(lot, lotDigits);
+   }
 
    if(lot < minLot)
       lot = minLot;
@@ -162,7 +167,7 @@ double NormalizeLot(const double lotCandidate)
    if(lot > MaxLot)
       lot = MaxLot;
 
-   return(lot);
+   return(NormalizeDouble(lot, lotDigits));
 }
 
 bool SaveDMCState(const string system,const CDecompMC &state,int &err)
