@@ -691,6 +691,36 @@ void EnsureTPSL(const int ticket)
          lr.ErrorCode  = err;
          WriteLog(lr);
       }
+      else
+      {
+         if(OrderSelect(ticket, SELECT_BY_TICKET))
+         {
+            string sys, seq;
+            ParseComment(OrderComment(), sys, seq);
+            LogRecord lr;
+            lr.Time       = TimeCurrent();
+            lr.Symbol     = Symbol();
+            lr.System     = sys;
+            lr.Reason     = "REFILL";
+            lr.Spread     = PriceToPips(Ask - Bid);
+            lr.Dist       = 0;
+            lr.GridPips   = GridPips;
+            lr.s          = s;
+            lr.lotFactor  = 0;
+            lr.BaseLot    = BaseLot;
+            lr.MaxLot     = MaxLot;
+            lr.actualLot  = OrderLots();
+            lr.seqStr     = seq;
+            lr.CommentTag = OrderComment();
+            lr.Magic      = MagicNumber;
+            lr.OrderType  = OrderTypeToStr(OrderType());
+            lr.EntryPrice = entry;
+            lr.SL         = OrderStopLoss();
+            lr.TP         = OrderTakeProfit();
+            lr.ErrorCode  = 0;
+            WriteLog(lr);
+         }
+      }
    }
 }
 
