@@ -698,11 +698,57 @@ void EnsureShadowOrder(const int ticket,const string system)
    double dist        = MathAbs(price - ref);
    if(dist < freezeLevel)
    {
+      LogRecord lrf;
+      lrf.Time       = TimeCurrent();
+      lrf.Symbol     = Symbol();
+      lrf.System     = system;
+      lrf.Reason     = "REFILL";
+      lrf.Spread     = PriceToPips(Ask - Bid);
+      lrf.Dist       = GridPips;
+      lrf.GridPips   = GridPips;
+      lrf.s          = s;
+      lrf.lotFactor  = lotFactor;
+      lrf.BaseLot    = BaseLot;
+      lrf.MaxLot     = MaxLot;
+      lrf.actualLot  = lot;
+      lrf.seqStr     = seq;
+      lrf.CommentTag = comment;
+      lrf.Magic      = MagicNumber;
+      lrf.OrderType  = OrderTypeToStr(type);
+      lrf.EntryPrice = price;
+      lrf.SL         = 0;
+      lrf.TP         = 0;
+      // Freeze level violation
+      lrf.ErrorCode  = 145;
+      WriteLog(lrf);
       PrintFormat("EnsureShadowOrder: price %.5f within freeze level %.1f pips, retry next tick", price, PriceToPips(freezeLevel));
       return;
    }
    if(dist < stopLevel)
    {
+      LogRecord lrs;
+      lrs.Time       = TimeCurrent();
+      lrs.Symbol     = Symbol();
+      lrs.System     = system;
+      lrs.Reason     = "REFILL";
+      lrs.Spread     = PriceToPips(Ask - Bid);
+      lrs.Dist       = GridPips;
+      lrs.GridPips   = GridPips;
+      lrs.s          = s;
+      lrs.lotFactor  = lotFactor;
+      lrs.BaseLot    = BaseLot;
+      lrs.MaxLot     = MaxLot;
+      lrs.actualLot  = lot;
+      lrs.seqStr     = seq;
+      lrs.CommentTag = comment;
+      lrs.Magic      = MagicNumber;
+      lrs.OrderType  = OrderTypeToStr(type);
+      lrs.EntryPrice = price;
+      lrs.SL         = 0;
+      lrs.TP         = 0;
+      // Stop level violation
+      lrs.ErrorCode  = 130;
+      WriteLog(lrs);
       PrintFormat("EnsureShadowOrder: price %.5f within stop level %.1f pips, retry next tick", price, PriceToPips(stopLevel));
       return;
    }
@@ -1203,21 +1249,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
 
    double distSell = MathAbs(Bid - priceSell);
    if(distSell < freezeLevel)
-      PrintFormat("PlaceRefillOrders: SellLimit %.5f within freeze level %.1f pips, retry next tick",
-                  priceSell, PriceToPips(freezeLevel));
-   else
    {
-      if(distSell < stopLevel)
-      {
-         double old = priceSell;
-         priceSell = NormalizeDouble(Bid + stopLevel, Digits);
-         PrintFormat("PlaceRefillOrders: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
-                     old, priceSell, PriceToPips(stopLevel));
-      }
-      if(CanPlaceOrder(priceSell, false, refPrice))
-      {
-         int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
-                                    0, 0, 0, comment, MagicNumber, 0, clrNONE);
       LogRecord lr;
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
@@ -1238,36 +1270,28 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lr.EntryPrice = priceSell;
       lr.SL         = 0;
       lr.TP         = 0;
-      lr.ErrorCode  = (ticketSell < 0) ? GetLastError() : 0;
+      lr.ErrorCode  = 145;
       WriteLog(lr);
-      if(ticketSell < 0)
-         PrintFormat("PlaceRefillOrders: failed to place SellLimit for %s err=%d", system, lr.ErrorCode);
-      }
+      PrintFormat("PlaceRefillOrders: SellLimit %.5f within freeze level %.1f pips, retry next tick",
+                  priceSell, PriceToPips(freezeLevel));
+      return;
    }
-   double distBuy = MathAbs(Ask - priceBuy);
-   if(distBuy < freezeLevel)
-      PrintFormat("PlaceRefillOrders: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
-                  priceBuy, PriceToPips(freezeLevel));
-   else
+   if(distSell < stopLevel)
    {
-      if(distBuy < stopLevel)
-      {
-         double oldB = priceBuy;
-         priceBuy = NormalizeDouble(Ask - stopLevel, Digits);
-         PrintFormat("PlaceRefillOrders: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
-                     oldB, priceBuy, PriceToPips(stopLevel));
-      }
-      if(CanPlaceOrder(priceBuy, true, refPrice))
-      {
-         int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
-                                   0, 0, 0, comment, MagicNumber, 0, clrNONE);
+      double old = priceSell;
+      priceSell = NormalizeDouble(Bid + stopLevel, Digits);
+      PrintFormat("PlaceRefillOrders: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
+                  old, priceSell, PriceToPips(stopLevel));
+   }
+   if(!CanPlaceOrder(priceSell, false, refPrice))
+   {
       LogRecord lr;
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
       lr.System     = system;
       lr.Reason     = "REFILL";
       lr.Spread     = PriceToPips(Ask - Bid);
-      lr.Dist       = PriceToPips(MathAbs(priceBuy - refPrice));
+      lr.Dist       = PriceToPips(MathAbs(priceSell - refPrice));
       lr.GridPips   = GridPips;
       lr.s          = s;
       lr.lotFactor  = lotFactor;
@@ -1277,16 +1301,130 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lr.seqStr     = seq;
       lr.CommentTag = comment;
       lr.Magic      = MagicNumber;
-      lr.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
-      lr.EntryPrice = priceBuy;
+      lr.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
+      lr.EntryPrice = priceSell;
       lr.SL         = 0;
       lr.TP         = 0;
-      lr.ErrorCode  = (ticketBuy < 0) ? GetLastError() : 0;
+      // Spread or band violation
+      lr.ErrorCode  = (PriceToPips(Ask - Bid) > MaxSpreadPips) ? 4109 : 0;
       WriteLog(lr);
-      if(ticketBuy < 0)
-         PrintFormat("PlaceRefillOrders: failed to place BuyLimit for %s err=%d", system, lr.ErrorCode);
-      }
+      return;
    }
+   int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
+                              0, 0, 0, comment, MagicNumber, 0, clrNONE);
+   LogRecord lr;
+   lr.Time       = TimeCurrent();
+   lr.Symbol     = Symbol();
+   lr.System     = system;
+   lr.Reason     = "REFILL";
+   lr.Spread     = PriceToPips(Ask - Bid);
+   lr.Dist       = PriceToPips(MathAbs(priceSell - refPrice));
+   lr.GridPips   = GridPips;
+   lr.s          = s;
+   lr.lotFactor  = lotFactor;
+   lr.BaseLot    = BaseLot;
+   lr.MaxLot     = MaxLot;
+   lr.actualLot  = lot;
+   lr.seqStr     = seq;
+   lr.CommentTag = comment;
+   lr.Magic      = MagicNumber;
+   lr.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
+   lr.EntryPrice = priceSell;
+   lr.SL         = 0;
+   lr.TP         = 0;
+   lr.ErrorCode  = (ticketSell < 0) ? GetLastError() : 0;
+   WriteLog(lr);
+   if(ticketSell < 0)
+      PrintFormat("PlaceRefillOrders: failed to place SellLimit for %s err=%d", system, lr.ErrorCode);
+
+   double distBuy = MathAbs(Ask - priceBuy);
+   if(distBuy < freezeLevel)
+   {
+      LogRecord lrb;
+      lrb.Time       = TimeCurrent();
+      lrb.Symbol     = Symbol();
+      lrb.System     = system;
+      lrb.Reason     = "REFILL";
+      lrb.Spread     = PriceToPips(Ask - Bid);
+      lrb.Dist       = PriceToPips(MathAbs(priceBuy - refPrice));
+      lrb.GridPips   = GridPips;
+      lrb.s          = s;
+      lrb.lotFactor  = lotFactor;
+      lrb.BaseLot    = BaseLot;
+      lrb.MaxLot     = MaxLot;
+      lrb.actualLot  = lot;
+      lrb.seqStr     = seq;
+      lrb.CommentTag = comment;
+      lrb.Magic      = MagicNumber;
+      lrb.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
+      lrb.EntryPrice = priceBuy;
+      lrb.SL         = 0;
+      lrb.TP         = 0;
+      lrb.ErrorCode  = 145;
+      WriteLog(lrb);
+      PrintFormat("PlaceRefillOrders: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
+                  priceBuy, PriceToPips(freezeLevel));
+      return;
+   }
+   if(distBuy < stopLevel)
+   {
+      double oldB = priceBuy;
+      priceBuy = NormalizeDouble(Ask - stopLevel, Digits);
+      PrintFormat("PlaceRefillOrders: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
+                  oldB, priceBuy, PriceToPips(stopLevel));
+   }
+   if(!CanPlaceOrder(priceBuy, true, refPrice))
+   {
+      LogRecord lrb;
+      lrb.Time       = TimeCurrent();
+      lrb.Symbol     = Symbol();
+      lrb.System     = system;
+      lrb.Reason     = "REFILL";
+      lrb.Spread     = PriceToPips(Ask - Bid);
+      lrb.Dist       = PriceToPips(MathAbs(priceBuy - refPrice));
+      lrb.GridPips   = GridPips;
+      lrb.s          = s;
+      lrb.lotFactor  = lotFactor;
+      lrb.BaseLot    = BaseLot;
+      lrb.MaxLot     = MaxLot;
+      lrb.actualLot  = lot;
+      lrb.seqStr     = seq;
+      lrb.CommentTag = comment;
+      lrb.Magic      = MagicNumber;
+      lrb.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
+      lrb.EntryPrice = priceBuy;
+      lrb.SL         = 0;
+      lrb.TP         = 0;
+      lrb.ErrorCode  = (PriceToPips(Ask - Bid) > MaxSpreadPips) ? 4109 : 0;
+      WriteLog(lrb);
+      return;
+   }
+   int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
+                             0, 0, 0, comment, MagicNumber, 0, clrNONE);
+   LogRecord lr2;
+   lr2.Time       = TimeCurrent();
+   lr2.Symbol     = Symbol();
+   lr2.System     = system;
+   lr2.Reason     = "REFILL";
+   lr2.Spread     = PriceToPips(Ask - Bid);
+   lr2.Dist       = PriceToPips(MathAbs(priceBuy - refPrice));
+   lr2.GridPips   = GridPips;
+   lr2.s          = s;
+   lr2.lotFactor  = lotFactor;
+   lr2.BaseLot    = BaseLot;
+   lr2.MaxLot     = MaxLot;
+   lr2.actualLot  = lot;
+   lr2.seqStr     = seq;
+   lr2.CommentTag = comment;
+   lr2.Magic      = MagicNumber;
+   lr2.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
+   lr2.EntryPrice = priceBuy;
+   lr2.SL         = 0;
+   lr2.TP         = 0;
+   lr2.ErrorCode  = (ticketBuy < 0) ? GetLastError() : 0;
+   WriteLog(lr2);
+   if(ticketBuy < 0)
+      PrintFormat("PlaceRefillOrders: failed to place BuyLimit for %s err=%d", system, lr2.ErrorCode);
 }
 
 //+------------------------------------------------------------------+
@@ -1390,68 +1528,99 @@ bool InitStrategy()
    bool okSell = false;
    double distSell = MathAbs(Bid - priceSell);
    if(distSell < freezeLevel)
+   {
+      LogRecord lrS;
+      lrS.Time       = TimeCurrent();
+      lrS.Symbol     = Symbol();
+      lrS.System     = "B";
+      lrS.Reason     = "INIT";
+      lrS.Spread     = PriceToPips(Ask - Bid);
+      lrS.Dist       = PriceToPips(MathAbs(priceSell - entryPrice));
+      lrS.GridPips   = GridPips;
+      lrS.s          = s;
+      lrS.lotFactor  = lotFactorB;
+      lrS.BaseLot    = BaseLot;
+      lrS.MaxLot     = MaxLot;
+      lrS.actualLot  = lotB;
+      lrS.seqStr     = seqB;
+      lrS.CommentTag = commentB;
+      lrS.Magic      = MagicNumber;
+      lrS.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
+      lrS.EntryPrice = priceSell;
+      lrS.SL         = 0;
+      lrS.TP         = 0;
+      lrS.ErrorCode  = 145;
+      WriteLog(lrS);
       PrintFormat("InitStrategy: SellLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceSell, PriceToPips(freezeLevel));
-   else
-   {
-      if(distSell < stopLevel)
-      {
-         double oldS = priceSell;
-         priceSell = NormalizeDouble(Bid + stopLevel, Digits);
-         PrintFormat("InitStrategy: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
-                     oldS, priceSell, PriceToPips(stopLevel));
-      }
-      if(CanPlaceOrder(priceSell, false, entryPrice))
-      {
-         int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
-                                    0, 0, 0, commentB, MagicNumber, 0, clrNONE);
-         LogRecord lrS;
-         lrS.Time       = TimeCurrent();
-         lrS.Symbol     = Symbol();
-         lrS.System     = "B";
-         lrS.Reason     = "INIT";
-         lrS.Spread     = PriceToPips(Ask - Bid);
-         lrS.Dist       = PriceToPips(MathAbs(priceSell - entryPrice));
-         lrS.GridPips   = GridPips;
-         lrS.s          = s;
-         lrS.lotFactor  = lotFactorB;
-         lrS.BaseLot    = BaseLot;
-         lrS.MaxLot     = MaxLot;
-         lrS.actualLot  = lotB;
-         lrS.seqStr     = seqB;
-         lrS.CommentTag = commentB;
-         lrS.Magic      = MagicNumber;
-         lrS.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
-         lrS.EntryPrice = priceSell;
-         lrS.SL         = 0;
-         lrS.TP         = 0;
-         lrS.ErrorCode  = (ticketSell < 0) ? GetLastError() : 0;
-         WriteLog(lrS);
-         if(ticketSell < 0)
-            PrintFormat("InitStrategy: failed to place SellLimit, err=%d", lrS.ErrorCode);
-         else
-            okSell = true;
-      }
+      return(false);
    }
+   if(distSell < stopLevel)
+   {
+      double oldS = priceSell;
+      priceSell = NormalizeDouble(Bid + stopLevel, Digits);
+      PrintFormat("InitStrategy: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
+                  oldS, priceSell, PriceToPips(stopLevel));
+   }
+   if(!CanPlaceOrder(priceSell, false, entryPrice))
+   {
+      LogRecord lrS;
+      lrS.Time       = TimeCurrent();
+      lrS.Symbol     = Symbol();
+      lrS.System     = "B";
+      lrS.Reason     = "INIT";
+      lrS.Spread     = PriceToPips(Ask - Bid);
+      lrS.Dist       = PriceToPips(MathAbs(priceSell - entryPrice));
+      lrS.GridPips   = GridPips;
+      lrS.s          = s;
+      lrS.lotFactor  = lotFactorB;
+      lrS.BaseLot    = BaseLot;
+      lrS.MaxLot     = MaxLot;
+      lrS.actualLot  = lotB;
+      lrS.seqStr     = seqB;
+      lrS.CommentTag = commentB;
+      lrS.Magic      = MagicNumber;
+      lrS.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
+      lrS.EntryPrice = priceSell;
+      lrS.SL         = 0;
+      lrS.TP         = 0;
+      lrS.ErrorCode  = (PriceToPips(Ask - Bid) > MaxSpreadPips) ? 4109 : 0;
+      WriteLog(lrS);
+      return(false);
+   }
+   int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
+                              0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+   LogRecord lrS;
+   lrS.Time       = TimeCurrent();
+   lrS.Symbol     = Symbol();
+   lrS.System     = "B";
+   lrS.Reason     = "INIT";
+   lrS.Spread     = PriceToPips(Ask - Bid);
+   lrS.Dist       = PriceToPips(MathAbs(priceSell - entryPrice));
+   lrS.GridPips   = GridPips;
+   lrS.s          = s;
+   lrS.lotFactor  = lotFactorB;
+   lrS.BaseLot    = BaseLot;
+   lrS.MaxLot     = MaxLot;
+   lrS.actualLot  = lotB;
+   lrS.seqStr     = seqB;
+   lrS.CommentTag = commentB;
+   lrS.Magic      = MagicNumber;
+   lrS.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
+   lrS.EntryPrice = priceSell;
+   lrS.SL         = 0;
+   lrS.TP         = 0;
+   lrS.ErrorCode  = (ticketSell < 0) ? GetLastError() : 0;
+   WriteLog(lrS);
+   if(ticketSell < 0)
+      PrintFormat("InitStrategy: failed to place SellLimit, err=%d", lrS.ErrorCode);
+   else
+      okSell = true;
 
    bool okBuy = false;
    double distBuy = MathAbs(Ask - priceBuy);
    if(distBuy < freezeLevel)
-      PrintFormat("InitStrategy: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
-                  priceBuy, PriceToPips(freezeLevel));
-   else
    {
-      if(distBuy < stopLevel)
-      {
-         double oldB = priceBuy;
-         priceBuy = NormalizeDouble(Ask - stopLevel, Digits);
-         PrintFormat("InitStrategy: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
-                     oldB, priceBuy, PriceToPips(stopLevel));
-      }
-      if(CanPlaceOrder(priceBuy, true, entryPrice))
-      {
-         int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
-                                   0, 0, 0, commentB, MagicNumber, 0, clrNONE);
       LogRecord lrB;
       lrB.Time       = TimeCurrent();
       lrB.Symbol     = Symbol();
@@ -1472,14 +1641,73 @@ bool InitStrategy()
       lrB.EntryPrice = priceBuy;
       lrB.SL         = 0;
       lrB.TP         = 0;
-      lrB.ErrorCode  = (ticketBuy < 0) ? GetLastError() : 0;
+      lrB.ErrorCode  = 145;
       WriteLog(lrB);
-        if(ticketBuy < 0)
-           PrintFormat("InitStrategy: failed to place BuyLimit, err=%d", lrB.ErrorCode);
-        else
-           okBuy = true;
-        }
-     }
+      PrintFormat("InitStrategy: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
+                  priceBuy, PriceToPips(freezeLevel));
+      return(false);
+   }
+   if(distBuy < stopLevel)
+   {
+      double oldB = priceBuy;
+      priceBuy = NormalizeDouble(Ask - stopLevel, Digits);
+      PrintFormat("InitStrategy: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
+                  oldB, priceBuy, PriceToPips(stopLevel));
+   }
+   if(!CanPlaceOrder(priceBuy, true, entryPrice))
+   {
+      LogRecord lrB;
+      lrB.Time       = TimeCurrent();
+      lrB.Symbol     = Symbol();
+      lrB.System     = "B";
+      lrB.Reason     = "INIT";
+      lrB.Spread     = PriceToPips(Ask - Bid);
+      lrB.Dist       = PriceToPips(MathAbs(priceBuy - entryPrice));
+      lrB.GridPips   = GridPips;
+      lrB.s          = s;
+      lrB.lotFactor  = lotFactorB;
+      lrB.BaseLot    = BaseLot;
+      lrB.MaxLot     = MaxLot;
+      lrB.actualLot  = lotB;
+      lrB.seqStr     = seqB;
+      lrB.CommentTag = commentB;
+      lrB.Magic      = MagicNumber;
+      lrB.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
+      lrB.EntryPrice = priceBuy;
+      lrB.SL         = 0;
+      lrB.TP         = 0;
+      lrB.ErrorCode  = (PriceToPips(Ask - Bid) > MaxSpreadPips) ? 4109 : 0;
+      WriteLog(lrB);
+      return(false);
+   }
+   int ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
+                             0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+   LogRecord lrB;
+   lrB.Time       = TimeCurrent();
+   lrB.Symbol     = Symbol();
+   lrB.System     = "B";
+   lrB.Reason     = "INIT";
+   lrB.Spread     = PriceToPips(Ask - Bid);
+   lrB.Dist       = PriceToPips(MathAbs(priceBuy - entryPrice));
+   lrB.GridPips   = GridPips;
+   lrB.s          = s;
+   lrB.lotFactor  = lotFactorB;
+   lrB.BaseLot    = BaseLot;
+   lrB.MaxLot     = MaxLot;
+   lrB.actualLot  = lotB;
+   lrB.seqStr     = seqB;
+   lrB.CommentTag = commentB;
+   lrB.Magic      = MagicNumber;
+   lrB.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
+   lrB.EntryPrice = priceBuy;
+   lrB.SL         = 0;
+   lrB.TP         = 0;
+   lrB.ErrorCode  = (ticketBuy < 0) ? GetLastError() : 0;
+   WriteLog(lrB);
+   if(ticketBuy < 0)
+      PrintFormat("InitStrategy: failed to place BuyLimit, err=%d", lrB.ErrorCode);
+   else
+      okBuy = true;
 
    return(okBuy && okSell);
   }
