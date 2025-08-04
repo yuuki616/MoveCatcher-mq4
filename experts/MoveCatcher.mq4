@@ -256,6 +256,8 @@ bool LoadDMCState(const string system,CDecompMC &state)
 
 //+------------------------------------------------------------------+
 //| Calculate distance (pips) from a price to existing positions      |
+//| Pending orders are ignored; distance band is position-based       |
+//| 未決済注文は距離計算に含めず、距離帯判定はポジションベース     |
 //| Returns -1 if there are no existing positions                    |
 //+------------------------------------------------------------------+
 double DistanceToExistingPositions(const double price)
@@ -268,10 +270,8 @@ double DistanceToExistingPositions(const double price)
       if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
          continue;
       int type = OrderType();
-      // 成立済みポジションに加え、未決済の指値・逆指値注文も距離計算に含める
-      if(type != OP_BUY && type != OP_SELL &&
-         type != OP_BUYLIMIT && type != OP_SELLLIMIT &&
-         type != OP_BUYSTOP  && type != OP_SELLSTOP)
+      // 成行ポジションのみを距離計算に含める（未決済注文は除外）
+      if(type != OP_BUY && type != OP_SELL)
          continue;
       double d = MathAbs(price - OrderOpenPrice());
       if(d < minDist)
