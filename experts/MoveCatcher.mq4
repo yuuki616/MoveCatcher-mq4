@@ -1244,7 +1244,6 @@ void PlaceRefillOrders(const string system,const double refPrice)
          PrintFormat("PlaceRefillOrders: failed to place SellLimit for %s err=%d", system, lr.ErrorCode);
       }
    }
-
    double distBuy = MathAbs(Ask - priceBuy);
    if(distBuy < freezeLevel)
       PrintFormat("PlaceRefillOrders: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
@@ -1293,13 +1292,13 @@ void PlaceRefillOrders(const string system,const double refPrice)
 //+------------------------------------------------------------------+
 //| Place initial market order for system A and OCO limits for B     |
 //+------------------------------------------------------------------+
-void InitStrategy()
+bool InitStrategy()
 {
    RefreshRates();
 
    //---- system A market order
    string seqA; double lotFactorA; double lotA = CalcLot("A", seqA, lotFactorA);
-   if(lotA <= 0) return;
+   if(lotA <= 0) return(false);
 
    bool isBuy = (MathRand() % 2) == 0;
    int    slippage = (int)(SlippagePips * Pip() / Point);
@@ -1369,18 +1368,18 @@ void InitStrategy()
    if(ticketA < 0)
    {
       PrintFormat("InitStrategy: failed to place system A order, err=%d", lrA.ErrorCode);
-      return;
+      return(false);
    }
 
    if(!OrderSelect(ticketA, SELECT_BY_TICKET))
-      return;
+      return(false);
    double entryPrice = OrderOpenPrice();
 
    EnsureShadowOrder(ticketA, "A");
 
    //---- system B OCO pending orders
    string seqB; double lotFactorB; double lotB = CalcLot("B", seqB, lotFactorB);
-   if(lotB <= 0) return;
+   if(lotB <= 0) return(false);
    string commentB = MakeComment("B", seqB);
 
    double priceSell = entryPrice + PipsToPrice(s);
@@ -1388,6 +1387,7 @@ void InitStrategy()
    stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
 
+   bool okSell = false;
    double distSell = MathAbs(Bid - priceSell);
    if(distSell < freezeLevel)
       PrintFormat("InitStrategy: SellLimit %.5f within freeze level %.1f pips, retry next tick",
@@ -1405,33 +1405,36 @@ void InitStrategy()
       {
          int ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
                                     0, 0, 0, commentB, MagicNumber, 0, clrNONE);
-      LogRecord lrS;
-      lrS.Time       = TimeCurrent();
-      lrS.Symbol     = Symbol();
-      lrS.System     = "B";
-      lrS.Reason     = "INIT";
-      lrS.Spread     = PriceToPips(Ask - Bid);
-      lrS.Dist       = PriceToPips(MathAbs(priceSell - entryPrice));
-      lrS.GridPips   = GridPips;
-      lrS.s          = s;
-      lrS.lotFactor  = lotFactorB;
-      lrS.BaseLot    = BaseLot;
-      lrS.MaxLot     = MaxLot;
-      lrS.actualLot  = lotB;
-      lrS.seqStr     = seqB;
-      lrS.CommentTag = commentB;
-      lrS.Magic      = MagicNumber;
-      lrS.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
-      lrS.EntryPrice = priceSell;
-      lrS.SL         = 0;
-      lrS.TP         = 0;
-      lrS.ErrorCode  = (ticketSell < 0) ? GetLastError() : 0;
-      WriteLog(lrS);
-      if(ticketSell < 0)
-         PrintFormat("InitStrategy: failed to place SellLimit, err=%d", lrS.ErrorCode);
+         LogRecord lrS;
+         lrS.Time       = TimeCurrent();
+         lrS.Symbol     = Symbol();
+         lrS.System     = "B";
+         lrS.Reason     = "INIT";
+         lrS.Spread     = PriceToPips(Ask - Bid);
+         lrS.Dist       = PriceToPips(MathAbs(priceSell - entryPrice));
+         lrS.GridPips   = GridPips;
+         lrS.s          = s;
+         lrS.lotFactor  = lotFactorB;
+         lrS.BaseLot    = BaseLot;
+         lrS.MaxLot     = MaxLot;
+         lrS.actualLot  = lotB;
+         lrS.seqStr     = seqB;
+         lrS.CommentTag = commentB;
+         lrS.Magic      = MagicNumber;
+         lrS.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
+         lrS.EntryPrice = priceSell;
+         lrS.SL         = 0;
+         lrS.TP         = 0;
+         lrS.ErrorCode  = (ticketSell < 0) ? GetLastError() : 0;
+         WriteLog(lrS);
+         if(ticketSell < 0)
+            PrintFormat("InitStrategy: failed to place SellLimit, err=%d", lrS.ErrorCode);
+         else
+            okSell = true;
       }
    }
 
+   bool okBuy = false;
    double distBuy = MathAbs(Ask - priceBuy);
    if(distBuy < freezeLevel)
       PrintFormat("InitStrategy: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
@@ -1471,11 +1474,15 @@ void InitStrategy()
       lrB.TP         = 0;
       lrB.ErrorCode  = (ticketBuy < 0) ? GetLastError() : 0;
       WriteLog(lrB);
-      if(ticketBuy < 0)
-         PrintFormat("InitStrategy: failed to place BuyLimit, err=%d", lrB.ErrorCode);
-      }
-   }
-}
+        if(ticketBuy < 0)
+           PrintFormat("InitStrategy: failed to place BuyLimit, err=%d", lrB.ErrorCode);
+        else
+           okBuy = true;
+        }
+     }
+
+   return(okBuy && okSell);
+  }
 
 //+------------------------------------------------------------------+
 //| Detect filled OCO for specified system                            |
@@ -1857,7 +1864,8 @@ int OnInit()
 
    MathSrand(GetTickCount());
    InitCloseTimes();
-   InitStrategy();
+   if(!InitStrategy())
+      Print("InitStrategy failed, will retry on next tick");
 
    return(INIT_SUCCEEDED);
 }
@@ -1919,6 +1927,13 @@ void OnTick()
 
    int posCount = (hasA ? 1 : 0) + (hasB ? 1 : 0);
 
+   if(posCount == 0 && !pendA && !pendB && state_A == None && state_B == None)
+   {
+      if(!InitStrategy())
+         Print("InitStrategy failed, will retry on next tick");
+      return;
+   }
+
    if(UseTickSnap && posCount == 2)
    {
       double dist = PriceToPips(MathAbs(priceA - priceB));
@@ -1952,11 +1967,12 @@ void OnTick()
             lr.ErrorCode  = 0;
             WriteLog(lr);
             CloseAllOrders("RESET_SNAP");
-            state_A = None;
-            state_B = None;
-            InitStrategy();
-            lastSnapBar = currentBar;
-            return;
+              state_A = None;
+              state_B = None;
+              if(!InitStrategy())
+                 Print("InitStrategy failed, will retry on next tick");
+              lastSnapBar = currentBar;
+              return;
          }
       }
    }
@@ -1992,11 +2008,12 @@ void OnTick()
          lr.TP         = 0;
          lr.ErrorCode  = 0;
          WriteLog(lr);
-         CloseAllOrders("RESET_ALIVE");
-         state_A = None;
-         state_B = None;
-         InitStrategy();
-         return;
+           CloseAllOrders("RESET_ALIVE");
+           state_A = None;
+           state_B = None;
+           if(!InitStrategy())
+              Print("InitStrategy failed, will retry on next tick");
+           return;
       }
    }
 
