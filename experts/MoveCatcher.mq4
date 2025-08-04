@@ -612,6 +612,31 @@ void EnsureTPSL(const int ticket)
             PrintFormat("EnsureTPSL: TP/SL for ticket %d within stop/freeze level, retry next tick err=%d", ticket, err);
          else
             PrintFormat("EnsureTPSL: failed to set TP/SL for ticket %d err=%d", ticket, err);
+
+         string sys, seq;
+         ParseComment(OrderComment(), sys, seq);
+         LogRecord lr;
+         lr.Time       = TimeCurrent();
+         lr.Symbol     = Symbol();
+         lr.System     = sys;
+         lr.Reason     = "REFILL";
+         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Dist       = 0;
+         lr.GridPips   = GridPips;
+         lr.s          = s;
+         lr.lotFactor  = 0;
+         lr.BaseLot    = BaseLot;
+         lr.MaxLot     = MaxLot;
+         lr.actualLot  = OrderLots();
+         lr.seqStr     = seq;
+         lr.CommentTag = OrderComment();
+         lr.Magic      = MagicNumber;
+         lr.OrderType  = OrderTypeToStr(OrderType());
+         lr.EntryPrice = entry;
+         lr.SL         = desiredSL;
+         lr.TP         = desiredTP;
+         lr.ErrorCode  = err;
+         WriteLog(lr);
       }
    }
 }
