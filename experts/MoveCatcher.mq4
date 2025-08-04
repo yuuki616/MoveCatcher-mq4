@@ -2532,6 +2532,7 @@ int OnInit()
 
 void OnTick()
 {
+   // OCO detection should run once per tick at the beginning
    HandleOCODetection();
    CorrectDuplicatePositions();
 
@@ -2698,9 +2699,6 @@ void OnTick()
       RecoverAfterSL("A");
    if(state_B == Missing)
       RecoverAfterSL("B");
-
-   if(retryTicketA != -1 || retryTicketB != -1)
-      HandleOCODetection();
 }
 
 void OnDeinit(const int reason)
