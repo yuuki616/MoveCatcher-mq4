@@ -1543,6 +1543,93 @@ void HandleOCODetectionFor(const string system)
       return;
    }
 
+   string seqAdj; double lotFactorAdj;
+   double expectedLot = CalcLot(system, seqAdj, lotFactorAdj);
+   string expectedComment = MakeComment(system, seqAdj);
+   if(MathAbs(OrderLots() - expectedLot) > 1e-8 || OrderComment() != expectedComment)
+   {
+      RefreshRates();
+      int    type      = OrderType();
+      double oldLots   = OrderLots();
+      double closePrice = (type == OP_BUY) ? Bid : Ask;
+      string sysTmp, oldSeq; ParseComment(OrderComment(), sysTmp, oldSeq);
+      int errClose = 0;
+      if(!OrderClose(posTicket, oldLots, closePrice, 0, clrNONE))
+         errClose = GetLastError();
+      LogRecord lrClose;
+      lrClose.Time       = TimeCurrent();
+      lrClose.Symbol     = Symbol();
+      lrClose.System     = system;
+      lrClose.Reason     = "REFILL";
+      lrClose.Spread     = PriceToPips(Ask - Bid);
+      lrClose.Dist       = 0;
+      lrClose.GridPips   = GridPips;
+      lrClose.s          = s;
+      lrClose.lotFactor  = lotFactorAdj;
+      lrClose.BaseLot    = BaseLot;
+      lrClose.MaxLot     = MaxLot;
+      lrClose.actualLot  = oldLots;
+      lrClose.seqStr     = oldSeq;
+      lrClose.CommentTag = OrderComment();
+      lrClose.Magic      = MagicNumber;
+      lrClose.OrderType  = OrderTypeToStr(type);
+      lrClose.EntryPrice = OrderOpenPrice();
+      lrClose.SL         = OrderStopLoss();
+      lrClose.TP         = OrderTakeProfit();
+      lrClose.ErrorCode  = errClose;
+      WriteLog(lrClose);
+      if(errClose != 0)
+      {
+         PrintFormat("HandleOCODetectionFor: failed to close %s position %d err=%d", system, posTicket, errClose);
+         return;
+      }
+
+      RefreshRates();
+      double price = (type == OP_BUY) ? Ask : Bid;
+      int newTicket = OrderSend(Symbol(), type, expectedLot, price, 0, 0, 0,
+                                expectedComment, MagicNumber, 0, clrNONE);
+      LogRecord lrOpen;
+      lrOpen.Time       = TimeCurrent();
+      lrOpen.Symbol     = Symbol();
+      lrOpen.System     = system;
+      lrOpen.Reason     = "REFILL";
+      lrOpen.Spread     = PriceToPips(Ask - Bid);
+      lrOpen.Dist       = 0;
+      lrOpen.GridPips   = GridPips;
+      lrOpen.s          = s;
+      lrOpen.lotFactor  = lotFactorAdj;
+      lrOpen.BaseLot    = BaseLot;
+      lrOpen.MaxLot     = MaxLot;
+      lrOpen.actualLot  = expectedLot;
+      lrOpen.seqStr     = seqAdj;
+      lrOpen.CommentTag = expectedComment;
+      lrOpen.Magic      = MagicNumber;
+      lrOpen.OrderType  = OrderTypeToStr(type);
+      lrOpen.EntryPrice = price;
+      lrOpen.SL         = 0;
+      lrOpen.TP         = 0;
+      lrOpen.ErrorCode  = (newTicket < 0) ? GetLastError() : 0;
+      WriteLog(lrOpen);
+      if(newTicket < 0)
+      {
+         PrintFormat("HandleOCODetectionFor: failed to reopen %s position err=%d", system, lrOpen.ErrorCode);
+         if(system == "A")
+            retryTicketA = -1;
+         else
+            retryTicketB = -1;
+         return;
+      }
+      posTicket = newTicket;
+      if(!OrderSelect(posTicket, SELECT_BY_TICKET))
+      {
+         if(system == "A")
+            retryTicketA = -1;
+         else
+            retryTicketB = -1;
+         return;
+      }
+   }
+
    if(OrderStopLoss() != 0 && OrderTakeProfit() != 0)
    {
       if(system == "A")
