@@ -373,9 +373,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
 //+------------------------------------------------------------------+
 string MakeComment(const string system,const string seq)
 {
-   string comment;
-   StringConcatenate(comment,"MoveCatcher_",system,"_",seq);
-   return(comment);
+   return StringFormat("MoveCatcher_%s_%s", system, seq);
 }
 
 //+------------------------------------------------------------------+
