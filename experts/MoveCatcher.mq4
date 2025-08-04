@@ -263,7 +263,10 @@ double DistanceToExistingPositions(const double price)
       if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
          continue;
       int type = OrderType();
-      if(type != OP_BUY && type != OP_SELL)
+      // 成立済みポジションに加え、未決済の指値・逆指値注文も距離計算に含める
+      if(type != OP_BUY && type != OP_SELL &&
+         type != OP_BUYLIMIT && type != OP_SELLLIMIT &&
+         type != OP_BUYSTOP  && type != OP_SELLSTOP)
          continue;
       double d = MathAbs(price - OrderOpenPrice());
       if(d < minDist)
