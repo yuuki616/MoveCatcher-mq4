@@ -366,6 +366,8 @@ double CalcLot(const string system,string &seq,double &lotFactor)
    if(lotCandidate > MaxLot)
    {
       state.Init();
+      int err = 0;
+      SaveDMCState(system, *state, err);
 
       lotFactor    = state.NextLot();
       seq          = "(" + state.Seq() + ")";
@@ -395,7 +397,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       lr.EntryPrice = 0;
       lr.SL         = 0;
       lr.TP         = 0;
-      lr.ErrorCode  = 0;
+      lr.ErrorCode  = err;
       WriteLog(lr);
 
       return(lotActual);
