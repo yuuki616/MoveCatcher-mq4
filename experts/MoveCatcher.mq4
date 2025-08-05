@@ -1155,6 +1155,7 @@ void CloseAllOrders(const string reason)
 {
    bool updateDMC = (reason != "RESET_ALIVE" && reason != "RESET_SNAP");
    RefreshRates();
+   int slippage = (int)MathRound(SlippagePips * Pip() / Point);
    for(int i = OrdersTotal()-1; i >= 0; i--)
    {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
@@ -1165,17 +1166,22 @@ void CloseAllOrders(const string reason)
       int ticket = OrderTicket();
       if(type == OP_BUY || type == OP_SELL)
       {
-         double price = (type == OP_BUY) ? Bid : Ask;
+         double price      = (type == OP_BUY) ? Bid : Ask;
+         double actualLot  = OrderLots();
+         string comment    = OrderComment();
+         double entryPrice = OrderOpenPrice();
+         double slVal      = OrderStopLoss();
+         double tpVal      = OrderTakeProfit();
+         string sysTmp, seqTmp;
+         ParseComment(comment, sysTmp, seqTmp);
          int err = 0;
-         bool ok = OrderClose(ticket, OrderLots(), price, 0, clrNONE);
+         bool ok = OrderClose(ticket, actualLot, price, slippage, clrNONE);
          if(!ok)
             err = GetLastError();
-         string sysTmp, seqTmp;
-         ParseComment(OrderComment(), sysTmp, seqTmp);
          LogRecord lr;
          lr.Time       = TimeCurrent();
          lr.Symbol     = Symbol();
-         lr.System     = "";
+         lr.System     = sysTmp;
          lr.Reason     = reason;
          lr.Spread     = PriceToPips(Ask - Bid);
          lr.Dist       = 0;
@@ -1184,16 +1190,15 @@ void CloseAllOrders(const string reason)
          lr.lotFactor  = 0;
          lr.BaseLot    = BaseLot;
          lr.MaxLot     = MaxLot;
-         lr.actualLot  = OrderLots();
+         lr.actualLot  = actualLot;
          lr.seqStr     = seqTmp;
-         lr.CommentTag = OrderComment();
+         lr.CommentTag = comment;
          lr.Magic      = MagicNumber;
          lr.OrderType  = OrderTypeToStr(type);
-         lr.EntryPrice = OrderOpenPrice();
-         lr.SL         = OrderStopLoss();
-         lr.TP         = OrderTakeProfit();
+         lr.EntryPrice = entryPrice;
+         lr.SL         = slVal;
+         lr.TP         = tpVal;
          lr.ErrorCode  = err;
-         lr.System     = sysTmp;
          WriteLog(lr);
          if(!ok)
             PrintFormat("CloseAllOrders: failed to close %d err=%d", ticket, err);
@@ -1246,6 +1251,8 @@ void CorrectDuplicatePositions()
 {
    RefreshRates();
 
+   int slippage = (int)MathRound(SlippagePips * Pip() / Point);
+
    int ticketsA[]; datetime timesA[];
    int ticketsB[]; datetime timesB[];
 
@@ -1293,9 +1300,17 @@ void CorrectDuplicatePositions()
          int tk = ticketsA[i];
          if(!OrderSelect(tk, SELECT_BY_TICKET))
             continue;
-         double price = (OrderType() == OP_BUY) ? Bid : Ask;
+         int type          = OrderType();
+         double price      = (type == OP_BUY) ? Bid : Ask;
+         double lot        = OrderLots();
+         string comment    = OrderComment();
+         double entryPrice = OrderOpenPrice();
+         double slVal      = OrderStopLoss();
+         double tpVal      = OrderTakeProfit();
+         string sysTmp, seqTmp;
+         ParseComment(comment, sysTmp, seqTmp);
          int err = 0;
-         bool ok = OrderClose(tk, OrderLots(), price, 0, clrNONE);
+         bool ok = OrderClose(tk, lot, price, slippage, clrNONE);
          if(!ok)
             err = GetLastError();
          LogRecord lr;
@@ -1310,16 +1325,14 @@ void CorrectDuplicatePositions()
          lr.lotFactor  = 0;
          lr.BaseLot    = BaseLot;
          lr.MaxLot     = MaxLot;
-         lr.actualLot  = OrderLots();
-         string sysTmp, seqTmp;
-         ParseComment(OrderComment(), sysTmp, seqTmp);
+         lr.actualLot  = lot;
          lr.seqStr     = seqTmp;
-         lr.CommentTag = OrderComment();
+         lr.CommentTag = comment;
          lr.Magic      = MagicNumber;
-         lr.OrderType  = OrderTypeToStr(OrderType());
-         lr.EntryPrice = OrderOpenPrice();
-         lr.SL         = OrderStopLoss();
-         lr.TP         = OrderTakeProfit();
+         lr.OrderType  = OrderTypeToStr(type);
+         lr.EntryPrice = entryPrice;
+         lr.SL         = slVal;
+         lr.TP         = tpVal;
          lr.ErrorCode  = err;
          WriteLog(lr);
          if(!ok)
@@ -1343,9 +1356,17 @@ void CorrectDuplicatePositions()
          int tk = ticketsB[i];
          if(!OrderSelect(tk, SELECT_BY_TICKET))
             continue;
-         double price = (OrderType() == OP_BUY) ? Bid : Ask;
+         int type          = OrderType();
+         double price      = (type == OP_BUY) ? Bid : Ask;
+         double lot        = OrderLots();
+         string comment    = OrderComment();
+         double entryPrice = OrderOpenPrice();
+         double slVal      = OrderStopLoss();
+         double tpVal      = OrderTakeProfit();
+         string sysTmp2, seqTmp2;
+         ParseComment(comment, sysTmp2, seqTmp2);
          int err = 0;
-         bool ok = OrderClose(tk, OrderLots(), price, 0, clrNONE);
+         bool ok = OrderClose(tk, lot, price, slippage, clrNONE);
          if(!ok)
             err = GetLastError();
          LogRecord lr;
@@ -1360,16 +1381,14 @@ void CorrectDuplicatePositions()
          lr.lotFactor  = 0;
          lr.BaseLot    = BaseLot;
          lr.MaxLot     = MaxLot;
-         lr.actualLot  = OrderLots();
-         string sysTmp2, seqTmp2;
-         ParseComment(OrderComment(), sysTmp2, seqTmp2);
+         lr.actualLot  = lot;
          lr.seqStr     = seqTmp2;
-         lr.CommentTag = OrderComment();
+         lr.CommentTag = comment;
          lr.Magic      = MagicNumber;
-         lr.OrderType  = OrderTypeToStr(OrderType());
-         lr.EntryPrice = OrderOpenPrice();
-         lr.SL         = OrderStopLoss();
-         lr.TP         = OrderTakeProfit();
+         lr.OrderType  = OrderTypeToStr(type);
+         lr.EntryPrice = entryPrice;
+         lr.SL         = slVal;
+         lr.TP         = tpVal;
          lr.ErrorCode  = err;
          WriteLog(lr);
          if(!ok)
