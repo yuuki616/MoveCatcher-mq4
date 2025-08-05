@@ -161,7 +161,7 @@ double NormalizeLot(const double lotCandidate)
    if(lotStep > 0)
    {
       lot = MathRound(lot / lotStep) * lotStep;
-      lotDigits = (int)MathRound(-MathLog10(lotStep));
+      lotDigits = (int)MathRound(-MathLog(lotStep) / MathLog(10));
       lot = NormalizeDouble(lot, lotDigits);
    }
 
