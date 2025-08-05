@@ -37,6 +37,8 @@ datetime lastCloseTimeB = 0; // last processed close time for system B
 int retryTicketA = -1; // ticket to retry TP/SL setting for system A
 int retryTicketB = -1; // ticket to retry TP/SL setting for system B
 
+const string REASON_DEINIT = "DEINIT"; // reason code for EA deinitialization
+
 struct LogRecord
 {
    datetime Time;
@@ -2877,8 +2879,8 @@ void OnDeinit(const int reason)
       rec.Time      = TimeCurrent();
       rec.Symbol    = Symbol();
       rec.System    = "A";
-      // RESET_ALIVE: 保存失敗時も規定の Reason に収める
-      rec.Reason    = "RESET_ALIVE";
+      // DEINIT: 保存失敗時も終了理由として記録
+      rec.Reason    = REASON_DEINIT;
       rec.Spread    = 0;
       rec.Dist      = 0;
       rec.GridPips  = GridPips;
@@ -2904,8 +2906,8 @@ void OnDeinit(const int reason)
       rec.Time      = TimeCurrent();
       rec.Symbol    = Symbol();
       rec.System    = "B";
-      // RESET_ALIVE: 保存失敗時も規定の Reason に収める
-      rec.Reason    = "RESET_ALIVE";
+      // DEINIT: 保存失敗時も終了理由として記録
+      rec.Reason    = REASON_DEINIT;
       rec.Spread    = 0;
       rec.Dist      = 0;
       rec.GridPips  = GridPips;
