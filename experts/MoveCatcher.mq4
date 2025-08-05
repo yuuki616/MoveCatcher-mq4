@@ -1158,6 +1158,7 @@ void RecoverAfterSL(const string system)
    }
    string comment  = MakeComment(system, seq);
    double dist     = DistanceToExistingPositions(price);
+   /* Disabled spread check to allow market re-entry regardless of current spread
    if(spread > MaxSpreadPips)
    {
       LogRecord lrSkip;
@@ -1185,6 +1186,7 @@ void RecoverAfterSL(const string system)
       PrintFormat("RecoverAfterSL: spread %.1f > MaxSpreadPips %.1f, order skipped", spread, MaxSpreadPips);
       return;
    }
+   */
    if(UseDistanceBand && dist >= 0 && (dist < MinDistancePips || dist > MaxDistancePips))
    {
       LogRecord lrSkip;
