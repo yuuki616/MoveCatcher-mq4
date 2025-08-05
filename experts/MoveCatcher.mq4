@@ -517,7 +517,7 @@ void InitCloseTimes()
 //| updateDMC=false で DMCMM 状態更新を抑制しログのみ残す           |
 //| reason が指定されていれば TP/SL 判定の代わりにその値を使用      |
 //+------------------------------------------------------------------+
-void ProcessClosedTrades(const string system,const bool updateDMC,const string reason="")
+void ProcessClosedTrades(const string system,const bool updateDMC,const string reason="",const double spreadPips=0.0)
 {
    RefreshRates();
    datetime lastTime = (system == "A") ? lastCloseTimeA : lastCloseTimeB;
@@ -588,7 +588,7 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       lr.Symbol     = Symbol();
       lr.System     = system;
       lr.Reason     = rsn;
-      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Spread     = spreadPips;
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
       lr.s          = s;
@@ -1088,7 +1088,8 @@ void DeletePendings(const string system,const string reason)
 void RecoverAfterSL(const string system)
 {
    RefreshRates();
-   ProcessClosedTrades(system, true);
+   double spread = PriceToPips(Ask - Bid);
+   ProcessClosedTrades(system, true, "", spread);
    DeletePendings(system, "SL");
 
    int lastType = -1;
@@ -1288,6 +1289,8 @@ void CloseAllOrders(const string reason)
       int ticket = OrderTicket();
       if(type == OP_BUY || type == OP_SELL)
       {
+         RefreshRates();
+         double spreadClose = PriceToPips(Ask - Bid);
          double price      = (type == OP_BUY) ? Bid : Ask;
          double actualLot  = OrderLots();
          string comment    = OrderComment();
@@ -1305,7 +1308,7 @@ void CloseAllOrders(const string reason)
          lr.Symbol     = Symbol();
          lr.System     = sysTmp;
          lr.Reason     = reason;
-         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Spread     = spreadClose;
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
@@ -1325,11 +1328,13 @@ void CloseAllOrders(const string reason)
          if(!ok)
             PrintFormat("CloseAllOrders: failed to close %d err=%d", ticket, err);
          else if(updateDMC)
-            ProcessClosedTrades(sysTmp, true, reason);
+            ProcessClosedTrades(sysTmp, true, reason, spreadClose);
       }
       else if(type == OP_BUYLIMIT || type == OP_SELLLIMIT ||
               type == OP_BUYSTOP  || type == OP_SELLSTOP)
       {
+         RefreshRates();
+         double spreadPend = PriceToPips(Ask - Bid);
          int err = 0;
          bool ok = OrderDelete(ticket);
          if(!ok)
@@ -1341,7 +1346,7 @@ void CloseAllOrders(const string reason)
          ParseComment(OrderComment(), sysTmp2, seqTmp2);
          lr.System     = sysTmp2;
          lr.Reason     = reason;
-         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Spread     = spreadPend;
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
@@ -2345,7 +2350,9 @@ bool InitStrategy()
 //+------------------------------------------------------------------+
 void HandleOCODetectionFor(const string system)
 {
-   ProcessClosedTrades(system, true);
+   RefreshRates();
+   double spread = PriceToPips(Ask - Bid);
+   ProcessClosedTrades(system, true, "", spread);
    int posTicket = -1;
    if(system == "A")
    {
@@ -2452,6 +2459,7 @@ void HandleOCODetectionFor(const string system)
    if(MathAbs(OrderLots() - expectedLot) > 1e-8 || OrderComment() != expectedComment)
    {
       RefreshRates();
+      double spreadClose = PriceToPips(Ask - Bid);
       int    type      = OrderType();
       double oldLots   = OrderLots();
       double closePrice = (type == OP_BUY) ? Bid : Ask;
@@ -2465,7 +2473,7 @@ void HandleOCODetectionFor(const string system)
       lrClose.Symbol     = Symbol();
       lrClose.System     = system;
       lrClose.Reason     = "REFILL";
-      lrClose.Spread     = PriceToPips(Ask - Bid);
+      lrClose.Spread     = spreadClose;
       lrClose.Dist       = 0;
       lrClose.GridPips   = GridPips;
       lrClose.s          = s;
@@ -2488,7 +2496,7 @@ void HandleOCODetectionFor(const string system)
          return;
       }
 
-      ProcessClosedTrades(system, false, "REFILL");
+      ProcessClosedTrades(system, false, "REFILL", spreadClose);
 
       RefreshRates();
       double price = (type == OP_BUY) ? Ask : Bid;
