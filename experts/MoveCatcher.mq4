@@ -2279,8 +2279,9 @@ void HandleOCODetectionFor(const string system)
       double oldLots   = OrderLots();
       double closePrice = (type == OP_BUY) ? Bid : Ask;
       string sysTmp, oldSeq; ParseComment(OrderComment(), sysTmp, oldSeq);
+      int slippage = (int)MathRound(SlippagePips * Pip() / Point);
       int errClose = 0;
-      if(!OrderClose(posTicket, oldLots, closePrice, 0, clrNONE))
+      if(!OrderClose(posTicket, oldLots, closePrice, slippage, clrNONE))
          errClose = GetLastError();
       LogRecord lrClose;
       lrClose.Time       = TimeCurrent();
@@ -2380,7 +2381,7 @@ void HandleOCODetectionFor(const string system)
             retryTicketB = -1;
          return;
       }
-      int    slippage = UseProtectedLimit ? (int)MathRound(SlippagePips * Pip() / Point) : 0;
+      slippage = UseProtectedLimit ? (int)MathRound(SlippagePips * Pip() / Point) : 0;
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
                                 slippage, 0, 0,
                                 expectedComment, MagicNumber, 0, clrNONE);
