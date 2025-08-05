@@ -292,7 +292,7 @@ double DistanceToExistingPositions(const double price)
 //| Check spread and distance band for a candidate order price       |
 //| Check spread and distance band for a candidate order price       |
 //+------------------------------------------------------------------+
-bool CanPlaceOrder(double &price,const bool isBuy)
+bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo)
 {
    RefreshRates();
 
@@ -308,6 +308,7 @@ bool CanPlaceOrder(double &price,const bool isBuy)
    {
       PrintFormat("CanPlaceOrder: price %.5f on wrong side of %s %.5f",
                   price, isBuy ? "Ask" : "Bid", ref);
+      errorInfo = "Wrong direction";
       return(false);
    }
 
@@ -316,6 +317,7 @@ bool CanPlaceOrder(double &price,const bool isBuy)
    {
       PrintFormat("CanPlaceOrder: price %.5f within freeze level %.1f pips, retry next tick",
                   price, PriceToPips(freezeLevel));
+      errorInfo = "FreezeLevel violation";
       return(false);
    }
 
@@ -334,12 +336,14 @@ bool CanPlaceOrder(double &price,const bool isBuy)
       {
          PrintFormat("CanPlaceOrder: adjusted price %.5f on wrong side of %s %.5f",
                      price, isBuy ? "Ask" : "Bid", ref);
+         errorInfo = "Wrong direction";
          return(false);
       }
       if(absDist < freezeLevel)
       {
          PrintFormat("CanPlaceOrder: price %.5f within freeze level %.1f pips after stop adjustment, retry next tick",
                      price, PriceToPips(freezeLevel));
+         errorInfo = "FreezeLevel violation";
          return(false);
       }
    }
@@ -348,6 +352,7 @@ bool CanPlaceOrder(double &price,const bool isBuy)
    if(spread > MaxSpreadPips)
    {
       PrintFormat("Spread %.1f exceeds MaxSpreadPips %.1f", spread, MaxSpreadPips);
+      errorInfo = "SpreadExceeded";
       return(false);
    }
 
@@ -357,10 +362,12 @@ bool CanPlaceOrder(double &price,const bool isBuy)
       if(bandDist >= 0 && (bandDist < MinDistancePips || bandDist > MaxDistancePips))
       {
          PrintFormat("Distance %.1f outside band [%.1f, %.1f]", bandDist, MinDistancePips, MaxDistancePips);
+         errorInfo = "DistanceBandViolation";
          return(false);
       }
    }
 
+   errorInfo = "";
    return(true);
 }
 
@@ -1604,6 +1611,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lr.TP         = 0;
       // Freeze level violation
       lr.ErrorCode  = ERR_INVALID_STOPS;
+      lr.ErrorInfo  = "Freeze level violation";
       WriteLog(lr);
       PrintFormat("PlaceRefillOrders: SellLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceSell, PriceToPips(freezeLevel));
@@ -1618,7 +1626,8 @@ void PlaceRefillOrders(const string system,const double refPrice)
          PrintFormat("PlaceRefillOrders: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      old, priceSell, PriceToPips(stopLevel));
       }
-      if(!CanPlaceOrder(priceSell, false))
+      string errSell;
+      if(!CanPlaceOrder(priceSell, false, errSell))
       {
          LogRecord lr;
          lr.Time       = TimeCurrent();
@@ -1640,10 +1649,8 @@ void PlaceRefillOrders(const string system,const double refPrice)
          lr.EntryPrice = priceSell;
          lr.SL         = 0;
          lr.TP         = 0;
-         // Spread or band violation
          lr.ErrorCode  = 0;
-         if(PriceToPips(Ask - Bid) > MaxSpreadPips)
-            lr.ErrorInfo = "Spread or band violation";
+         lr.ErrorInfo  = errSell;
          WriteLog(lr);
          okSell = false;
       }
@@ -1734,6 +1741,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lrb.TP         = 0;
       // Freeze level violation
       lrb.ErrorCode  = ERR_INVALID_STOPS;
+      lrb.ErrorInfo  = "Freeze level violation";
       WriteLog(lrb);
       PrintFormat("PlaceRefillOrders: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceBuy, PriceToPips(freezeLevel));
@@ -1748,7 +1756,8 @@ void PlaceRefillOrders(const string system,const double refPrice)
          PrintFormat("PlaceRefillOrders: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      oldB, priceBuy, PriceToPips(stopLevel));
       }
-      if(!CanPlaceOrder(priceBuy, true))
+      string errBuy;
+      if(!CanPlaceOrder(priceBuy, true, errBuy))
       {
          LogRecord lrb;
          lrb.Time       = TimeCurrent();
@@ -1771,8 +1780,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
          lrb.SL         = 0;
          lrb.TP         = 0;
          lrb.ErrorCode  = 0;
-         if(PriceToPips(Ask - Bid) > MaxSpreadPips)
-            lrb.ErrorInfo = "Spread or band violation";
+         lrb.ErrorInfo  = errBuy;
          WriteLog(lrb);
          okBuy = false;
       }
@@ -1954,6 +1962,7 @@ bool InitStrategy()
       lrSkipA.SL         = entrySL;
       lrSkipA.TP         = entryTP;
       lrSkipA.ErrorCode  = 0;
+      lrSkipA.ErrorInfo  = "Distance band violation";
       WriteLog(lrSkipA);
       PrintFormat("InitStrategy: distance %.1f outside band [%.1f, %.1f], order skipped",
                   distA, MinDistancePips, MaxDistancePips);
@@ -2043,6 +2052,7 @@ bool InitStrategy()
       lrS.TP         = 0;
       // Freeze level violation
       lrS.ErrorCode  = ERR_INVALID_STOPS;
+      lrS.ErrorInfo  = "Freeze level violation";
       WriteLog(lrS);
       PrintFormat("InitStrategy: SellLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceSell, PriceToPips(freezeLevel));
@@ -2081,69 +2091,73 @@ bool InitStrategy()
          lrS.SL         = 0;
          lrS.TP         = 0;
          lrS.ErrorCode  = 0;
+         lrS.ErrorInfo  = "Distance band violation";
          WriteLog(lrS);
          PrintFormat("InitStrategy: SellLimit distance %.1f outside band [%.1f, %.1f]",
                      distBand, MinDistancePips, MaxDistancePips);
          okSell = false;
       }
-      else if(!CanPlaceOrder(priceSell, false))
-      {
-         LogRecord lrS;
-         lrS.Time       = TimeCurrent();
-         lrS.Symbol     = Symbol();
-         lrS.System     = "B";
-         lrS.Reason     = "INIT";
-         lrS.Spread     = PriceToPips(Ask - Bid);
-         lrS.Dist       = MathMax(distBand, 0);
-         lrS.GridPips   = GridPips;
-         lrS.s          = s;
-         lrS.lotFactor  = lotFactorB;
-         lrS.BaseLot    = BaseLot;
-         lrS.MaxLot     = MaxLot;
-         lrS.actualLot  = lotB;
-         lrS.seqStr     = seqB;
-         lrS.CommentTag = commentB;
-         lrS.Magic      = MagicNumber;
-         lrS.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
-         lrS.EntryPrice = priceSell;
-         lrS.SL         = 0;
-         lrS.TP         = 0;
-         lrS.ErrorCode  = 0;
-         if(PriceToPips(Ask - Bid) > MaxSpreadPips)
-            lrS.ErrorInfo = "Spread or band violation";
-         WriteLog(lrS);
-         okSell = false;
-      }
       else
       {
-         ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
-                                0, 0, 0, commentB, MagicNumber, 0, clrNONE);
-         LogRecord lrS;
-         lrS.Time       = TimeCurrent();
-         lrS.Symbol     = Symbol();
-         lrS.System     = "B";
-         lrS.Reason     = "INIT";
-         lrS.Spread     = PriceToPips(Ask - Bid);
-         lrS.Dist       = MathMax(distBand, 0);
-         lrS.GridPips   = GridPips;
-         lrS.s          = s;
-         lrS.lotFactor  = lotFactorB;
-         lrS.BaseLot    = BaseLot;
-         lrS.MaxLot     = MaxLot;
-         lrS.actualLot  = lotB;
-         lrS.seqStr     = seqB;
-         lrS.CommentTag = commentB;
-         lrS.Magic      = MagicNumber;
-         lrS.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
-         lrS.EntryPrice = priceSell;
-         lrS.SL         = 0;
-         lrS.TP         = 0;
-         lrS.ErrorCode  = (ticketSell < 0) ? GetLastError() : 0;
-         WriteLog(lrS);
-         if(ticketSell < 0)
+         string errS;
+         if(!CanPlaceOrder(priceSell, false, errS))
          {
-            PrintFormat("InitStrategy: failed to place SellLimit, err=%d", lrS.ErrorCode);
+            LogRecord lrS;
+            lrS.Time       = TimeCurrent();
+            lrS.Symbol     = Symbol();
+            lrS.System     = "B";
+            lrS.Reason     = "INIT";
+            lrS.Spread     = PriceToPips(Ask - Bid);
+            lrS.Dist       = MathMax(distBand, 0);
+            lrS.GridPips   = GridPips;
+            lrS.s          = s;
+            lrS.lotFactor  = lotFactorB;
+            lrS.BaseLot    = BaseLot;
+            lrS.MaxLot     = MaxLot;
+            lrS.actualLot  = lotB;
+            lrS.seqStr     = seqB;
+            lrS.CommentTag = commentB;
+            lrS.Magic      = MagicNumber;
+            lrS.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
+            lrS.EntryPrice = priceSell;
+            lrS.SL         = 0;
+            lrS.TP         = 0;
+            lrS.ErrorCode  = 0;
+            lrS.ErrorInfo  = errS;
+            WriteLog(lrS);
             okSell = false;
+         }
+         else
+         {
+            ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
+                                   0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+            LogRecord lrS;
+            lrS.Time       = TimeCurrent();
+            lrS.Symbol     = Symbol();
+            lrS.System     = "B";
+            lrS.Reason     = "INIT";
+            lrS.Spread     = PriceToPips(Ask - Bid);
+            lrS.Dist       = MathMax(distBand, 0);
+            lrS.GridPips   = GridPips;
+            lrS.s          = s;
+            lrS.lotFactor  = lotFactorB;
+            lrS.BaseLot    = BaseLot;
+            lrS.MaxLot     = MaxLot;
+            lrS.actualLot  = lotB;
+            lrS.seqStr     = seqB;
+            lrS.CommentTag = commentB;
+            lrS.Magic      = MagicNumber;
+            lrS.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
+            lrS.EntryPrice = priceSell;
+            lrS.SL         = 0;
+            lrS.TP         = 0;
+            lrS.ErrorCode  = (ticketSell < 0) ? GetLastError() : 0;
+            WriteLog(lrS);
+            if(ticketSell < 0)
+            {
+               PrintFormat("InitStrategy: failed to place SellLimit, err=%d", lrS.ErrorCode);
+               okSell = false;
+            }
          }
       }
    }
@@ -2174,6 +2188,7 @@ bool InitStrategy()
       lrB.TP         = 0;
       // Freeze level violation
       lrB.ErrorCode  = ERR_INVALID_STOPS;
+      lrB.ErrorInfo  = "Freeze level violation";
       WriteLog(lrB);
       PrintFormat("InitStrategy: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceBuy, PriceToPips(freezeLevel));
@@ -2208,52 +2223,55 @@ bool InitStrategy()
          lrB.CommentTag = commentB;
          lrB.Magic      = MagicNumber;
          lrB.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
-         lrB.EntryPrice = priceBuy;
-         lrB.SL         = 0;
-         lrB.TP         = 0;
-         lrB.ErrorCode  = 0;
-         WriteLog(lrB);
-         PrintFormat("InitStrategy: BuyLimit distance %.1f outside band [%.1f, %.1f]",
-                     distBandB, MinDistancePips, MaxDistancePips);
-         okBuy = false;
-      }
-      else if(!CanPlaceOrder(priceBuy, true))
-      {
-         LogRecord lrB;
-         lrB.Time       = TimeCurrent();
-         lrB.Symbol     = Symbol();
-         lrB.System     = "B";
-         lrB.Reason     = "INIT";
-         lrB.Spread     = PriceToPips(Ask - Bid);
-         lrB.Dist       = MathMax(distBandB, 0);
-         lrB.GridPips   = GridPips;
-         lrB.s          = s;
-         lrB.lotFactor  = lotFactorB;
-         lrB.BaseLot    = BaseLot;
-         lrB.MaxLot     = MaxLot;
-         lrB.actualLot  = lotB;
-         lrB.seqStr     = seqB;
-         lrB.CommentTag = commentB;
-         lrB.Magic      = MagicNumber;
-         lrB.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
-         lrB.EntryPrice = priceBuy;
-         lrB.SL         = 0;
-         lrB.TP         = 0;
-         lrB.ErrorCode  = 0;
-         if(PriceToPips(Ask - Bid) > MaxSpreadPips)
-            lrB.ErrorInfo = "Spread or band violation";
-         WriteLog(lrB);
-         okBuy = false;
+        lrB.EntryPrice = priceBuy;
+        lrB.SL         = 0;
+        lrB.TP         = 0;
+        lrB.ErrorCode  = 0;
+        lrB.ErrorInfo  = "Distance band violation";
+        WriteLog(lrB);
+        PrintFormat("InitStrategy: BuyLimit distance %.1f outside band [%.1f, %.1f]",
+                    distBandB, MinDistancePips, MaxDistancePips);
+        okBuy = false;
       }
       else
       {
-         ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
-                               0, 0, 0, commentB, MagicNumber, 0, clrNONE);
-         LogRecord lrB;
-         lrB.Time       = TimeCurrent();
-         lrB.Symbol     = Symbol();
-         lrB.System     = "B";
-         lrB.Reason     = "INIT";
+         string errB;
+         if(!CanPlaceOrder(priceBuy, true, errB))
+         {
+            LogRecord lrB;
+            lrB.Time       = TimeCurrent();
+            lrB.Symbol     = Symbol();
+            lrB.System     = "B";
+            lrB.Reason     = "INIT";
+            lrB.Spread     = PriceToPips(Ask - Bid);
+            lrB.Dist       = MathMax(distBandB, 0);
+            lrB.GridPips   = GridPips;
+            lrB.s          = s;
+            lrB.lotFactor  = lotFactorB;
+            lrB.BaseLot    = BaseLot;
+            lrB.MaxLot     = MaxLot;
+            lrB.actualLot  = lotB;
+            lrB.seqStr     = seqB;
+            lrB.CommentTag = commentB;
+            lrB.Magic      = MagicNumber;
+            lrB.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
+            lrB.EntryPrice = priceBuy;
+            lrB.SL         = 0;
+            lrB.TP         = 0;
+            lrB.ErrorCode  = 0;
+            lrB.ErrorInfo  = errB;
+            WriteLog(lrB);
+            okBuy = false;
+         }
+         else
+         {
+            ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
+                                  0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+            LogRecord lrB;
+            lrB.Time       = TimeCurrent();
+            lrB.Symbol     = Symbol();
+            lrB.System     = "B";
+            lrB.Reason     = "INIT";
          lrB.Spread     = PriceToPips(Ask - Bid);
          lrB.Dist       = MathMax(distBandB, 0);
          lrB.GridPips   = GridPips;
