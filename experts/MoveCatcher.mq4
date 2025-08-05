@@ -676,7 +676,7 @@ void EnsureTPSL(const int ticket)
       if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
       {
          int err = GetLastError();
-         if(err == 130 || err == 145)
+         if(err == ERR_INVALID_STOPS)
             PrintFormat("EnsureTPSL: TP/SL for ticket %d within stop/freeze level, retry next tick err=%d", ticket, err);
          else
             PrintFormat("EnsureTPSL: failed to set TP/SL for ticket %d err=%d", ticket, err);
@@ -842,7 +842,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       lrf.SL         = 0;
       lrf.TP         = 0;
       // Freeze level violation
-      lrf.ErrorCode  = 145;
+      lrf.ErrorCode  = ERR_INVALID_STOPS;
       WriteLog(lrf);
       PrintFormat("EnsureShadowOrder: price %.5f within freeze level %.1f pips, retry next tick", price, PriceToPips(freezeLevel));
       return;
@@ -1427,7 +1427,8 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lr.EntryPrice = priceSell;
       lr.SL         = 0;
       lr.TP         = 0;
-      lr.ErrorCode  = 145;
+      // Freeze level violation
+      lr.ErrorCode  = ERR_INVALID_STOPS;
       WriteLog(lr);
       PrintFormat("PlaceRefillOrders: SellLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceSell, PriceToPips(freezeLevel));
@@ -1526,7 +1527,8 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lrb.EntryPrice = priceBuy;
       lrb.SL         = 0;
       lrb.TP         = 0;
-      lrb.ErrorCode  = 145;
+      // Freeze level violation
+      lrb.ErrorCode  = ERR_INVALID_STOPS;
       WriteLog(lrb);
       PrintFormat("PlaceRefillOrders: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceBuy, PriceToPips(freezeLevel));
@@ -1825,7 +1827,8 @@ bool InitStrategy()
       lrS.EntryPrice = priceSell;
       lrS.SL         = 0;
       lrS.TP         = 0;
-      lrS.ErrorCode  = 145;
+      // Freeze level violation
+      lrS.ErrorCode  = ERR_INVALID_STOPS;
       WriteLog(lrS);
       PrintFormat("InitStrategy: SellLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceSell, PriceToPips(freezeLevel));
@@ -1953,7 +1956,8 @@ bool InitStrategy()
       lrB.EntryPrice = priceBuy;
       lrB.SL         = 0;
       lrB.TP         = 0;
-      lrB.ErrorCode  = 145;
+      // Freeze level violation
+      lrB.ErrorCode  = ERR_INVALID_STOPS;
       WriteLog(lrB);
       PrintFormat("InitStrategy: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
                   priceBuy, PriceToPips(freezeLevel));
