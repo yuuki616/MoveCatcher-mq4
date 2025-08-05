@@ -795,12 +795,72 @@ void EnsureShadowOrder(const int ticket,const string system)
                         : entry - PipsToPrice(GridPips);
    price = NormalizeDouble(price, Digits);
    int type = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
+   double bandDist = DistanceToExistingPositions(price);
 
    RefreshRates();
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
    double ref         = (type == OP_BUYLIMIT) ? Ask : Bid;
    double dist        = price - ref;
+   double spread      = PriceToPips(Ask - Bid);
+
+   if(spread > MaxSpreadPips)
+   {
+      LogRecord lrs;
+      lrs.Time       = TimeCurrent();
+      lrs.Symbol     = Symbol();
+      lrs.System     = system;
+      lrs.Reason     = "REFILL";
+      lrs.Spread     = spread;
+      lrs.Dist       = bandDist;
+      lrs.GridPips   = GridPips;
+      lrs.s          = s;
+      lrs.lotFactor  = lotFactor;
+      lrs.BaseLot    = BaseLot;
+      lrs.MaxLot     = MaxLot;
+      lrs.actualLot  = lot;
+      lrs.seqStr     = seq;
+      lrs.CommentTag = comment;
+      lrs.Magic      = MagicNumber;
+      lrs.OrderType  = OrderTypeToStr(type);
+      lrs.EntryPrice = price;
+      lrs.SL         = 0;
+      lrs.TP         = 0;
+      lrs.ErrorCode  = 0;
+      lrs.ErrorInfo  = "Spread exceeded";
+      WriteLog(lrs);
+      PrintFormat("EnsureShadowOrder: spread %.1f exceeds MaxSpreadPips %.1f", spread, MaxSpreadPips);
+      return;
+   }
+
+   if(UseDistanceBand && bandDist >= 0 && (bandDist < MinDistancePips || bandDist > MaxDistancePips))
+   {
+      LogRecord lrb;
+      lrb.Time       = TimeCurrent();
+      lrb.Symbol     = Symbol();
+      lrb.System     = system;
+      lrb.Reason     = "REFILL";
+      lrb.Spread     = spread;
+      lrb.Dist       = bandDist;
+      lrb.GridPips   = GridPips;
+      lrb.s          = s;
+      lrb.lotFactor  = lotFactor;
+      lrb.BaseLot    = BaseLot;
+      lrb.MaxLot     = MaxLot;
+      lrb.actualLot  = lot;
+      lrb.seqStr     = seq;
+      lrb.CommentTag = comment;
+      lrb.Magic      = MagicNumber;
+      lrb.OrderType  = OrderTypeToStr(type);
+      lrb.EntryPrice = price;
+      lrb.SL         = 0;
+      lrb.TP         = 0;
+      lrb.ErrorCode  = 0;
+      lrb.ErrorInfo  = "Distance band violation";
+      WriteLog(lrb);
+      PrintFormat("EnsureShadowOrder: distance %.1f outside [%.1f, %.1f]", bandDist, MinDistancePips, MaxDistancePips);
+      return;
+   }
 
    // 方向チェック: BuyLimit は Ask 未満 / SellLimit は Bid 超過
    if((type == OP_BUYLIMIT && dist >= 0) || (type == OP_SELLLIMIT && dist <= 0))
