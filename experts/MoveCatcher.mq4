@@ -1158,6 +1158,33 @@ void RecoverAfterSL(const string system)
    }
    string comment  = MakeComment(system, seq);
    double dist     = DistanceToExistingPositions(price);
+   if(spread > MaxSpreadPips)
+   {
+      LogRecord lrSkip;
+      lrSkip.Time       = TimeCurrent();
+      lrSkip.Symbol     = Symbol();
+      lrSkip.System     = system;
+      lrSkip.Reason     = "SL";
+      lrSkip.Spread     = spread;
+      lrSkip.Dist       = MathMax(dist, 0);
+      lrSkip.GridPips   = GridPips;
+      lrSkip.s          = s;
+      lrSkip.lotFactor  = lotFactor;
+      lrSkip.BaseLot    = BaseLot;
+      lrSkip.MaxLot     = MaxLot;
+      lrSkip.actualLot  = lot;
+      lrSkip.seqStr     = seq;
+      lrSkip.CommentTag = comment;
+      lrSkip.Magic      = MagicNumber;
+      lrSkip.OrderType  = OrderTypeToStr(isBuy ? OP_BUY : OP_SELL);
+      lrSkip.EntryPrice = price;
+      lrSkip.SL         = sl;
+      lrSkip.TP         = tp;
+      lrSkip.ErrorCode  = 0;
+      WriteLog(lrSkip);
+      PrintFormat("RecoverAfterSL: spread %.1f > MaxSpreadPips %.1f, order skipped", spread, MaxSpreadPips);
+      return;
+   }
    if(UseDistanceBand && dist >= 0 && (dist < MinDistancePips || dist > MaxDistancePips))
    {
       LogRecord lrSkip;
@@ -1165,7 +1192,7 @@ void RecoverAfterSL(const string system)
       lrSkip.Symbol     = Symbol();
       lrSkip.System     = system;
       lrSkip.Reason     = "SL";
-      lrSkip.Spread     = PriceToPips(Ask - Bid);
+      lrSkip.Spread     = spread;
       lrSkip.Dist       = MathMax(dist, 0);
       lrSkip.GridPips   = GridPips;
       lrSkip.s          = s;
@@ -1194,7 +1221,7 @@ void RecoverAfterSL(const string system)
    lr.Symbol     = Symbol();
    lr.System     = system;
    lr.Reason     = "SL";
-   lr.Spread     = PriceToPips(Ask - Bid);
+   lr.Spread     = spread;
    lr.Dist       = MathMax(dist, 0);
    lr.GridPips   = GridPips;
    lr.s          = s;
