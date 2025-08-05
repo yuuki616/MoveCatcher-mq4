@@ -300,16 +300,25 @@ bool CanPlaceOrder(double &price,const bool isBuy,const double refPrice)
 
    // 注文方向に応じた基準価格を取得
    double ref  = isBuy ? Ask : Bid;
-   double dist = MathAbs(price - ref);
+   double dist = price - ref;
 
-   if(dist < freezeLevel)
+   // 方向チェック: BuyLimit は Ask 未満 / SellLimit は Bid 超過
+   if((isBuy && dist >= 0) || (!isBuy && dist <= 0))
+   {
+      PrintFormat("CanPlaceOrder: price %.5f on wrong side of %s %.5f",
+                  price, isBuy ? "Ask" : "Bid", ref);
+      return(false);
+   }
+
+   double absDist = MathAbs(dist);
+   if(absDist < freezeLevel)
    {
       PrintFormat("CanPlaceOrder: price %.5f within freeze level %.1f pips, retry next tick",
                   price, PriceToPips(freezeLevel));
       return(false);
    }
 
-   if(dist < stopLevel)
+   if(absDist < stopLevel)
    {
       double oldPrice = price;
       price = isBuy ? ref - stopLevel : ref + stopLevel;
@@ -317,9 +326,16 @@ bool CanPlaceOrder(double &price,const bool isBuy,const double refPrice)
       PrintFormat("CanPlaceOrder: price adjusted from %.5f to %.5f due to stop level %.1f pips",
                   oldPrice, price, PriceToPips(stopLevel));
 
-      // StopLevel 補正後に距離を再計算し、FreezeLevel を再チェック
-      dist = MathAbs(price - ref);
-      if(dist < freezeLevel)
+      // StopLevel 補正後に距離を再計算し、方向と FreezeLevel を再チェック
+      dist     = price - ref;
+      absDist  = MathAbs(dist);
+      if((isBuy && dist >= 0) || (!isBuy && dist <= 0))
+      {
+         PrintFormat("CanPlaceOrder: adjusted price %.5f on wrong side of %s %.5f",
+                     price, isBuy ? "Ask" : "Bid", ref);
+         return(false);
+      }
+      if(absDist < freezeLevel)
       {
          PrintFormat("CanPlaceOrder: price %.5f within freeze level %.1f pips after stop adjustment, retry next tick",
                      price, PriceToPips(freezeLevel));
@@ -783,8 +799,41 @@ void EnsureShadowOrder(const int ticket,const string system)
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
    double ref         = (type == OP_BUYLIMIT) ? Ask : Bid;
-   double dist        = MathAbs(price - ref);
-   if(dist < freezeLevel)
+   double dist        = price - ref;
+
+   // 方向チェック: BuyLimit は Ask 未満 / SellLimit は Bid 超過
+   if((type == OP_BUYLIMIT && dist >= 0) || (type == OP_SELLLIMIT && dist <= 0))
+   {
+      LogRecord lrd;
+      lrd.Time       = TimeCurrent();
+      lrd.Symbol     = Symbol();
+      lrd.System     = system;
+      lrd.Reason     = "REFILL";
+      lrd.Spread     = PriceToPips(Ask - Bid);
+      lrd.Dist       = GridPips;
+      lrd.GridPips   = GridPips;
+      lrd.s          = s;
+      lrd.lotFactor  = lotFactor;
+      lrd.BaseLot    = BaseLot;
+      lrd.MaxLot     = MaxLot;
+      lrd.actualLot  = lot;
+      lrd.seqStr     = seq;
+      lrd.CommentTag = comment;
+      lrd.Magic      = MagicNumber;
+      lrd.OrderType  = OrderTypeToStr(type);
+      lrd.EntryPrice = price;
+      lrd.SL         = 0;
+      lrd.TP         = 0;
+      lrd.ErrorCode  = 0;
+      lrd.ErrorInfo  = "Price on wrong side";
+      WriteLog(lrd);
+      PrintFormat("EnsureShadowOrder: price %.5f on wrong side of %s %.5f", price,
+                  (type == OP_BUYLIMIT) ? "Ask" : "Bid", ref);
+      return;
+   }
+
+   double absDist = MathAbs(dist);
+   if(absDist < freezeLevel)
    {
       LogRecord lrf;
       lrf.Time       = TimeCurrent();
@@ -812,7 +861,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       PrintFormat("EnsureShadowOrder: price %.5f within freeze level %.1f pips, retry next tick", price, PriceToPips(freezeLevel));
       return;
    }
-   if(dist < stopLevel)
+   if(absDist < stopLevel)
    {
       LogRecord lrs;
       lrs.Time       = TimeCurrent();
@@ -1435,8 +1484,36 @@ void PlaceRefillOrders(const string system,const double refPrice)
    bool okSell = true;
    bool okBuy  = true;
 
-   double distSell = MathAbs(Bid - priceSell);
-   if(distSell < freezeLevel)
+   double distSell = priceSell - Bid;
+   if(distSell <= 0)
+   {
+      LogRecord lr;
+      lr.Time       = TimeCurrent();
+      lr.Symbol     = Symbol();
+      lr.System     = system;
+      lr.Reason     = "REFILL";
+      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Dist       = PriceToPips(MathAbs(priceSell - refPrice));
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = lotFactor;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = lot;
+      lr.seqStr     = seq;
+      lr.CommentTag = comment;
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = OrderTypeToStr(OP_SELLLIMIT);
+      lr.EntryPrice = priceSell;
+      lr.SL         = 0;
+      lr.TP         = 0;
+      lr.ErrorCode  = 0;
+      lr.ErrorInfo  = "Price not above Bid";
+      WriteLog(lr);
+      PrintFormat("PlaceRefillOrders: SellLimit %.5f not above Bid %.5f", priceSell, Bid);
+      okSell = false;
+   }
+   else if(MathAbs(distSell) < freezeLevel)
    {
       LogRecord lr;
       lr.Time       = TimeCurrent();
@@ -1467,7 +1544,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
    }
    else
    {
-      if(distSell < stopLevel)
+      if(MathAbs(distSell) < stopLevel)
       {
          double old = priceSell;
          priceSell = NormalizeDouble(Bid + stopLevel, Digits);
@@ -1537,8 +1614,36 @@ void PlaceRefillOrders(const string system,const double refPrice)
       }
    }
 
-   double distBuy = MathAbs(Ask - priceBuy);
-   if(distBuy < freezeLevel)
+   double distBuy = priceBuy - Ask;
+   if(distBuy >= 0)
+   {
+      LogRecord lrb;
+      lrb.Time       = TimeCurrent();
+      lrb.Symbol     = Symbol();
+      lrb.System     = system;
+      lrb.Reason     = "REFILL";
+      lrb.Spread     = PriceToPips(Ask - Bid);
+      lrb.Dist       = PriceToPips(MathAbs(priceBuy - refPrice));
+      lrb.GridPips   = GridPips;
+      lrb.s          = s;
+      lrb.lotFactor  = lotFactor;
+      lrb.BaseLot    = BaseLot;
+      lrb.MaxLot     = MaxLot;
+      lrb.actualLot  = lot;
+      lrb.seqStr     = seq;
+      lrb.CommentTag = comment;
+      lrb.Magic      = MagicNumber;
+      lrb.OrderType  = OrderTypeToStr(OP_BUYLIMIT);
+      lrb.EntryPrice = priceBuy;
+      lrb.SL         = 0;
+      lrb.TP         = 0;
+      lrb.ErrorCode  = 0;
+      lrb.ErrorInfo  = "Price not below Ask";
+      WriteLog(lrb);
+      PrintFormat("PlaceRefillOrders: BuyLimit %.5f not below Ask %.5f", priceBuy, Ask);
+      okBuy = false;
+   }
+   else if(MathAbs(distBuy) < freezeLevel)
    {
       LogRecord lrb;
       lrb.Time       = TimeCurrent();
@@ -1569,7 +1674,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
    }
    else
    {
-      if(distBuy < stopLevel)
+      if(MathAbs(distBuy) < stopLevel)
       {
          double oldB = priceBuy;
          priceBuy = NormalizeDouble(Ask - stopLevel, Digits);
