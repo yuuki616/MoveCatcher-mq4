@@ -79,6 +79,7 @@ void WriteLog(const LogRecord &rec)
 {
    int handle = FileOpen("MoveCatcher.log", FILE_CSV|FILE_WRITE|FILE_READ|FILE_APPEND);
    string timeStr = TimeToString(rec.Time, TIME_DATE|TIME_SECONDS);
+   double distNorm = MathMax(rec.Dist, 0);
    if(handle != INVALID_HANDLE)
    {
       FileWrite(handle,
@@ -87,7 +88,7 @@ void WriteLog(const LogRecord &rec)
          rec.System,
          rec.Reason,
          DoubleToString(rec.Spread,1),
-         DoubleToString(rec.Dist,1),
+         DoubleToString(distNorm,1),
          DoubleToString(rec.GridPips,1),
          DoubleToString(rec.s,1),
          DoubleToString(rec.lotFactor,2),
@@ -111,7 +112,7 @@ void WriteLog(const LogRecord &rec)
                rec.System,
                rec.Reason,
                rec.Spread,
-               rec.Dist,
+               distNorm,
                rec.GridPips,
                rec.s,
                rec.lotFactor,
@@ -812,7 +813,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       lrs.System     = system;
       lrs.Reason     = "REFILL";
       lrs.Spread     = spread;
-      lrs.Dist       = bandDist;
+      lrs.Dist       = MathMax(bandDist, 0);
       lrs.GridPips   = GridPips;
       lrs.s          = s;
       lrs.lotFactor  = lotFactor;
@@ -841,7 +842,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       lrb.System     = system;
       lrb.Reason     = "REFILL";
       lrb.Spread     = spread;
-      lrb.Dist       = bandDist;
+      lrb.Dist       = MathMax(bandDist, 0);
       lrb.GridPips   = GridPips;
       lrb.s          = s;
       lrb.lotFactor  = lotFactor;
@@ -1158,7 +1159,7 @@ void RecoverAfterSL(const string system)
       lrSkip.System     = system;
       lrSkip.Reason     = "SL";
       lrSkip.Spread     = PriceToPips(Ask - Bid);
-      lrSkip.Dist       = dist;
+      lrSkip.Dist       = MathMax(dist, 0);
       lrSkip.GridPips   = GridPips;
       lrSkip.s          = s;
       lrSkip.lotFactor  = lotFactor;
@@ -1187,7 +1188,7 @@ void RecoverAfterSL(const string system)
    lr.System     = system;
    lr.Reason     = "SL";
    lr.Spread     = PriceToPips(Ask - Bid);
-    lr.Dist       = (dist >= 0) ? dist : 0;
+   lr.Dist       = MathMax(dist, 0);
    lr.GridPips   = GridPips;
    lr.s          = s;
    lr.lotFactor  = lotFactor;
@@ -1559,7 +1560,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lr.System     = system;
       lr.Reason     = "REFILL";
       lr.Spread     = PriceToPips(Ask - Bid);
-      lr.Dist       = DistanceToExistingPositions(priceSell);
+      lr.Dist       = MathMax(DistanceToExistingPositions(priceSell), 0);
       lr.GridPips   = GridPips;
       lr.s          = s;
       lr.lotFactor  = lotFactor;
@@ -1587,7 +1588,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lr.System     = system;
       lr.Reason     = "REFILL";
       lr.Spread     = PriceToPips(Ask - Bid);
-      lr.Dist       = DistanceToExistingPositions(priceSell);
+      lr.Dist       = MathMax(DistanceToExistingPositions(priceSell), 0);
       lr.GridPips   = GridPips;
       lr.s          = s;
       lr.lotFactor  = lotFactor;
@@ -1625,7 +1626,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
          lr.System     = system;
          lr.Reason     = "REFILL";
          lr.Spread     = PriceToPips(Ask - Bid);
-         lr.Dist       = DistanceToExistingPositions(priceSell);
+         lr.Dist       = MathMax(DistanceToExistingPositions(priceSell), 0);
          lr.GridPips   = GridPips;
          lr.s          = s;
          lr.lotFactor  = lotFactor;
@@ -1648,15 +1649,15 @@ void PlaceRefillOrders(const string system,const double refPrice)
       }
       else
       {
-         ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
-                                0, 0, 0, comment, MagicNumber, 0, clrNONE);
-         LogRecord lr;
-         lr.Time       = TimeCurrent();
-         lr.Symbol     = Symbol();
-         lr.System     = system;
-         lr.Reason     = "REFILL";
-         lr.Spread     = PriceToPips(Ask - Bid);
-         lr.Dist       = DistanceToExistingPositions(priceSell);
+        ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
+                               0, 0, 0, comment, MagicNumber, 0, clrNONE);
+        LogRecord lr;
+        lr.Time       = TimeCurrent();
+        lr.Symbol     = Symbol();
+        lr.System     = system;
+        lr.Reason     = "REFILL";
+        lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Dist       = MathMax(DistanceToExistingPositions(priceSell), 0);
          lr.GridPips   = GridPips;
          lr.s          = s;
          lr.lotFactor  = lotFactor;
@@ -1689,7 +1690,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lrb.System     = system;
       lrb.Reason     = "REFILL";
       lrb.Spread     = PriceToPips(Ask - Bid);
-      lrb.Dist       = DistanceToExistingPositions(priceBuy);
+      lrb.Dist       = MathMax(DistanceToExistingPositions(priceBuy), 0);
       lrb.GridPips   = GridPips;
       lrb.s          = s;
       lrb.lotFactor  = lotFactor;
@@ -1717,7 +1718,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lrb.System     = system;
       lrb.Reason     = "REFILL";
       lrb.Spread     = PriceToPips(Ask - Bid);
-      lrb.Dist       = DistanceToExistingPositions(priceBuy);
+      lrb.Dist       = MathMax(DistanceToExistingPositions(priceBuy), 0);
       lrb.GridPips   = GridPips;
       lrb.s          = s;
       lrb.lotFactor  = lotFactor;
@@ -1755,7 +1756,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
          lrb.System     = system;
          lrb.Reason     = "REFILL";
          lrb.Spread     = PriceToPips(Ask - Bid);
-         lrb.Dist       = DistanceToExistingPositions(priceBuy);
+         lrb.Dist       = MathMax(DistanceToExistingPositions(priceBuy), 0);
          lrb.GridPips   = GridPips;
          lrb.s          = s;
          lrb.lotFactor  = lotFactor;
@@ -1777,15 +1778,15 @@ void PlaceRefillOrders(const string system,const double refPrice)
       }
       else
       {
-         ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
-                               0, 0, 0, comment, MagicNumber, 0, clrNONE);
-         LogRecord lr2;
-         lr2.Time       = TimeCurrent();
-         lr2.Symbol     = Symbol();
-         lr2.System     = system;
-         lr2.Reason     = "REFILL";
-         lr2.Spread     = PriceToPips(Ask - Bid);
-         lr2.Dist       = DistanceToExistingPositions(priceBuy);
+        ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
+                              0, 0, 0, comment, MagicNumber, 0, clrNONE);
+        LogRecord lr2;
+        lr2.Time       = TimeCurrent();
+        lr2.Symbol     = Symbol();
+        lr2.System     = system;
+        lr2.Reason     = "REFILL";
+        lr2.Spread     = PriceToPips(Ask - Bid);
+        lr2.Dist       = MathMax(DistanceToExistingPositions(priceBuy), 0);
          lr2.GridPips   = GridPips;
          lr2.s          = s;
          lr2.lotFactor  = lotFactor;
@@ -1822,7 +1823,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lrd.System     = system;
       lrd.Reason     = "REFILL";
       lrd.Spread     = PriceToPips(Ask - Bid);
-      lrd.Dist       = DistanceToExistingPositions(priceSell);
+      lrd.Dist       = MathMax(DistanceToExistingPositions(priceSell), 0);
       lrd.GridPips   = GridPips;
       lrd.s          = s;
       lrd.lotFactor  = lotFactor;
@@ -1856,7 +1857,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lrd.System     = system;
       lrd.Reason     = "REFILL";
       lrd.Spread     = PriceToPips(Ask - Bid);
-      lrd.Dist       = DistanceToExistingPositions(priceBuy);
+      lrd.Dist       = MathMax(DistanceToExistingPositions(priceBuy), 0);
       lrd.GridPips   = GridPips;
       lrd.s          = s;
       lrd.lotFactor  = lotFactor;
@@ -1938,7 +1939,7 @@ bool InitStrategy()
       lrSkipA.System     = "A";
       lrSkipA.Reason     = "INIT";
       lrSkipA.Spread     = PriceToPips(Ask - Bid);
-      lrSkipA.Dist       = distA;
+      lrSkipA.Dist       = MathMax(distA, 0);
       lrSkipA.GridPips   = GridPips;
       lrSkipA.s          = s;
       lrSkipA.lotFactor  = lotFactorA;
@@ -1967,7 +1968,7 @@ bool InitStrategy()
    lrA.System     = "A";
    lrA.Reason     = "INIT";
    lrA.Spread     = PriceToPips(Ask - Bid);
-   lrA.Dist       = (distA >= 0) ? distA : 0;
+   lrA.Dist       = MathMax(distA, 0);
    lrA.GridPips   = GridPips;
    lrA.s          = s;
    lrA.lotFactor  = lotFactorA;
@@ -2026,7 +2027,7 @@ bool InitStrategy()
       lrS.System     = "B";
       lrS.Reason     = "INIT";
       lrS.Spread     = PriceToPips(Ask - Bid);
-      lrS.Dist       = (distBand >= 0) ? distBand : 0;
+      lrS.Dist       = MathMax(distBand, 0);
       lrS.GridPips   = GridPips;
       lrS.s          = s;
       lrS.lotFactor  = lotFactorB;
@@ -2065,7 +2066,7 @@ bool InitStrategy()
          lrS.System     = "B";
          lrS.Reason     = "INIT";
          lrS.Spread     = PriceToPips(Ask - Bid);
-         lrS.Dist       = distBand;
+         lrS.Dist       = MathMax(distBand, 0);
          lrS.GridPips   = GridPips;
          lrS.s          = s;
          lrS.lotFactor  = lotFactorB;
@@ -2093,7 +2094,7 @@ bool InitStrategy()
          lrS.System     = "B";
          lrS.Reason     = "INIT";
          lrS.Spread     = PriceToPips(Ask - Bid);
-         lrS.Dist       = distBand;
+         lrS.Dist       = MathMax(distBand, 0);
          lrS.GridPips   = GridPips;
          lrS.s          = s;
          lrS.lotFactor  = lotFactorB;
@@ -2123,7 +2124,7 @@ bool InitStrategy()
          lrS.System     = "B";
          lrS.Reason     = "INIT";
          lrS.Spread     = PriceToPips(Ask - Bid);
-         lrS.Dist       = distBand;
+         lrS.Dist       = MathMax(distBand, 0);
          lrS.GridPips   = GridPips;
          lrS.s          = s;
          lrS.lotFactor  = lotFactorB;
@@ -2157,7 +2158,7 @@ bool InitStrategy()
       lrB.System     = "B";
       lrB.Reason     = "INIT";
       lrB.Spread     = PriceToPips(Ask - Bid);
-      lrB.Dist       = (distBandB >= 0) ? distBandB : 0;
+      lrB.Dist       = MathMax(distBandB, 0);
       lrB.GridPips   = GridPips;
       lrB.s          = s;
       lrB.lotFactor  = lotFactorB;
@@ -2196,7 +2197,7 @@ bool InitStrategy()
          lrB.System     = "B";
          lrB.Reason     = "INIT";
          lrB.Spread     = PriceToPips(Ask - Bid);
-         lrB.Dist       = distBandB;
+         lrB.Dist       = MathMax(distBandB, 0);
          lrB.GridPips   = GridPips;
          lrB.s          = s;
          lrB.lotFactor  = lotFactorB;
@@ -2224,7 +2225,7 @@ bool InitStrategy()
          lrB.System     = "B";
          lrB.Reason     = "INIT";
          lrB.Spread     = PriceToPips(Ask - Bid);
-         lrB.Dist       = distBandB;
+         lrB.Dist       = MathMax(distBandB, 0);
          lrB.GridPips   = GridPips;
          lrB.s          = s;
          lrB.lotFactor  = lotFactorB;
@@ -2254,7 +2255,7 @@ bool InitStrategy()
          lrB.System     = "B";
          lrB.Reason     = "INIT";
          lrB.Spread     = PriceToPips(Ask - Bid);
-         lrB.Dist       = distBandB;
+         lrB.Dist       = MathMax(distBandB, 0);
          lrB.GridPips   = GridPips;
          lrB.s          = s;
          lrB.lotFactor  = lotFactorB;
@@ -2291,7 +2292,7 @@ bool InitStrategy()
       lrd.System     = "B";
       lrd.Reason     = "INIT";
       lrd.Spread     = PriceToPips(Ask - Bid);
-      lrd.Dist       = DistanceToExistingPositions(priceSell);
+      lrd.Dist       = MathMax(DistanceToExistingPositions(priceSell), 0);
       lrd.GridPips   = GridPips;
       lrd.s          = s;
       lrd.lotFactor  = lotFactorB;
@@ -2327,7 +2328,7 @@ bool InitStrategy()
       lrd.System     = "B";
       lrd.Reason     = "INIT";
       lrd.Spread     = PriceToPips(Ask - Bid);
-      lrd.Dist       = DistanceToExistingPositions(priceBuy);
+      lrd.Dist       = MathMax(DistanceToExistingPositions(priceBuy), 0);
       lrd.GridPips   = GridPips;
       lrd.s          = s;
       lrd.lotFactor  = lotFactorB;
@@ -2518,9 +2519,9 @@ void HandleOCODetectionFor(const string system)
          lrSkip.Time       = TimeCurrent();
          lrSkip.Symbol     = Symbol();
          lrSkip.System     = system;
-         lrSkip.Reason     = "REFILL";
-         lrSkip.Spread     = PriceToPips(Ask - Bid);
-         lrSkip.Dist       = dist;
+        lrSkip.Reason     = "REFILL";
+        lrSkip.Spread     = PriceToPips(Ask - Bid);
+        lrSkip.Dist       = MathMax(dist, 0);
          lrSkip.GridPips   = GridPips;
          lrSkip.s          = s;
          lrSkip.lotFactor  = lotFactorAdj;
@@ -2567,7 +2568,7 @@ void HandleOCODetectionFor(const string system)
       lrOpen.System     = system;
       lrOpen.Reason     = "REFILL";
       lrOpen.Spread     = PriceToPips(Ask - Bid);
-      lrOpen.Dist       = (dist >= 0) ? dist : 0;
+      lrOpen.Dist       = MathMax(dist, 0);
       lrOpen.GridPips   = GridPips;
       lrOpen.s          = s;
       lrOpen.lotFactor  = lotFactorAdj;
@@ -2959,7 +2960,7 @@ void OnTick()
             lr.System     = "";
             lr.Reason     = "RESET_SNAP";
             lr.Spread     = PriceToPips(Ask - Bid);
-            lr.Dist       = dist;
+            lr.Dist       = MathMax(dist, 0);
             lr.GridPips   = GridPips;
             lr.s          = s;
             lr.lotFactor  = 0;
