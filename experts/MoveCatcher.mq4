@@ -884,7 +884,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       lrs.SL         = 0;
       lrs.TP         = 0;
       // Stop level violation
-      lrs.ErrorCode  = 130;
+      lrs.ErrorCode  = ERR_INVALID_STOPS;
       WriteLog(lrs);
       PrintFormat("EnsureShadowOrder: price %.5f within stop level %.1f pips, retry next tick", price, PriceToPips(stopLevel));
       return;
