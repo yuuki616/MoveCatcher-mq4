@@ -759,59 +759,16 @@ void EnsureShadowOrder(const int ticket,const string system)
    if(lot <= 0)
       return;
    string comment = MakeComment(system, seq);
-
    int    pendTicket;
    double pendLot;
    string pendComment;
-   if(FindShadowPending(system, entry, isBuy, pendTicket, pendLot, pendComment))
+   bool hasPend = FindShadowPending(system, entry, isBuy, pendTicket, pendLot, pendComment);
+   if(hasPend)
    {
       double lotStep = MarketInfo(Symbol(), MODE_LOTSTEP);
       double lotTol  = (lotStep > 0) ? lotStep * 0.5 : 1e-8;
       if(MathAbs(pendLot - lot) <= lotTol && pendComment == comment)
          return; // already exists with expected lot/comment
-
-      int pendType  = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
-      double pendPrice = isBuy ? entry + PipsToPrice(GridPips)
-                               : entry - PipsToPrice(GridPips);
-      if(OrderSelect(pendTicket, SELECT_BY_TICKET))
-      {
-         pendType  = OrderType();
-         pendPrice = OrderOpenPrice();
-      }
-      int err = 0;
-      bool ok = OrderDelete(pendTicket);
-      if(!ok)
-         err = GetLastError();
-
-      LogRecord lru;
-      lru.Time       = TimeCurrent();
-      lru.Symbol     = Symbol();
-      lru.System     = system;
-      // REFILL: 影指値の更新
-      lru.Reason     = "REFILL";
-      lru.Spread     = PriceToPips(Ask - Bid);
-      lru.Dist       = GridPips;
-      lru.GridPips   = GridPips;
-      lru.s          = s;
-      lru.lotFactor  = 0;
-      lru.BaseLot    = BaseLot;
-      lru.MaxLot     = MaxLot;
-      lru.actualLot  = pendLot;
-      lru.seqStr     = "";
-      lru.CommentTag = pendComment;
-      lru.Magic      = MagicNumber;
-      lru.OrderType  = OrderTypeToStr(pendType);
-      lru.EntryPrice = pendPrice;
-      lru.SL         = 0;
-      lru.TP         = 0;
-      lru.ErrorCode  = err;
-      WriteLog(lru);
-      if(!ok)
-      {
-         PrintFormat("EnsureShadowOrder: failed to delete shadow order for %s err=%d", system, err);
-         return;
-      }
-      PrintFormat("EnsureShadowOrder: replaced shadow order for %s", system);
    }
 
    double price = isBuy ? entry + PipsToPrice(GridPips)
@@ -880,6 +837,82 @@ void EnsureShadowOrder(const int ticket,const string system)
       PrintFormat("EnsureShadowOrder: price %.5f within stop level %.1f pips, retry next tick", price, PriceToPips(stopLevel));
       return;
    }
+
+   if(!CanPlaceOrder(price, !isBuy, entry))
+   {
+      LogRecord lrc;
+      lrc.Time       = TimeCurrent();
+      lrc.Symbol     = Symbol();
+      lrc.System     = system;
+      lrc.Reason     = "REFILL";
+      lrc.Spread     = PriceToPips(Ask - Bid);
+      lrc.Dist       = PriceToPips(MathAbs(price - entry));
+      lrc.GridPips   = GridPips;
+      lrc.s          = s;
+      lrc.lotFactor  = lotFactor;
+      lrc.BaseLot    = BaseLot;
+      lrc.MaxLot     = MaxLot;
+      lrc.actualLot  = lot;
+      lrc.seqStr     = seq;
+      lrc.CommentTag = comment;
+      lrc.Magic      = MagicNumber;
+      lrc.OrderType  = OrderTypeToStr(type);
+      lrc.EntryPrice = price;
+      lrc.SL         = 0;
+      lrc.TP         = 0;
+      // Spread or band violation
+      lrc.ErrorCode  = (PriceToPips(Ask - Bid) > MaxSpreadPips) ? 4109 : 0;
+      WriteLog(lrc);
+      PrintFormat("EnsureShadowOrder: skipped shadow order for %s due to spread/band conditions", system);
+      return;
+   }
+
+   if(hasPend)
+   {
+      int pendType  = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
+      double pendPrice = isBuy ? entry + PipsToPrice(GridPips)
+                               : entry - PipsToPrice(GridPips);
+      if(OrderSelect(pendTicket, SELECT_BY_TICKET))
+      {
+         pendType  = OrderType();
+         pendPrice = OrderOpenPrice();
+      }
+      int err = 0;
+      bool ok = OrderDelete(pendTicket);
+      if(!ok)
+         err = GetLastError();
+
+      LogRecord lru;
+      lru.Time       = TimeCurrent();
+      lru.Symbol     = Symbol();
+      lru.System     = system;
+      // REFILL: 影指値の更新
+      lru.Reason     = "REFILL";
+      lru.Spread     = PriceToPips(Ask - Bid);
+      lru.Dist       = GridPips;
+      lru.GridPips   = GridPips;
+      lru.s          = s;
+      lru.lotFactor  = 0;
+      lru.BaseLot    = BaseLot;
+      lru.MaxLot     = MaxLot;
+      lru.actualLot  = pendLot;
+      lru.seqStr     = "";
+      lru.CommentTag = pendComment;
+      lru.Magic      = MagicNumber;
+      lru.OrderType  = OrderTypeToStr(pendType);
+      lru.EntryPrice = pendPrice;
+      lru.SL         = 0;
+      lru.TP         = 0;
+      lru.ErrorCode  = err;
+      WriteLog(lru);
+      if(!ok)
+      {
+         PrintFormat("EnsureShadowOrder: failed to delete shadow order for %s err=%d", system, err);
+         return;
+      }
+      PrintFormat("EnsureShadowOrder: replaced shadow order for %s", system);
+   }
+
    int tk = OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrNONE);
    LogRecord lr;
    lr.Time       = TimeCurrent();
