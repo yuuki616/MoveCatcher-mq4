@@ -588,9 +588,12 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       {
          int err = 0;
          bool saved = SaveDMCState(system, (system == "A") ? stateA : stateB, err);
-         PrintFormat("SaveDMCState(%s) err=%d", system, err);
          if(!saved)
+         {
+            if(err != 0)
+               PrintFormat("SaveDMCState(%s) err=%d", system, err);
             lr.ErrorCode = err;
+         }
       }
       WriteLog(lr);
    }
