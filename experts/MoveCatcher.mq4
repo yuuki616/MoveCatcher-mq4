@@ -2861,58 +2861,38 @@ void OnDeinit(const int reason)
    GlobalVariableSet(gvB, state_B);
 
    int err;
-   if(!SaveDMCState("A", stateA, err))
-   {
-      LogRecord rec;
-      rec.Time      = TimeCurrent();
-      rec.Symbol    = Symbol();
-      rec.System    = "A";
-      // DEINIT: 保存失敗時も終了理由として記録
-      rec.Reason    = REASON_DEINIT;
-      rec.Spread    = 0;
-      rec.Dist      = 0;
-      rec.GridPips  = GridPips;
-      rec.s         = s;
-      rec.lotFactor = 0;
-      rec.BaseLot   = BaseLot;
-      rec.MaxLot    = MaxLot;
-      rec.actualLot = 0;
-      rec.seqStr    = "";
-      rec.CommentTag= "";
-      rec.Magic     = MagicNumber;
-      rec.OrderType = "";
-      rec.EntryPrice= 0;
-      rec.SL        = 0;
-      rec.TP        = 0;
-      rec.ErrorCode = err;
-      WriteLog(rec);
-   }
+   LogRecord rec;
 
-   if(!SaveDMCState("B", stateB, err))
-   {
-      LogRecord rec;
-      rec.Time      = TimeCurrent();
-      rec.Symbol    = Symbol();
-      rec.System    = "B";
-      // DEINIT: 保存失敗時も終了理由として記録
-      rec.Reason    = REASON_DEINIT;
-      rec.Spread    = 0;
-      rec.Dist      = 0;
-      rec.GridPips  = GridPips;
-      rec.s         = s;
-      rec.lotFactor = 0;
-      rec.BaseLot   = BaseLot;
-      rec.MaxLot    = MaxLot;
-      rec.actualLot = 0;
-      rec.seqStr    = "";
-      rec.CommentTag= "";
-      rec.Magic     = MagicNumber;
-      rec.OrderType = "";
-      rec.EntryPrice= 0;
-      rec.SL        = 0;
-      rec.TP        = 0;
-      rec.ErrorCode = err;
-      WriteLog(rec);
-   }
+   err = 0;
+   bool ok = SaveDMCState("A", stateA, err);
+   rec.Time      = TimeCurrent();
+   rec.Symbol    = Symbol();
+   rec.System    = "A";
+   // DEINIT: 保存成功時も終了理由として記録
+   rec.Reason    = REASON_DEINIT;
+   rec.Spread    = 0;
+   rec.Dist      = 0;
+   rec.GridPips  = GridPips;
+   rec.s         = s;
+   rec.lotFactor = 0;
+   rec.BaseLot   = BaseLot;
+   rec.MaxLot    = MaxLot;
+   rec.actualLot = 0;
+   rec.seqStr    = "";
+   rec.CommentTag= "";
+   rec.Magic     = MagicNumber;
+   rec.OrderType = "";
+   rec.EntryPrice= 0;
+   rec.SL        = 0;
+   rec.TP        = 0;
+   rec.ErrorCode = ok ? 0 : err;
+   WriteLog(rec);
+
+   err = 0;
+   ok  = SaveDMCState("B", stateB, err);
+   rec.Time      = TimeCurrent();
+   rec.System    = "B";
+   rec.ErrorCode = ok ? 0 : err;
+   WriteLog(rec);
 }
 
