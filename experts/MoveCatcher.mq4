@@ -289,9 +289,9 @@ double DistanceToExistingPositions(const double price)
 
 //+------------------------------------------------------------------+
 //| Check spread and distance band for a candidate order price       |
-//| refPrice: entry price of the other system for distance band      |
+//| Check spread and distance band for a candidate order price       |
 //+------------------------------------------------------------------+
-bool CanPlaceOrder(double &price,const bool isBuy,const double refPrice)
+bool CanPlaceOrder(double &price,const bool isBuy)
 {
    RefreshRates();
 
@@ -352,8 +352,8 @@ bool CanPlaceOrder(double &price,const bool isBuy,const double refPrice)
 
    if(UseDistanceBand)
    {
-      double bandDist = PriceToPips(MathAbs(price - refPrice));
-      if(bandDist < MinDistancePips || bandDist > MaxDistancePips)
+      double bandDist = DistanceToExistingPositions(price);
+      if(bandDist >= 0 && (bandDist < MinDistancePips || bandDist > MaxDistancePips))
       {
          PrintFormat("Distance %.1f outside band [%.1f, %.1f]", bandDist, MinDistancePips, MaxDistancePips);
          return(false);
@@ -1493,7 +1493,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lr.System     = system;
       lr.Reason     = "REFILL";
       lr.Spread     = PriceToPips(Ask - Bid);
-      lr.Dist       = PriceToPips(MathAbs(priceSell - refPrice));
+      lr.Dist       = DistanceToExistingPositions(priceSell);
       lr.GridPips   = GridPips;
       lr.s          = s;
       lr.lotFactor  = lotFactor;
@@ -1521,7 +1521,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lr.System     = system;
       lr.Reason     = "REFILL";
       lr.Spread     = PriceToPips(Ask - Bid);
-      lr.Dist       = PriceToPips(MathAbs(priceSell - refPrice));
+      lr.Dist       = DistanceToExistingPositions(priceSell);
       lr.GridPips   = GridPips;
       lr.s          = s;
       lr.lotFactor  = lotFactor;
@@ -1551,7 +1551,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
          PrintFormat("PlaceRefillOrders: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      old, priceSell, PriceToPips(stopLevel));
       }
-      if(!CanPlaceOrder(priceSell, false, refPrice))
+      if(!CanPlaceOrder(priceSell, false))
       {
          LogRecord lr;
          lr.Time       = TimeCurrent();
@@ -1559,7 +1559,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
          lr.System     = system;
          lr.Reason     = "REFILL";
          lr.Spread     = PriceToPips(Ask - Bid);
-         lr.Dist       = PriceToPips(MathAbs(priceSell - refPrice));
+         lr.Dist       = DistanceToExistingPositions(priceSell);
          lr.GridPips   = GridPips;
          lr.s          = s;
          lr.lotFactor  = lotFactor;
@@ -1590,7 +1590,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
          lr.System     = system;
          lr.Reason     = "REFILL";
          lr.Spread     = PriceToPips(Ask - Bid);
-         lr.Dist       = PriceToPips(MathAbs(priceSell - refPrice));
+         lr.Dist       = DistanceToExistingPositions(priceSell);
          lr.GridPips   = GridPips;
          lr.s          = s;
          lr.lotFactor  = lotFactor;
@@ -1623,7 +1623,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lrb.System     = system;
       lrb.Reason     = "REFILL";
       lrb.Spread     = PriceToPips(Ask - Bid);
-      lrb.Dist       = PriceToPips(MathAbs(priceBuy - refPrice));
+      lrb.Dist       = DistanceToExistingPositions(priceBuy);
       lrb.GridPips   = GridPips;
       lrb.s          = s;
       lrb.lotFactor  = lotFactor;
@@ -1651,7 +1651,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lrb.System     = system;
       lrb.Reason     = "REFILL";
       lrb.Spread     = PriceToPips(Ask - Bid);
-      lrb.Dist       = PriceToPips(MathAbs(priceBuy - refPrice));
+      lrb.Dist       = DistanceToExistingPositions(priceBuy);
       lrb.GridPips   = GridPips;
       lrb.s          = s;
       lrb.lotFactor  = lotFactor;
@@ -1681,7 +1681,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
          PrintFormat("PlaceRefillOrders: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
                      oldB, priceBuy, PriceToPips(stopLevel));
       }
-      if(!CanPlaceOrder(priceBuy, true, refPrice))
+      if(!CanPlaceOrder(priceBuy, true))
       {
          LogRecord lrb;
          lrb.Time       = TimeCurrent();
@@ -1689,7 +1689,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
          lrb.System     = system;
          lrb.Reason     = "REFILL";
          lrb.Spread     = PriceToPips(Ask - Bid);
-         lrb.Dist       = PriceToPips(MathAbs(priceBuy - refPrice));
+         lrb.Dist       = DistanceToExistingPositions(priceBuy);
          lrb.GridPips   = GridPips;
          lrb.s          = s;
          lrb.lotFactor  = lotFactor;
@@ -1719,7 +1719,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
          lr2.System     = system;
          lr2.Reason     = "REFILL";
          lr2.Spread     = PriceToPips(Ask - Bid);
-         lr2.Dist       = PriceToPips(MathAbs(priceBuy - refPrice));
+         lr2.Dist       = DistanceToExistingPositions(priceBuy);
          lr2.GridPips   = GridPips;
          lr2.s          = s;
          lr2.lotFactor  = lotFactor;
@@ -1756,7 +1756,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lrd.System     = system;
       lrd.Reason     = "REFILL";
       lrd.Spread     = PriceToPips(Ask - Bid);
-      lrd.Dist       = PriceToPips(MathAbs(priceSell - refPrice));
+      lrd.Dist       = DistanceToExistingPositions(priceSell);
       lrd.GridPips   = GridPips;
       lrd.s          = s;
       lrd.lotFactor  = lotFactor;
@@ -1790,7 +1790,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lrd.System     = system;
       lrd.Reason     = "REFILL";
       lrd.Spread     = PriceToPips(Ask - Bid);
-      lrd.Dist       = PriceToPips(MathAbs(priceBuy - refPrice));
+      lrd.Dist       = DistanceToExistingPositions(priceBuy);
       lrd.GridPips   = GridPips;
       lrd.s          = s;
       lrd.lotFactor  = lotFactor;
@@ -2012,7 +2012,7 @@ bool InitStrategy()
                      distBand, MinDistancePips, MaxDistancePips);
          okSell = false;
       }
-      else if(!CanPlaceOrder(priceSell, false, entryPrice))
+      else if(!CanPlaceOrder(priceSell, false))
       {
          LogRecord lrS;
          lrS.Time       = TimeCurrent();
@@ -2143,7 +2143,7 @@ bool InitStrategy()
                      distBandB, MinDistancePips, MaxDistancePips);
          okBuy = false;
       }
-      else if(!CanPlaceOrder(priceBuy, true, entryPrice))
+      else if(!CanPlaceOrder(priceBuy, true))
       {
          LogRecord lrB;
          lrB.Time       = TimeCurrent();
