@@ -2150,7 +2150,7 @@ bool InitStrategy()
             lrS.SL         = 0;
             lrS.TP         = 0;
             lrS.ErrorCode  = 0;
-            lrS.ErrorInfo  = errS;
+            lrS.ErrorInfo  = (errS == "DistanceBandViolation") ? "Distance band violation" : errS;
             WriteLog(lrS);
             okSell = false;
          }
@@ -2286,7 +2286,7 @@ bool InitStrategy()
             lrB.SL         = 0;
             lrB.TP         = 0;
             lrB.ErrorCode  = 0;
-            lrB.ErrorInfo  = errB;
+            lrB.ErrorInfo  = (errB == "DistanceBandViolation") ? "Distance band violation" : errB;
             WriteLog(lrB);
             okBuy = false;
          }
