@@ -494,8 +494,9 @@ void InitCloseTimes()
 //+------------------------------------------------------------------+
 //| Process newly closed trades for specified system                  |
 //| updateDMC=false で DMCMM 状態更新を抑制しログのみ残す           |
+//| reason が指定されていれば TP/SL 判定の代わりにその値を使用      |
 //+------------------------------------------------------------------+
-void ProcessClosedTrades(const string system,const bool updateDMC)
+void ProcessClosedTrades(const string system,const bool updateDMC,const string reason="")
 {
    RefreshRates();
    datetime lastTime = (system == "A") ? lastCloseTimeA : lastCloseTimeB;
@@ -549,18 +550,22 @@ void ProcessClosedTrades(const string system,const bool updateDMC)
       string sysTmp, seq;
       if(!ParseComment(OrderComment(), sysTmp, seq))
          seq = "";
-      double closePrice = OrderClosePrice();
-      double tol        = Point * 0.5;
-      bool isTP = (MathAbs(closePrice - OrderTakeProfit()) <= tol);
-      bool isSL = (MathAbs(closePrice - OrderStopLoss())  <= tol);
-      string reason = isTP ? "TP" : "SL";
-      if(!isTP && !isSL)
-         reason = (profit >= 0) ? "TP" : "SL";
+      string rsn = reason;
+      if(rsn == "")
+      {
+         double closePrice = OrderClosePrice();
+         double tol        = Point * 0.5;
+         bool isTP = (MathAbs(closePrice - OrderTakeProfit()) <= tol);
+         bool isSL = (MathAbs(closePrice - OrderStopLoss())  <= tol);
+         rsn = isTP ? "TP" : "SL";
+         if(!isTP && !isSL)
+            rsn = (profit >= 0) ? "TP" : "SL";
+      }
       LogRecord lr;
       lr.Time       = times[i];
       lr.Symbol     = Symbol();
       lr.System     = system;
-      lr.Reason     = reason;
+      lr.Reason     = rsn;
       lr.Spread     = PriceToPips(Ask - Bid);
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
@@ -1193,7 +1198,7 @@ void CloseAllOrders(const string reason)
          if(!ok)
             PrintFormat("CloseAllOrders: failed to close %d err=%d", ticket, err);
          else if(updateDMC)
-            ProcessClosedTrades(sysTmp, true);
+            ProcessClosedTrades(sysTmp, true, reason);
       }
       else if(type == OP_BUYLIMIT || type == OP_SELLLIMIT ||
               type == OP_BUYSTOP  || type == OP_SELLSTOP)
@@ -1320,7 +1325,7 @@ void CorrectDuplicatePositions()
          if(!ok)
             PrintFormat("CorrectDuplicatePositions: failed to close %d err=%d", tk, err);
       }
-      ProcessClosedTrades("A", false);
+      InitCloseTimes();
       DeletePendings("A", "RESET_ALIVE");
    }
 
@@ -1370,7 +1375,7 @@ void CorrectDuplicatePositions()
          if(!ok)
             PrintFormat("CorrectDuplicatePositions: failed to close %d err=%d", tk, err);
       }
-      ProcessClosedTrades("B", false);
+      InitCloseTimes();
       DeletePendings("B", "RESET_ALIVE");
    }
 }
@@ -2273,7 +2278,7 @@ void HandleOCODetectionFor(const string system)
          return;
       }
 
-      ProcessClosedTrades(system, false);
+      ProcessClosedTrades(system, false, "REFILL");
 
       RefreshRates();
       double price = (type == OP_BUY) ? Ask : Bid;
