@@ -61,6 +61,7 @@ struct LogRecord
    double   SL;
    double   TP;
    int      ErrorCode;
+   string   ErrorInfo;
 };
 
 string OrderTypeToStr(const int type)
@@ -100,10 +101,11 @@ void WriteLog(const LogRecord &rec)
          DoubleToString(rec.EntryPrice,Digits),
          DoubleToString(rec.SL,Digits),
          DoubleToString(rec.TP,Digits),
-         rec.ErrorCode);
+         rec.ErrorCode,
+         rec.ErrorInfo);
       FileClose(handle);
    }
-   PrintFormat("LOG %s,%s,%s,%s,%.1f,%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%s,%s,%d,%s,%.5f,%.5f,%.5f,%d",
+   PrintFormat("LOG %s,%s,%s,%s,%.1f,%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%s,%s,%d,%s,%.5f,%.5f,%.5f,%d,%s",
                timeStr,
                rec.Symbol,
                rec.System,
@@ -123,7 +125,8 @@ void WriteLog(const LogRecord &rec)
                rec.EntryPrice,
                rec.SL,
                rec.TP,
-               rec.ErrorCode);
+               rec.ErrorCode,
+               rec.ErrorInfo);
 }
 
 bool IsStep(const double value,const double step)
@@ -1494,7 +1497,9 @@ void PlaceRefillOrders(const string system,const double refPrice)
          lr.SL         = 0;
          lr.TP         = 0;
          // Spread or band violation
-         lr.ErrorCode  = (PriceToPips(Ask - Bid) > MaxSpreadPips) ? 4109 : 0;
+         lr.ErrorCode  = 0;
+         if(PriceToPips(Ask - Bid) > MaxSpreadPips)
+            lr.ErrorInfo = "Spread or band violation";
          WriteLog(lr);
          okSell = false;
       }
@@ -1593,7 +1598,9 @@ void PlaceRefillOrders(const string system,const double refPrice)
          lrb.EntryPrice = priceBuy;
          lrb.SL         = 0;
          lrb.TP         = 0;
-         lrb.ErrorCode  = (PriceToPips(Ask - Bid) > MaxSpreadPips) ? 4109 : 0;
+         lrb.ErrorCode  = 0;
+         if(PriceToPips(Ask - Bid) > MaxSpreadPips)
+            lrb.ErrorInfo = "Spread or band violation";
          WriteLog(lrb);
          okBuy = false;
       }
@@ -1922,7 +1929,9 @@ bool InitStrategy()
          lrS.EntryPrice = priceSell;
          lrS.SL         = 0;
          lrS.TP         = 0;
-         lrS.ErrorCode  = (PriceToPips(Ask - Bid) > MaxSpreadPips) ? 4109 : 0;
+         lrS.ErrorCode  = 0;
+         if(PriceToPips(Ask - Bid) > MaxSpreadPips)
+            lrS.ErrorInfo = "Spread or band violation";
          WriteLog(lrS);
          okSell = false;
       }
@@ -2051,7 +2060,9 @@ bool InitStrategy()
          lrB.EntryPrice = priceBuy;
          lrB.SL         = 0;
          lrB.TP         = 0;
-         lrB.ErrorCode  = (PriceToPips(Ask - Bid) > MaxSpreadPips) ? 4109 : 0;
+         lrB.ErrorCode  = 0;
+         if(PriceToPips(Ask - Bid) > MaxSpreadPips)
+            lrB.ErrorInfo = "Spread or band violation";
          WriteLog(lrB);
          okBuy = false;
       }
