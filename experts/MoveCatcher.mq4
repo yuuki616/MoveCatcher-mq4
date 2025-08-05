@@ -838,35 +838,6 @@ void EnsureShadowOrder(const int ticket,const string system)
       return;
    }
 
-   if(!CanPlaceOrder(price, !isBuy, entry))
-   {
-      LogRecord lrc;
-      lrc.Time       = TimeCurrent();
-      lrc.Symbol     = Symbol();
-      lrc.System     = system;
-      lrc.Reason     = "REFILL";
-      lrc.Spread     = PriceToPips(Ask - Bid);
-      lrc.Dist       = PriceToPips(MathAbs(price - entry));
-      lrc.GridPips   = GridPips;
-      lrc.s          = s;
-      lrc.lotFactor  = lotFactor;
-      lrc.BaseLot    = BaseLot;
-      lrc.MaxLot     = MaxLot;
-      lrc.actualLot  = lot;
-      lrc.seqStr     = seq;
-      lrc.CommentTag = comment;
-      lrc.Magic      = MagicNumber;
-      lrc.OrderType  = OrderTypeToStr(type);
-      lrc.EntryPrice = price;
-      lrc.SL         = 0;
-      lrc.TP         = 0;
-      // Spread or band violation
-      lrc.ErrorCode  = (PriceToPips(Ask - Bid) > MaxSpreadPips) ? 4109 : 0;
-      WriteLog(lrc);
-      PrintFormat("EnsureShadowOrder: skipped shadow order for %s due to spread/band conditions", system);
-      return;
-   }
-
    if(hasPend)
    {
       int pendType  = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
