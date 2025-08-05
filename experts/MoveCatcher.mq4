@@ -551,22 +551,7 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       if(!OrderSelect(tickets[i], SELECT_BY_TICKET, MODE_HISTORY))
          continue;
       double profit = OrderProfit() + OrderSwap() + OrderCommission();
-      bool win = (profit >= 0);
       int type  = OrderType();
-      if(system == "A")
-      {
-         if(updateDMC)
-            stateA.OnTrade(win);
-         if(times[i] > lastCloseTimeA)
-            lastCloseTimeA = times[i];
-      }
-      else
-      {
-         if(updateDMC)
-            stateB.OnTrade(win);
-         if(times[i] > lastCloseTimeB)
-            lastCloseTimeB = times[i];
-      }
 
       string sysTmp, seq;
       if(!ParseComment(OrderComment(), sysTmp, seq))
@@ -581,6 +566,22 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
          rsn = isTP ? "TP" : "SL";
          if(!isTP && !isSL)
             rsn = (profit >= 0) ? "TP" : "SL";
+      }
+
+      bool win = (rsn == "TP");
+      if(system == "A")
+      {
+         if(updateDMC)
+            stateA.OnTrade(win);
+         if(times[i] > lastCloseTimeA)
+            lastCloseTimeA = times[i];
+      }
+      else
+      {
+         if(updateDMC)
+            stateB.OnTrade(win);
+         if(times[i] > lastCloseTimeB)
+            lastCloseTimeB = times[i];
       }
       LogRecord lr;
       lr.Time       = times[i];
