@@ -1989,6 +1989,9 @@ bool InitStrategy()
       return(false);
    }
 
+   // system A 成行成立を記録
+   state_A = Alive;
+
    if(!OrderSelect(ticketA, SELECT_BY_TICKET))
       return(false);
    double entryPrice = OrderOpenPrice();
@@ -1997,7 +2000,11 @@ bool InitStrategy()
 
    //---- system B OCO pending orders
    string seqB; double lotFactorB; double lotB = CalcLot("B", seqB, lotFactorB);
-   if(lotB <= 0) return(false);
+   if(lotB <= 0)
+   {
+      state_B = None;
+      return(false);
+   }
    string commentB = MakeComment("B", seqB);
 
    double priceSell = entryPrice + PipsToPrice(s);
@@ -2304,6 +2311,7 @@ bool InitStrategy()
          Print("InitStrategy: SellLimit canceled due to BuyLimit failure");
       else
          PrintFormat("InitStrategy: failed to delete SellLimit err=%d", err);
+      state_B = None;
       return(false);
    }
    if(okBuy && !okSell && ticketBuy >= 0)
@@ -2339,10 +2347,13 @@ bool InitStrategy()
          Print("InitStrategy: BuyLimit canceled due to SellLimit failure");
       else
          PrintFormat("InitStrategy: failed to delete BuyLimit err=%d", err);
+      state_B = None;
       return(false);
    }
 
-   return(okBuy && okSell);
+   bool result = okBuy && okSell;
+   state_B = result ? Missing : None;
+   return(result);
   }
 
 //+------------------------------------------------------------------+
