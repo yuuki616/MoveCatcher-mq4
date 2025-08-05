@@ -2349,8 +2349,21 @@ void HandleOCODetectionFor(const string system)
          return;
       }
       slippage = UseProtectedLimit ? (int)MathRound(SlippagePips * Pip() / Point) : 0;
+      double slInit, tpInit;
+      if(type == OP_BUY)
+      {
+         slInit = price - PipsToPrice(GridPips);
+         tpInit = price + PipsToPrice(GridPips);
+      }
+      else
+      {
+         slInit = price + PipsToPrice(GridPips);
+         tpInit = price - PipsToPrice(GridPips);
+      }
+      slInit = NormalizeDouble(slInit, Digits);
+      tpInit = NormalizeDouble(tpInit, Digits);
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
-                                slippage, 0, 0,
+                                slippage, slInit, tpInit,
                                 expectedComment, MagicNumber, 0, clrNONE);
       LogRecord lrOpen;
       lrOpen.Time       = TimeCurrent();
@@ -2370,8 +2383,8 @@ void HandleOCODetectionFor(const string system)
       lrOpen.Magic      = MagicNumber;
       lrOpen.OrderType  = OrderTypeToStr(type);
       lrOpen.EntryPrice = price;
-      lrOpen.SL         = 0;
-      lrOpen.TP         = 0;
+      lrOpen.SL         = slInit;
+      lrOpen.TP         = tpInit;
       lrOpen.ErrorCode  = (newTicket < 0) ? GetLastError() : 0;
       WriteLog(lrOpen);
       if(newTicket < 0)
