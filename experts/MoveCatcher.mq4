@@ -706,8 +706,8 @@ void EnsureTPSL(const int ticket)
       desiredTP = entry - PipsToPrice(GridPips);
       if(desiredSL - Ask < minDist)
          desiredSL = Ask + minDist;
-      if(Bid - desiredTP < minDist)
-         desiredTP = Bid - minDist;
+      if(Ask - desiredTP < minDist)
+         desiredTP = Ask - minDist;
    }
    desiredSL = NormalizeDouble(desiredSL, Digits);
    desiredTP = NormalizeDouble(desiredTP, Digits);
@@ -1196,10 +1196,10 @@ void RecoverAfterSL(const string system)
    {
       if(desiredSL - Ask < minLevel)
          desiredSL = Ask + minLevel;
-      if(Bid - desiredTP < minLevel)
-         desiredTP = Bid - minLevel;
-   }
-   desiredSL = NormalizeDouble(desiredSL, Digits);
+      if(Ask - desiredTP < minLevel)
+         desiredTP = Ask - minLevel;
+  }
+  desiredSL = NormalizeDouble(desiredSL, Digits);
    desiredTP = NormalizeDouble(desiredTP, Digits);
    lr.EntryPrice = entry;
    lr.SL         = desiredSL;
@@ -2651,8 +2651,8 @@ void HandleOCODetectionFor(const string system)
       tp = entry - PipsToPrice(GridPips);
       if(sl - Ask < minDist)
          sl = Ask + minDist;
-      if(Bid - tp < minDist)
-         tp = Bid - minDist;
+      if(Ask - tp < minDist)
+         tp = Ask - minDist;
    }
    sl = NormalizeDouble(sl, Digits);
    tp = NormalizeDouble(tp, Digits);
