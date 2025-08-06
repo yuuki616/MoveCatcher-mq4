@@ -475,7 +475,7 @@ string MakeComment(const string system,const string seq)
    ulong hash = 0;
    for(int j=0; j<StringLen(seq); j++)
       hash = (hash * 131 + StringGetChar(seq, j)) & 0x7FFFFFFF;
-   string hashStr = IntegerToString((int)hash, 16);
+   string hashStr = StringToLower(IntegerToString((int)hash, 16));
    comment = StringFormat("MoveCatcher_%s_%s", system, hashStr);
    if(StringLen(comment) > 31)
    {
