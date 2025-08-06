@@ -40,8 +40,6 @@ int retryTicketB = -1; // ticket to retry TP/SL setting for system B
 bool shadowRetryA = false; // flag to retry shadow order for system A
 bool shadowRetryB = false; // flag to retry shadow order for system B
 
-const string REASON_DEINIT = "DEINIT"; // reason code for EA deinitialization
-
 struct LogRecord
 {
    datetime Time;
@@ -3179,56 +3177,9 @@ void OnDeinit(const int reason)
    int err;
 
    err = 0;
-   bool ok = SaveDMCState("A", stateA, err);
-   LogRecord recA;
-   recA.Time      = TimeCurrent();
-   recA.Symbol    = Symbol();
-   recA.System    = "A";
-   // DEINIT: 保存成功時も終了理由として記録
-   recA.Reason    = REASON_DEINIT;
-   recA.Spread    = 0;
-   recA.Dist      = 0;
-   recA.GridPips  = GridPips;
-   recA.s         = s;
-   recA.lotFactor = 0;
-   recA.BaseLot   = BaseLot;
-   recA.MaxLot    = MaxLot;
-   recA.actualLot = 0;
-   recA.seqStr    = "";
-   recA.CommentTag= "";
-   recA.Magic     = MagicNumber;
-   recA.OrderType = "";
-   recA.EntryPrice= 0;
-   recA.SL        = 0;
-   recA.TP        = 0;
-   recA.ErrorCode = ok ? 0 : err;
-   recA.ErrorInfo = "";
-   WriteLog(recA);
+   SaveDMCState("A", stateA, err);
 
    err = 0;
-   ok  = SaveDMCState("B", stateB, err);
-   LogRecord recB;
-   recB.Time      = TimeCurrent();
-   recB.Symbol    = Symbol();
-   recB.System    = "B";
-   recB.Reason    = REASON_DEINIT;
-   recB.Spread    = 0;
-   recB.Dist      = 0;
-   recB.GridPips  = GridPips;
-   recB.s         = s;
-   recB.lotFactor = 0;
-   recB.BaseLot   = BaseLot;
-   recB.MaxLot    = MaxLot;
-   recB.actualLot = 0;
-   recB.seqStr    = "";
-   recB.CommentTag= "";
-   recB.Magic     = MagicNumber;
-   recB.OrderType = "";
-   recB.EntryPrice= 0;
-   recB.SL        = 0;
-   recB.TP        = 0;
-   recB.ErrorCode = ok ? 0 : err;
-   recB.ErrorInfo = "";
-   WriteLog(recB);
+   SaveDMCState("B", stateB, err);
 }
 
