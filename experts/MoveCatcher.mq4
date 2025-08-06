@@ -37,6 +37,9 @@ datetime lastCloseTimeB = 0; // last processed close time for system B
 int retryTicketA = -1; // ticket to retry TP/SL setting for system A
 int retryTicketB = -1; // ticket to retry TP/SL setting for system B
 
+bool shadowRetryA = false; // flag to retry shadow order for system A
+bool shadowRetryB = false; // flag to retry shadow order for system B
+
 const string REASON_DEINIT = "DEINIT"; // reason code for EA deinitialization
 
 struct LogRecord
@@ -833,7 +836,8 @@ void EnsureShadowOrder(const int ticket,const string system)
    double pendLot;
    string pendComment;
    bool hasPend = FindShadowPending(system, entry, isBuy, pendTicket, pendLot, pendComment);
-   if(hasPend)
+   bool needRetry = (system == "A") ? shadowRetryA : shadowRetryB;
+   if(hasPend && !needRetry)
    {
       double lotStep = MarketInfo(Symbol(), MODE_LOTSTEP);
       double lotTol  = (lotStep > 0) ? lotStep * 0.5 : 1e-8;
@@ -913,6 +917,55 @@ void EnsureShadowOrder(const int ticket,const string system)
       lre.ErrorInfo  = errcp;
       WriteLog(lre);
       PrintFormat("EnsureShadowOrder: %s", errcp);
+
+      if(hasPend)
+      {
+         int pendType  = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
+         double pendPrice = isBuy ? entry + PipsToPrice(GridPips)
+                                  : entry - PipsToPrice(GridPips);
+         if(OrderSelect(pendTicket, SELECT_BY_TICKET))
+         {
+            pendType  = OrderType();
+            pendPrice = OrderOpenPrice();
+         }
+         int err = 0;
+         ResetLastError();
+         bool ok = OrderDelete(pendTicket);
+         if(!ok)
+            err = GetLastError();
+
+         LogRecord lrd;
+         lrd.Time       = TimeCurrent();
+         lrd.Symbol     = Symbol();
+         lrd.System     = system;
+         lrd.Reason     = "REFILL";
+         lrd.Spread     = PriceToPips(Ask - Bid);
+         lrd.Dist       = GridPips;
+         lrd.GridPips   = GridPips;
+         lrd.s          = s;
+         lrd.lotFactor  = 0;
+         lrd.BaseLot    = BaseLot;
+         lrd.MaxLot     = MaxLot;
+         lrd.actualLot  = pendLot;
+         lrd.seqStr     = "";
+         lrd.CommentTag = pendComment;
+         lrd.Magic      = MagicNumber;
+         lrd.OrderType  = OrderTypeToStr(pendType);
+         lrd.EntryPrice = pendPrice;
+         lrd.SL         = 0;
+         lrd.TP         = 0;
+         lrd.ErrorCode  = err;
+         WriteLog(lrd);
+         if(!ok)
+            PrintFormat("EnsureShadowOrder: failed to delete shadow order for %s err=%d", system, err);
+         else
+            PrintFormat("EnsureShadowOrder: deleted shadow order for %s", system);
+      }
+
+      if(system == "A")
+         shadowRetryA = true;
+      else
+         shadowRetryB = true;
       return;
    }
 
@@ -958,6 +1011,10 @@ void EnsureShadowOrder(const int ticket,const string system)
       if(!ok)
       {
          PrintFormat("EnsureShadowOrder: failed to delete shadow order for %s err=%d", system, err);
+         if(system == "A")
+            shadowRetryA = true;
+         else
+            shadowRetryB = true;
          return;
       }
       PrintFormat("EnsureShadowOrder: replaced shadow order for %s", system);
@@ -990,7 +1047,20 @@ void EnsureShadowOrder(const int ticket,const string system)
    lr.ErrorCode  = (tk < 0) ? GetLastError() : 0;
    WriteLog(lr);
    if(tk < 0)
+   {
       PrintFormat("EnsureShadowOrder: failed to place shadow order for %s err=%d", system, lr.ErrorCode);
+      if(system == "A")
+         shadowRetryA = true;
+      else
+         shadowRetryB = true;
+   }
+   else
+   {
+      if(system == "A")
+         shadowRetryA = false;
+      else
+         shadowRetryB = false;
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -3086,6 +3156,11 @@ void OnTick()
 
    state_A = nextA;
    state_B = nextB;
+
+   if(hasA && shadowRetryA)
+      EnsureShadowOrder(ticketA, "A");
+   if(hasB && shadowRetryB)
+      EnsureShadowOrder(ticketB, "B");
 
    if(state_A == Missing)
       RecoverAfterSL("A");
