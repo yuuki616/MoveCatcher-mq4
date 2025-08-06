@@ -158,7 +158,7 @@ double NormalizeLot(const double lotCandidate)
    double lotStep = MarketInfo(Symbol(), MODE_LOTSTEP);
 
    double lot = lotCandidate;
-   int lotDigits = 0;
+   int    lotDigits = 0;
    if(lotStep > 0)
    {
       lot = MathRound(lot / lotStep) * lotStep;
@@ -170,8 +170,15 @@ double NormalizeLot(const double lotCandidate)
       lot = minLot;
    if(lot > maxLot)
       lot = maxLot;
-   if(lot > MaxLot)
-      lot = MaxLot;
+
+   double maxLotNorm = MaxLot;
+   if(lotStep > 0)
+   {
+      maxLotNorm = MathFloor(MaxLot / lotStep) * lotStep;
+      maxLotNorm = NormalizeDouble(maxLotNorm, lotDigits);
+   }
+   if(lot > maxLotNorm)
+      lot = maxLotNorm;
 
    return(NormalizeDouble(lot, lotDigits));
 }
