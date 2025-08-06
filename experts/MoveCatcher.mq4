@@ -889,53 +889,12 @@ void EnsureShadowOrder(const int ticket,const string system)
       if(errcp == "FreezeLevel violation")
          errCode = ERR_INVALID_STOPS;
       lre.ErrorCode  = errCode;
-      lre.ErrorInfo  = errcp;
+      lre.ErrorInfo  = hasPend ? errcp + " (existing order kept)" : errcp;
       WriteLog(lre);
-      PrintFormat("EnsureShadowOrder: %s", errcp);
-
       if(hasPend)
-      {
-         int pendType  = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
-         double pendPrice = isBuy ? entry + PipsToPrice(GridPips)
-                                  : entry - PipsToPrice(GridPips);
-         if(OrderSelect(pendTicket, SELECT_BY_TICKET))
-         {
-            pendType  = OrderType();
-            pendPrice = OrderOpenPrice();
-         }
-         int err = 0;
-         ResetLastError();
-         bool ok = OrderDelete(pendTicket);
-         if(!ok)
-            err = GetLastError();
-
-         LogRecord lrd;
-         lrd.Time       = TimeCurrent();
-         lrd.Symbol     = Symbol();
-         lrd.System     = system;
-         lrd.Reason     = "REFILL";
-         lrd.Spread     = PriceToPips(Ask - Bid);
-         lrd.Dist       = GridPips;
-         lrd.GridPips   = GridPips;
-         lrd.s          = s;
-         lrd.lotFactor  = 0;
-         lrd.BaseLot    = BaseLot;
-         lrd.MaxLot     = MaxLot;
-         lrd.actualLot  = pendLot;
-         lrd.seqStr     = "";
-         lrd.CommentTag = pendComment;
-         lrd.Magic      = MagicNumber;
-         lrd.OrderType  = OrderTypeToStr(pendType);
-         lrd.EntryPrice = pendPrice;
-         lrd.SL         = 0;
-         lrd.TP         = 0;
-         lrd.ErrorCode  = err;
-         WriteLog(lrd);
-         if(!ok)
-            PrintFormat("EnsureShadowOrder: failed to delete shadow order for %s err=%d", system, err);
-         else
-            PrintFormat("EnsureShadowOrder: deleted shadow order for %s", system);
-      }
+         PrintFormat("EnsureShadowOrder: %s - keeping existing shadow order for %s", errcp, system);
+      else
+         PrintFormat("EnsureShadowOrder: %s - will retry for %s", errcp, system);
 
       if(system == "A")
          shadowRetryA = true;
