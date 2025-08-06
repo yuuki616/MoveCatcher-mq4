@@ -301,7 +301,8 @@ double DistanceToExistingPositions(const double price,const int excludeTicket=-1
 //+------------------------------------------------------------------+
 //| Check spread and distance band for a candidate order price       |
 //+------------------------------------------------------------------+
-bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,bool checkSpread=true,int excludeTicket=-1)
+bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
+                   bool checkSpread=true,int excludeTicket=-1,bool checkDistance=true)
 {
    RefreshRates();
 
@@ -366,7 +367,7 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,bool checkSp
       return(false);
    }
 
-   if(UseDistanceBand)
+   if(checkDistance && UseDistanceBand)
    {
       double bandDist = DistanceToExistingPositions(price, excludeTicket);
       if(bandDist >= 0 && (bandDist < MinDistancePips || bandDist > MaxDistancePips))
@@ -850,39 +851,11 @@ void EnsureShadowOrder(const int ticket,const string system)
    double bandDist = DistanceToExistingPositions(price, ticket);
 
    RefreshRates();
-   double spread      = PriceToPips(Ask - Bid);
-
    if(UseDistanceBand && bandDist >= 0 && (bandDist < MinDistancePips || bandDist > MaxDistancePips))
-   {
-      LogRecord lrb;
-      lrb.Time       = TimeCurrent();
-      lrb.Symbol     = Symbol();
-      lrb.System     = system;
-      lrb.Reason     = "REFILL";
-      lrb.Spread     = spread;
-      lrb.Dist       = MathMax(bandDist, 0);
-      lrb.GridPips   = GridPips;
-      lrb.s          = s;
-      lrb.lotFactor  = lotFactor;
-      lrb.BaseLot    = BaseLot;
-      lrb.MaxLot     = MaxLot;
-      lrb.actualLot  = lot;
-      lrb.seqStr     = seq;
-      lrb.CommentTag = comment;
-      lrb.Magic      = MagicNumber;
-      lrb.OrderType  = OrderTypeToStr(type);
-      lrb.EntryPrice = price;
-      lrb.SL         = 0;
-      lrb.TP         = 0;
-      lrb.ErrorCode  = 0;
-      lrb.ErrorInfo  = "Distance band violation";
-      WriteLog(lrb);
-      PrintFormat("EnsureShadowOrder: distance %.1f outside [%.1f, %.1f]", bandDist, MinDistancePips, MaxDistancePips);
-      return;
-   }
+      PrintFormat("EnsureShadowOrder: distance %.1f outside [%.1f, %.1f] - ignored for shadow order", bandDist, MinDistancePips, MaxDistancePips);
 
    string errcp;
-   bool canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket);
+   bool canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, false);
    if(!canPlace)
    {
       LogRecord lre;
