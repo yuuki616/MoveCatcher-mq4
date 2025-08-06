@@ -743,8 +743,9 @@ void EnsureTPSL(const int ticket)
    bool needModify = (OrderStopLoss() == 0 || OrderTakeProfit() == 0 ||
                       MathAbs(OrderStopLoss() - desiredSL) > tol ||
                       MathAbs(OrderTakeProfit() - desiredTP) > tol);
-   if(needModify)
-   {
+  if(needModify)
+  {
+      ResetLastError();
       if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
       {
          int err = GetLastError();
@@ -924,6 +925,7 @@ void EnsureShadowOrder(const int ticket,const string system)
          pendPrice = OrderOpenPrice();
       }
       int err = 0;
+      ResetLastError();
       bool ok = OrderDelete(pendTicket);
       if(!ok)
          err = GetLastError();
@@ -960,6 +962,7 @@ void EnsureShadowOrder(const int ticket,const string system)
    }
 
    price = NormalizeDouble(price, Digits);
+   ResetLastError();
    int tk = OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrNONE);
    LogRecord lr;
    lr.Time       = TimeCurrent();
@@ -1014,6 +1017,7 @@ void DeletePendings(const string system,const string reason)
       double tp    = OrderTakeProfit();
       string comment = OrderComment();
       int err = 0;
+      ResetLastError();
       bool ok = OrderDelete(tk);
       if(!ok)
          err = GetLastError();
@@ -1172,6 +1176,7 @@ void RecoverAfterSL(const string system)
    }
    */
    int type        = isBuy ? OP_BUY : OP_SELL;
+   ResetLastError();
    int ticket      = OrderSend(Symbol(), type, lot, price,
                                slippage, sl, tp, comment, MagicNumber, 0, clrNONE);
    LogRecord lr;
@@ -1235,6 +1240,7 @@ void RecoverAfterSL(const string system)
    lr.SL         = desiredSL;
    lr.TP         = desiredTP;
    int err = 0;
+   ResetLastError();
    if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
    {
       err = GetLastError();
@@ -1293,6 +1299,7 @@ void CloseAllOrders(const string reason)
          string sysTmp, seqTmp;
          ParseComment(comment, sysTmp, seqTmp);
          int err = 0;
+         ResetLastError();
          bool ok = OrderClose(ticket, actualLot, price, slippage, clrNONE);
          if(!ok)
             err = GetLastError();
@@ -1329,6 +1336,7 @@ void CloseAllOrders(const string reason)
          RefreshRates();
          double spreadPend = PriceToPips(Ask - Bid);
          int err = 0;
+         ResetLastError();
          bool ok = OrderDelete(ticket);
          if(!ok)
             err = GetLastError();
@@ -1430,6 +1438,7 @@ void CorrectDuplicatePositions()
          string sysTmp, seqTmp;
          ParseComment(comment, sysTmp, seqTmp);
          int err = 0;
+         ResetLastError();
          bool ok = OrderClose(tk, lot, price, slippage, clrNONE);
          if(!ok)
             err = GetLastError();
@@ -1486,6 +1495,7 @@ void CorrectDuplicatePositions()
          string sysTmp2, seqTmp2;
          ParseComment(comment, sysTmp2, seqTmp2);
          int err = 0;
+         ResetLastError();
          bool ok = OrderClose(tk, lot, price, slippage, clrNONE);
          if(!ok)
             err = GetLastError();
@@ -1641,6 +1651,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       }
       else
       {
+        ResetLastError();
         ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
                                0, 0, 0, comment, MagicNumber, 0, clrNONE);
         LogRecord lr;
@@ -1771,6 +1782,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
       }
       else
       {
+        ResetLastError();
         ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
                               0, 0, 0, comment, MagicNumber, 0, clrNONE);
         LogRecord lr2;
@@ -1806,6 +1818,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
    if(okSell && !okBuy && ticketSell >= 0)
    {
       int err = 0;
+      ResetLastError();
       bool delOk = OrderDelete(ticketSell);
       if(!delOk)
          err = GetLastError();
@@ -1840,6 +1853,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
    if(okBuy && !okSell && ticketBuy >= 0)
    {
       int err = 0;
+      ResetLastError();
       bool delOk = OrderDelete(ticketBuy);
       if(!delOk)
          err = GetLastError();
@@ -1954,6 +1968,7 @@ bool InitStrategy()
       return(false);
    }
    int typeA   = isBuy ? OP_BUY : OP_SELL;
+   ResetLastError();
    int ticketA = OrderSend(Symbol(), typeA, lotA, price,
                            slippage, entrySL, entryTP, commentA, MagicNumber, 0, clrNONE);
    LogRecord lrA;
@@ -2114,6 +2129,7 @@ bool InitStrategy()
          }
          else
          {
+            ResetLastError();
             ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
                                    0, 0, 0, commentB, MagicNumber, 0, clrNONE);
             LogRecord lrS;
@@ -2250,6 +2266,7 @@ bool InitStrategy()
          }
          else
          {
+            ResetLastError();
             ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
                                   0, 0, 0, commentB, MagicNumber, 0, clrNONE);
             LogRecord lrB;
@@ -2285,6 +2302,7 @@ bool InitStrategy()
    if(okSell && !okBuy && ticketSell >= 0)
    {
       int err = 0;
+      ResetLastError();
       bool delOk = OrderDelete(ticketSell);
       if(!delOk)
          err = GetLastError();
@@ -2321,6 +2339,7 @@ bool InitStrategy()
    if(okBuy && !okSell && ticketBuy >= 0)
    {
       int err = 0;
+      ResetLastError();
       bool delOk = OrderDelete(ticketBuy);
       if(!delOk)
          err = GetLastError();
@@ -2480,6 +2499,7 @@ void HandleOCODetectionFor(const string system)
       string sysTmp, oldSeq; ParseComment(OrderComment(), sysTmp, oldSeq);
       int slippage = (int)MathRound(SlippagePips * Pip() / Point);
       int errClose = 0;
+      ResetLastError();
       if(!OrderClose(posTicket, oldLots, closePrice, slippage, clrNONE))
          errClose = GetLastError();
       LogRecord lrClose;
@@ -2561,6 +2581,7 @@ void HandleOCODetectionFor(const string system)
       }
       slInit = NormalizeDouble(slInit, Digits);
       tpInit = NormalizeDouble(tpInit, Digits);
+      ResetLastError();
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
                                 slippage, slInit, tpInit,
                                 expectedComment, MagicNumber, 0, clrNONE);
@@ -2630,6 +2651,7 @@ void HandleOCODetectionFor(const string system)
       {
          int delTicket = OrderTicket();
          int err = 0;
+         ResetLastError();
          bool ok = OrderDelete(delTicket);
          if(!ok)
             err = GetLastError();
@@ -2688,6 +2710,7 @@ void HandleOCODetectionFor(const string system)
    tp = NormalizeDouble(tp, Digits);
 
    int err = 0;
+   ResetLastError();
    if(!OrderModify(posTicket, entry, sl, tp, 0, clrNONE))
    {
       err = GetLastError();
