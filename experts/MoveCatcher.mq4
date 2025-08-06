@@ -1115,6 +1115,7 @@ void RecoverAfterSL(const string system)
                   oldTP, tp, PriceToPips(minLevel));
    }
    string comment  = MakeComment(system, seq);
+   double spread   = PriceToPips(Ask - Bid);
    double dist     = DistanceToExistingPositions(price);
    /* Disabled spread check to allow market re-entry regardless of current spread
    if(spread > MaxSpreadPips)
