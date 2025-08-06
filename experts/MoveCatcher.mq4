@@ -532,9 +532,8 @@ void InitCloseTimes()
 //| updateDMC=false で DMCMM 状態更新を抑制しログのみ残す           |
 //| reason が指定されていれば TP/SL 判定の代わりにその値を使用      |
 //+------------------------------------------------------------------+
-void ProcessClosedTrades(const string system,const bool updateDMC,const string reason="",const double spreadPips=0.0)
+void ProcessClosedTrades(const string system,const bool updateDMC,const string reason="")
 {
-   RefreshRates();
    datetime lastTime = (system == "A") ? lastCloseTimeA : lastCloseTimeB;
    int tickets[];
    datetime times[];
@@ -565,6 +564,11 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
    {
       if(!OrderSelect(tickets[i], SELECT_BY_TICKET, MODE_HISTORY))
          continue;
+
+      // 現在のスプレッドを取得（履歴からは取得不可のため近似値）
+      RefreshRates();
+      double spreadNow = PriceToPips(Ask - Bid);
+
       double profit = OrderProfit() + OrderSwap() + OrderCommission();
       int type  = OrderType();
 
@@ -603,7 +607,7 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       lr.Symbol     = Symbol();
       lr.System     = system;
       lr.Reason     = rsn;
-      lr.Spread     = spreadPips;
+      lr.Spread     = spreadNow;
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
       lr.s          = s;
@@ -1018,9 +1022,8 @@ void DeletePendings(const string system,const string reason)
 //+------------------------------------------------------------------+
 void RecoverAfterSL(const string system)
 {
+   ProcessClosedTrades(system, true);
    RefreshRates();
-   double spread = PriceToPips(Ask - Bid);
-   ProcessClosedTrades(system, true, "", spread);
    DeletePendings(system, "SL");
 
    int lastType = -1;
@@ -1288,7 +1291,7 @@ void CloseAllOrders(const string reason)
          if(!ok)
             PrintFormat("CloseAllOrders: failed to close %d err=%d", ticket, err);
          else if(updateDMC)
-            ProcessClosedTrades(sysTmp, true, reason, spreadClose);
+            ProcessClosedTrades(sysTmp, true, reason);
       }
       else if(type == OP_BUYLIMIT || type == OP_SELLLIMIT ||
               type == OP_BUYSTOP  || type == OP_SELLSTOP)
@@ -2332,9 +2335,8 @@ bool InitStrategy()
 //+------------------------------------------------------------------+
 void HandleOCODetectionFor(const string system)
 {
+   ProcessClosedTrades(system, true);
    RefreshRates();
-   double spread = PriceToPips(Ask - Bid);
-   ProcessClosedTrades(system, true, "", spread);
    int posTicket = -1;
    if(system == "A")
    {
@@ -2478,7 +2480,7 @@ void HandleOCODetectionFor(const string system)
          return;
       }
 
-      ProcessClosedTrades(system, false, "REFILL", spreadClose);
+      ProcessClosedTrades(system, false, "REFILL");
 
       RefreshRates();
       double price = (type == OP_BUY) ? Ask : Bid;
