@@ -273,7 +273,7 @@ bool LoadDMCState(const string system,CDecompMC &state)
 //| 未決済注文は距離計算に含めず、距離帯判定はポジションベース     |
 //| Returns -1 if there are no existing positions                    |
 //+------------------------------------------------------------------+
-double DistanceToExistingPositions(const double price)
+double DistanceToExistingPositions(const double price,const int excludeTicket=-1)
 {
    double minDist = DBL_MAX;
    for(int i = OrdersTotal()-1; i >= 0; i--)
@@ -281,6 +281,8 @@ double DistanceToExistingPositions(const double price)
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
          continue;
       if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      if(OrderTicket() == excludeTicket)
          continue;
       int type = OrderType();
       // 成行ポジションのみを距離計算に含める（未決済注文は除外）
@@ -297,9 +299,8 @@ double DistanceToExistingPositions(const double price)
 
 //+------------------------------------------------------------------+
 //| Check spread and distance band for a candidate order price       |
-//| Check spread and distance band for a candidate order price       |
 //+------------------------------------------------------------------+
-bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,bool checkSpread=true)
+bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,bool checkSpread=true,int excludeTicket=-1)
 {
    RefreshRates();
 
@@ -365,7 +366,7 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,bool checkSp
 
    if(UseDistanceBand)
    {
-      double bandDist = DistanceToExistingPositions(price);
+      double bandDist = DistanceToExistingPositions(price, excludeTicket);
       if(bandDist >= 0 && (bandDist < MinDistancePips || bandDist > MaxDistancePips))
       {
          PrintFormat("Distance %.1f outside band [%.1f, %.1f]", bandDist, MinDistancePips, MaxDistancePips);
@@ -814,7 +815,7 @@ void EnsureShadowOrder(const int ticket,const string system)
                         : entry - PipsToPrice(GridPips);
    price = NormalizeDouble(price, Digits);
    int type = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
-   double bandDist = DistanceToExistingPositions(price);
+   double bandDist = DistanceToExistingPositions(price, ticket);
 
    RefreshRates();
    double spread      = PriceToPips(Ask - Bid);
@@ -849,7 +850,7 @@ void EnsureShadowOrder(const int ticket,const string system)
    }
 
    string errcp;
-   bool canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false);
+   bool canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket);
    if(!canPlace)
    {
       LogRecord lre;
@@ -860,7 +861,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       lre.Spread     = PriceToPips(Ask - Bid);
       double logDist = GridPips;
       if(errcp == "DistanceBandViolation")
-         logDist = MathMax(DistanceToExistingPositions(price), 0);
+         logDist = MathMax(DistanceToExistingPositions(price, ticket), 0);
       lre.Dist       = logDist;
       lre.GridPips   = GridPips;
       lre.s          = s;
