@@ -1114,6 +1114,7 @@ void RecoverAfterSL(const string system)
       return;
    }
    */
+   /* Disabled distance band check to allow SL recovery regardless of distance
    if(UseDistanceBand && dist >= 0 && (dist < MinDistancePips || dist > MaxDistancePips))
    {
       LogRecord lrSkip;
@@ -1142,6 +1143,7 @@ void RecoverAfterSL(const string system)
                   dist, MinDistancePips, MaxDistancePips);
       return;
    }
+   */
    int type        = isBuy ? OP_BUY : OP_SELL;
    int ticket      = OrderSend(Symbol(), type, lot, price,
                                slippage, sl, tp, comment, MagicNumber, 0, clrNONE);
