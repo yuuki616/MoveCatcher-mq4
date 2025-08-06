@@ -1089,7 +1089,7 @@ void RecoverAfterSL(const string system)
       return;
 
    bool   isBuy    = (lastType == OP_BUY);
-   int    slippage = UseProtectedLimit ? (int)MathRound(SlippagePips * Pip() / Point) : 0;
+   int    slippage = (int)MathRound(SlippagePips * Pip() / Point);
    double price    = isBuy ? Ask : Bid;
    double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);
    double tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), Digits);
@@ -2572,7 +2572,7 @@ void HandleOCODetectionFor(const string system)
             retryTicketB = -1;
          return;
       }
-      slippage = UseProtectedLimit ? (int)MathRound(SlippagePips * Pip() / Point) : 0;
+      slippage = (int)MathRound(SlippagePips * Pip() / Point);
       double slInit, tpInit;
       if(type == OP_BUY)
       {
