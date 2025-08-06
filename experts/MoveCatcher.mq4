@@ -309,6 +309,7 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,bool checkSp
 
    // 注文方向に応じた基準価格を取得
    double ref  = isBuy ? Ask : Bid;
+   price       = NormalizeDouble(price, Digits);
    double dist = price - ref;
 
    // 方向チェック: BuyLimit は Ask 未満 / SellLimit は Bid 超過
@@ -375,6 +376,7 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,bool checkSp
       }
    }
 
+   price     = NormalizeDouble(price, Digits);
    errorInfo = "";
    return(true);
 }
