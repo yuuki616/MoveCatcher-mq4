@@ -686,8 +686,8 @@ void EnsureTPSL(const int ticket)
       desiredTP = entry + PipsToPrice(GridPips);
       if(Bid - desiredSL < minDist)
          desiredSL = Bid - minDist;
-      if(desiredTP - Ask < minDist)
-         desiredTP = Ask + minDist;
+      if(desiredTP - Bid < minDist)    // Bid 基準で最小距離を確認
+         desiredTP = Bid + minDist;    // Bid を基準にTPを設定
    }
    else
    {
@@ -1179,8 +1179,8 @@ void RecoverAfterSL(const string system)
    {
       if(Bid - desiredSL < minLevel)
          desiredSL = Bid - minLevel;
-      if(desiredTP - Ask < minLevel)
-         desiredTP = Ask + minLevel;
+      if(desiredTP - Bid < minLevel)   // Bid 基準で最小距離を確認
+         desiredTP = Bid + minLevel;   // Bid を基準にTPを設定
    }
    else
    {
@@ -2633,8 +2633,8 @@ void HandleOCODetectionFor(const string system)
       tp = entry + PipsToPrice(GridPips);
       if(Bid - sl < minDist)
          sl = Bid - minDist;
-      if(tp - Ask < minDist)
-         tp = Ask + minDist;
+      if(tp - Bid < minDist)           // Bid 基準で最小距離を確認
+         tp = Bid + minDist;           // Bid を基準にTPを設定
    }
    else
    {
