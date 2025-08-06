@@ -569,6 +569,7 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
    datetime lastTime = (system == "A") ? lastCloseTimeA : lastCloseTimeB;
    int tickets[];
    datetime times[];
+   datetime newLastTime = lastTime;
    for(int i = OrdersHistoryTotal()-1; i >= 0; i--)
    {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY))
@@ -584,13 +585,15 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       if(sys != system)
          continue;
       datetime ct = OrderCloseTime();
-      if(ct <= lastTime)
+      if(ct < lastTime)
          continue;
       int idx = ArraySize(tickets);
       ArrayResize(tickets, idx + 1);
       ArrayResize(times, idx + 1);
       tickets[idx] = OrderTicket();
       times[idx]   = ct;
+      if(ct > newLastTime)
+         newLastTime = ct;
    }
    for(int i = ArraySize(tickets)-1; i >= 0; i--)
    {
@@ -624,15 +627,11 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       {
          if(updateDMC)
             stateA.OnTrade(win);
-         if(times[i] > lastCloseTimeA)
-            lastCloseTimeA = times[i];
       }
       else
       {
          if(updateDMC)
             stateB.OnTrade(win);
-         if(times[i] > lastCloseTimeB)
-            lastCloseTimeB = times[i];
       }
       double dist = DistanceToExistingPositions(OrderOpenPrice(), OrderTicket());
       LogRecord lr;
@@ -669,6 +668,10 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       }
       WriteLog(lr);
    }
+   if(system == "A")
+      lastCloseTimeA = newLastTime;
+   else
+      lastCloseTimeB = newLastTime;
 }
 
 //+------------------------------------------------------------------+
