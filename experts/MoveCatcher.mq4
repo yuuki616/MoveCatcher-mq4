@@ -452,7 +452,34 @@ double CalcLot(const string system,string &seq,double &lotFactor)
 //+------------------------------------------------------------------+
 string MakeComment(const string system,const string seq)
 {
-   return StringFormat("MoveCatcher_%s_%s", system, seq);
+   string comment = StringFormat("MoveCatcher_%s_%s", system, seq);
+   if(StringLen(comment) <= 31)
+      return(comment);
+
+   string compactSeq = "";
+   for(int i=0; i<StringLen(seq); i++)
+   {
+      int ch = StringGetChar(seq, i);
+      if(ch=='(' || ch==')' || ch==' ')
+         continue;
+      compactSeq += StringSubstr(seq, i, 1);
+   }
+   comment = StringFormat("MoveCatcher_%s_%s", system, compactSeq);
+   if(StringLen(comment) <= 31)
+      return(comment);
+
+   ulong hash = 0;
+   for(int j=0; j<StringLen(seq); j++)
+      hash = (hash * 131 + StringGetChar(seq, j)) & 0x7FFFFFFF;
+   string hashStr = IntegerToString((int)hash, 16);
+   comment = StringFormat("MoveCatcher_%s_%s", system, hashStr);
+   if(StringLen(comment) > 31)
+   {
+      int allowed = 31 - StringLen(StringFormat("MoveCatcher_%s_", system));
+      hashStr = StringSubstr(hashStr, 0, allowed);
+      comment = StringFormat("MoveCatcher_%s_%s", system, hashStr);
+   }
+   return(comment);
 }
 
 //+------------------------------------------------------------------+
