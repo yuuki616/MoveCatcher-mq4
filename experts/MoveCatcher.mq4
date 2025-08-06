@@ -806,10 +806,6 @@ void EnsureShadowOrder(const int ticket,const string system)
    double bandDist = DistanceToExistingPositions(price);
 
    RefreshRates();
-   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
-   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
-   double ref         = (type == OP_BUYLIMIT) ? Ask : Bid;
-   double dist        = price - ref;
    double spread      = PriceToPips(Ask - Bid);
 
    if(spread > MaxSpreadPips)
@@ -870,92 +866,40 @@ void EnsureShadowOrder(const int ticket,const string system)
       return;
    }
 
-   // 方向チェック: BuyLimit は Ask 未満 / SellLimit は Bid 超過
-   if((type == OP_BUYLIMIT && dist >= 0) || (type == OP_SELLLIMIT && dist <= 0))
+   string errcp;
+   bool canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp);
+   if(!canPlace)
    {
-      LogRecord lrd;
-      lrd.Time       = TimeCurrent();
-      lrd.Symbol     = Symbol();
-      lrd.System     = system;
-      lrd.Reason     = "REFILL";
-      lrd.Spread     = PriceToPips(Ask - Bid);
-      lrd.Dist       = GridPips;
-      lrd.GridPips   = GridPips;
-      lrd.s          = s;
-      lrd.lotFactor  = lotFactor;
-      lrd.BaseLot    = BaseLot;
-      lrd.MaxLot     = MaxLot;
-      lrd.actualLot  = lot;
-      lrd.seqStr     = seq;
-      lrd.CommentTag = comment;
-      lrd.Magic      = MagicNumber;
-      lrd.OrderType  = OrderTypeToStr(type);
-      lrd.EntryPrice = price;
-      lrd.SL         = 0;
-      lrd.TP         = 0;
-      lrd.ErrorCode  = 0;
-      lrd.ErrorInfo  = "Price on wrong side";
-      WriteLog(lrd);
-      PrintFormat("EnsureShadowOrder: price %.5f on wrong side of %s %.5f", price,
-                  (type == OP_BUYLIMIT) ? "Ask" : "Bid", ref);
-      return;
-   }
-
-   double absDist = MathAbs(dist);
-   if(absDist < freezeLevel)
-   {
-      LogRecord lrf;
-      lrf.Time       = TimeCurrent();
-      lrf.Symbol     = Symbol();
-      lrf.System     = system;
-      lrf.Reason     = "REFILL";
-      lrf.Spread     = PriceToPips(Ask - Bid);
-      lrf.Dist       = GridPips;
-      lrf.GridPips   = GridPips;
-      lrf.s          = s;
-      lrf.lotFactor  = lotFactor;
-      lrf.BaseLot    = BaseLot;
-      lrf.MaxLot     = MaxLot;
-      lrf.actualLot  = lot;
-      lrf.seqStr     = seq;
-      lrf.CommentTag = comment;
-      lrf.Magic      = MagicNumber;
-      lrf.OrderType  = OrderTypeToStr(type);
-      lrf.EntryPrice = price;
-      lrf.SL         = 0;
-      lrf.TP         = 0;
-      // Freeze level violation
-      lrf.ErrorCode  = ERR_INVALID_STOPS;
-      WriteLog(lrf);
-      PrintFormat("EnsureShadowOrder: price %.5f within freeze level %.1f pips, retry next tick", price, PriceToPips(freezeLevel));
-      return;
-   }
-   if(absDist < stopLevel)
-   {
-      LogRecord lrs;
-      lrs.Time       = TimeCurrent();
-      lrs.Symbol     = Symbol();
-      lrs.System     = system;
-      lrs.Reason     = "REFILL";
-      lrs.Spread     = PriceToPips(Ask - Bid);
-      lrs.Dist       = GridPips;
-      lrs.GridPips   = GridPips;
-      lrs.s          = s;
-      lrs.lotFactor  = lotFactor;
-      lrs.BaseLot    = BaseLot;
-      lrs.MaxLot     = MaxLot;
-      lrs.actualLot  = lot;
-      lrs.seqStr     = seq;
-      lrs.CommentTag = comment;
-      lrs.Magic      = MagicNumber;
-      lrs.OrderType  = OrderTypeToStr(type);
-      lrs.EntryPrice = price;
-      lrs.SL         = 0;
-      lrs.TP         = 0;
-      // Stop level violation
-      lrs.ErrorCode  = ERR_INVALID_STOPS;
-      WriteLog(lrs);
-      PrintFormat("EnsureShadowOrder: price %.5f within stop level %.1f pips, retry next tick", price, PriceToPips(stopLevel));
+      LogRecord lre;
+      lre.Time       = TimeCurrent();
+      lre.Symbol     = Symbol();
+      lre.System     = system;
+      lre.Reason     = "REFILL";
+      lre.Spread     = PriceToPips(Ask - Bid);
+      double logDist = GridPips;
+      if(errcp == "DistanceBandViolation")
+         logDist = MathMax(DistanceToExistingPositions(price), 0);
+      lre.Dist       = logDist;
+      lre.GridPips   = GridPips;
+      lre.s          = s;
+      lre.lotFactor  = lotFactor;
+      lre.BaseLot    = BaseLot;
+      lre.MaxLot     = MaxLot;
+      lre.actualLot  = lot;
+      lre.seqStr     = seq;
+      lre.CommentTag = comment;
+      lre.Magic      = MagicNumber;
+      lre.OrderType  = OrderTypeToStr(type);
+      lre.EntryPrice = price;
+      lre.SL         = 0;
+      lre.TP         = 0;
+      int errCode = 0;
+      if(errcp == "FreezeLevel violation")
+         errCode = ERR_INVALID_STOPS;
+      lre.ErrorCode  = errCode;
+      lre.ErrorInfo  = errcp;
+      WriteLog(lre);
+      PrintFormat("EnsureShadowOrder: %s", errcp);
       return;
    }
 
