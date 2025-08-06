@@ -292,7 +292,7 @@ double DistanceToExistingPositions(const double price)
 //| Check spread and distance band for a candidate order price       |
 //| Check spread and distance band for a candidate order price       |
 //+------------------------------------------------------------------+
-bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo)
+bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,bool checkSpread=true)
 {
    RefreshRates();
 
@@ -349,7 +349,7 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo)
    }
 
    double spread = PriceToPips(Ask - Bid);
-   if(spread > MaxSpreadPips)
+   if(checkSpread && spread > MaxSpreadPips)
    {
       PrintFormat("Spread %.1f exceeds MaxSpreadPips %.1f", spread, MaxSpreadPips);
       errorInfo = "SpreadExceeded";
@@ -808,35 +808,6 @@ void EnsureShadowOrder(const int ticket,const string system)
    RefreshRates();
    double spread      = PriceToPips(Ask - Bid);
 
-   if(spread > MaxSpreadPips)
-   {
-      LogRecord lrs;
-      lrs.Time       = TimeCurrent();
-      lrs.Symbol     = Symbol();
-      lrs.System     = system;
-      lrs.Reason     = "REFILL";
-      lrs.Spread     = spread;
-      lrs.Dist       = MathMax(bandDist, 0);
-      lrs.GridPips   = GridPips;
-      lrs.s          = s;
-      lrs.lotFactor  = lotFactor;
-      lrs.BaseLot    = BaseLot;
-      lrs.MaxLot     = MaxLot;
-      lrs.actualLot  = lot;
-      lrs.seqStr     = seq;
-      lrs.CommentTag = comment;
-      lrs.Magic      = MagicNumber;
-      lrs.OrderType  = OrderTypeToStr(type);
-      lrs.EntryPrice = price;
-      lrs.SL         = 0;
-      lrs.TP         = 0;
-      lrs.ErrorCode  = 0;
-      lrs.ErrorInfo  = "Spread exceeded";
-      WriteLog(lrs);
-      PrintFormat("EnsureShadowOrder: spread %.1f exceeds MaxSpreadPips %.1f", spread, MaxSpreadPips);
-      return;
-   }
-
    if(UseDistanceBand && bandDist >= 0 && (bandDist < MinDistancePips || bandDist > MaxDistancePips))
    {
       LogRecord lrb;
@@ -867,7 +838,7 @@ void EnsureShadowOrder(const int ticket,const string system)
    }
 
    string errcp;
-   bool canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp);
+   bool canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false);
    if(!canPlace)
    {
       LogRecord lre;
