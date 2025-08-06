@@ -634,13 +634,14 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
          if(times[i] > lastCloseTimeB)
             lastCloseTimeB = times[i];
       }
+      double dist = DistanceToExistingPositions(OrderOpenPrice(), OrderTicket());
       LogRecord lr;
       lr.Time       = times[i];
       lr.Symbol     = Symbol();
       lr.System     = system;
       lr.Reason     = rsn;
       lr.Spread     = spreadNow;
-      lr.Dist       = 0;
+      lr.Dist       = dist;
       lr.GridPips   = GridPips;
       lr.s          = s;
       lr.lotFactor  = 0;
