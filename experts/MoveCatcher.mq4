@@ -25,7 +25,7 @@ double s;   // Half grid distance
 CDecompMC stateA; // DMCMM state for system A
 CDecompMC stateB; // DMCMM state for system B
 
-enum SystemState { Alive, Missing, MissingRecovered, None };
+enum SystemState { None=0, Alive=1, Missing=2, MissingRecovered=3 };
 SystemState state_A = None;
 SystemState state_B = None;
 
@@ -2853,11 +2853,24 @@ int OnInit()
    string gvA = "MoveCatcher_state_A";
    string gvB = "MoveCatcher_state_B";
    if(GlobalVariableCheck(gvA))
-      state_A = (SystemState)MathRound(GlobalVariableGet(gvA));
+   {
+      int vA = (int)MathRound(GlobalVariableGet(gvA));
+      if(vA < None || vA > MissingRecovered)
+         state_A = None;
+      else
+         state_A = (SystemState)vA;
+   }
    else
       state_A = None;
+
    if(GlobalVariableCheck(gvB))
-      state_B = (SystemState)MathRound(GlobalVariableGet(gvB));
+   {
+      int vB = (int)MathRound(GlobalVariableGet(gvB));
+      if(vB < None || vB > MissingRecovered)
+         state_B = None;
+      else
+         state_B = (SystemState)vB;
+   }
    else
       state_B = None;
 
