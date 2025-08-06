@@ -949,6 +949,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       PrintFormat("EnsureShadowOrder: replaced shadow order for %s", system);
    }
 
+   price = NormalizeDouble(price, Digits);
    int tk = OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrNONE);
    LogRecord lr;
    lr.Time       = TimeCurrent();
