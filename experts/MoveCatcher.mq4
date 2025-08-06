@@ -1548,6 +1548,8 @@ void PlaceRefillOrders(const string system,const double refPrice)
    string comment  = MakeComment(system, seq);
    double priceSell = refPrice + PipsToPrice(s);
    double priceBuy  = refPrice - PipsToPrice(s);
+   priceSell = NormalizeDouble(priceSell, Digits);
+   priceBuy  = NormalizeDouble(priceBuy, Digits);
 
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
