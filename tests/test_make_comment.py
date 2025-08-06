@@ -35,3 +35,11 @@ def test_make_comment_length():
             comment = make_comment(system, seq)
             assert len(comment) <= 31
             assert comment.startswith(f"MoveCatcher_{system}_")
+
+
+def test_hash_string_lowercase():
+    seq = "(" + ",".join(str(i) for i in range(100)) + ")"
+    for system in ['A', 'B']:
+        comment = make_comment(system, seq)
+        hash_part = comment.split("_")[-1]
+        assert hash_part == hash_part.lower()
