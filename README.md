@@ -134,7 +134,8 @@ README.md                                  ← 本ドキュメント
 
 各発注・約定・取消・初期化で以下を記録（ファイル or `Print`）：
 
-* `Time, Symbol, System{A|B}, Reason{INIT,REFILL,TP,SL,RESET_ALIVE,RESET_SNAP,LOT_RESET}`
+* `Time, Symbol, System{A|B}, Reason`
+  * Reason ∈ `{INIT, REFILL, TP, SL, RESET_ALIVE, RESET_SNAP, LOT_RESET}`
   * `REFILL` = 補充指値・影指値の設置
 * `Spread(pips), Dist(pips), GridPips, s, EpsilonPips`
 * `lotFactor, BaseLot, MaxLot, actualLot`
