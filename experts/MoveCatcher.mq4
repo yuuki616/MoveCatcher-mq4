@@ -1121,8 +1121,8 @@ void DeletePendings(const string system,const string reason)
 }
 
 //+------------------------------------------------------------------+
-//| Re-enter position after SL. When UseProtectedLimit=false,         |
-//| slippage protection is disabled (slippage=0).                     |
+//| Re-enter position after SL. If UseProtectedLimit is true,         |
+//| slippage protection is applied; otherwise slippage=0.             |
 //+------------------------------------------------------------------+
 void RecoverAfterSL(const string system)
 {
@@ -1159,7 +1159,8 @@ void RecoverAfterSL(const string system)
       return;
 
    bool   isBuy    = (lastType == OP_BUY);
-   int    slippage = (int)MathRound(SlippagePips * Pip() / Point);
+   // Disable slippage when UseProtectedLimit is false
+   int    slippage = UseProtectedLimit ? (int)MathRound(SlippagePips * Pip() / Point) : 0;
    double price    = isBuy ? Ask : Bid;
    double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);
    double tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), Digits);
