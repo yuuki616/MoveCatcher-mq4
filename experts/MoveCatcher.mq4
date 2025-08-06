@@ -2536,7 +2536,9 @@ void HandleOCODetectionFor(const string system)
       return;
    }
    string expectedComment = MakeComment(system, seqAdj);
-   if(MathAbs(OrderLots() - expectedLot) > 1e-8 || OrderComment() != expectedComment)
+   double lotStep = MarketInfo(Symbol(), MODE_LOTSTEP);
+   double lotTol  = (lotStep > 0) ? lotStep * 0.5 : 1e-8;
+   if(MathAbs(OrderLots() - expectedLot) > lotTol || OrderComment() != expectedComment)
    {
       RefreshRates();
       double spreadClose = PriceToPips(Ask - Bid);
