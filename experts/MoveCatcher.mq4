@@ -627,7 +627,12 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
    int tickets[];
    datetime times[];
    int newTickets[];
+   if(system == "A")
+      ArrayCopy(newTickets,lastTicketsA);
+   else
+      ArrayCopy(newTickets,lastTicketsB);
    datetime newLastTime = lastTime;
+   bool hasNew = false;
    for(int i = OrdersHistoryTotal()-1; i >= 0; i--)
    {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY))
@@ -667,9 +672,17 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       {
          newLastTime = ct;
          ArrayResize(newTickets,0);
-      }
-      if(ct == newLastTime)
          AddTicket(newTickets,OrderTicket());
+         hasNew = true;
+      }
+      else if(ct == newLastTime)
+      {
+         if(!ContainsTicket(newTickets,OrderTicket()))
+         {
+            AddTicket(newTickets,OrderTicket());
+            hasNew = true;
+         }
+      }
    }
    for(int i = ArraySize(tickets)-1; i >= 0; i--)
    {
@@ -743,15 +756,18 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       }
       WriteLog(lr);
    }
-   if(system == "A")
+   if(hasNew)
    {
-      lastCloseTimeA = newLastTime;
-      ArrayCopy(lastTicketsA,newTickets);
-   }
-   else
-   {
-      lastCloseTimeB = newLastTime;
-      ArrayCopy(lastTicketsB,newTickets);
+      if(system == "A")
+      {
+         lastCloseTimeA = newLastTime;
+         ArrayCopy(lastTicketsA,newTickets);
+      }
+      else
+      {
+         lastCloseTimeB = newLastTime;
+         ArrayCopy(lastTicketsB,newTickets);
+      }
    }
 }
 
