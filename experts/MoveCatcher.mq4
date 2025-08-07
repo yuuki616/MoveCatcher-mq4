@@ -729,6 +729,7 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
             stateB.OnTrade(win);
       }
       double dist = DistanceToExistingPositions(OrderOpenPrice(), OrderTicket());
+      dist = MathMax(dist, 0);
       LogRecord lr;
       lr.Time       = times[i];
       lr.Symbol     = Symbol();
