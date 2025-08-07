@@ -437,6 +437,8 @@ double CalcLot(const string system,string &seq,double &lotFactor)
    lotFactor          = state.NextLot();
    seq                = "(" + state.Seq() + ")";
    double lotCandidate = BaseLot * lotFactor;
+   if(lotFactor <= 0)
+      return(0.0);
 
    if(lotCandidate > MaxLot)
    {
@@ -446,6 +448,32 @@ double CalcLot(const string system,string &seq,double &lotFactor)
 
       lotFactor    = state.NextLot();
       seq          = "(" + state.Seq() + ")";
+      if(lotFactor <= 0)
+      {
+         LogRecord lr;
+         lr.Time       = TimeCurrent();
+         lr.Symbol     = Symbol();
+         lr.System     = system;
+         lr.Reason     = "LOT_RESET";
+         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Dist       = 0;
+         lr.GridPips   = GridPips;
+         lr.s          = s;
+         lr.lotFactor  = lotFactor;
+         lr.BaseLot    = BaseLot;
+         lr.MaxLot     = MaxLot;
+         lr.actualLot  = 0.0;
+         lr.seqStr     = seq;
+         lr.CommentTag = MakeComment(system, seq);
+         lr.Magic      = MagicNumber;
+         lr.OrderType  = "";
+         lr.EntryPrice = 0;
+         lr.SL         = 0;
+         lr.TP         = 0;
+         lr.ErrorCode  = err;
+         WriteLog(lr);
+         return(0.0);
+      }
       lotCandidate = BaseLot * lotFactor;
       lotCandidate = MathMin(lotCandidate, MaxLot);
       double lotActual = NormalizeLot(lotCandidate);
