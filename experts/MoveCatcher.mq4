@@ -2921,6 +2921,8 @@ int OnInit()
 
    MathSrand(GetTickCount());
    InitCloseTimes();
+   ProcessClosedTrades("A", true);
+   ProcessClosedTrades("B", true);
    if(hasAny)
       Print("Existing entries found, InitStrategy skipped");
    else
