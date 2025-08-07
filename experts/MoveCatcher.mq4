@@ -961,20 +961,16 @@ void EnsureShadowOrder(const int ticket,const string system)
    RefreshRates();
 
    string errcp = "";
-   bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, true);
+   bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, false);
    if(!canPlace)
    {
-      double bandDist = DistanceToExistingPositions(price, ticket);
       LogRecord lre;
       lre.Time       = TimeCurrent();
       lre.Symbol     = Symbol();
       lre.System     = system;
       lre.Reason     = "REFILL";
       lre.Spread     = PriceToPips(Ask - Bid);
-      double logDist = GridPips;
-      if(errcp == "DistanceBandViolation")
-         logDist = MathMax(bandDist, 0);
-      lre.Dist       = logDist;
+      lre.Dist       = GridPips;
       lre.GridPips   = GridPips;
       lre.s          = s;
       lre.lotFactor  = lotFactor;
