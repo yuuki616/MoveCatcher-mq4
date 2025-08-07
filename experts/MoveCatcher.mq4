@@ -603,8 +603,6 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       // 現在のスプレッドを取得（履歴からは取得不可のため近似値）
       RefreshRates();
       double spreadNow = PriceToPips(Ask - Bid);
-
-      double profit = OrderProfit() + OrderSwap() + OrderCommission();
       int type  = OrderType();
 
       string sysTmp, seq;
@@ -617,9 +615,10 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
          double tol        = Point * 0.5;
          bool isTP = (MathAbs(closePrice - OrderTakeProfit()) <= tol);
          bool isSL = (MathAbs(closePrice - OrderStopLoss())  <= tol);
-         rsn = isTP ? "TP" : "SL";
          if(!isTP && !isSL)
-            rsn = (profit >= 0) ? "TP" : "SL";
+            rsn = ((OrderProfit() + OrderSwap() + OrderCommission()) >= 0) ? "TP" : "SL";
+         else
+            rsn = isTP ? "TP" : "SL";
       }
 
       bool win = (rsn == "TP");
