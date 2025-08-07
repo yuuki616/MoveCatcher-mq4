@@ -1236,67 +1236,7 @@ void RecoverAfterSL(const string system)
    string comment  = MakeComment(system, seq);
    double spread   = PriceToPips(Ask - Bid);
    double dist     = DistanceToExistingPositions(price);
-   /* Disabled spread check to allow market re-entry regardless of current spread
-   if(spread > MaxSpreadPips)
-   {
-      LogRecord lrSkip;
-      lrSkip.Time       = TimeCurrent();
-      lrSkip.Symbol     = Symbol();
-      lrSkip.System     = system;
-      lrSkip.Reason     = "SL";
-      lrSkip.ErrorInfo  = flagInfo;
-      lrSkip.Spread     = spread;
-      lrSkip.Dist       = MathMax(dist, 0);
-      lrSkip.GridPips   = GridPips;
-      lrSkip.s          = s;
-      lrSkip.lotFactor  = lotFactor;
-      lrSkip.BaseLot    = BaseLot;
-      lrSkip.MaxLot     = MaxLot;
-      lrSkip.actualLot  = lot;
-      lrSkip.seqStr     = seq;
-      lrSkip.CommentTag = comment;
-      lrSkip.Magic      = MagicNumber;
-      lrSkip.OrderType  = OrderTypeToStr(isBuy ? OP_BUY : OP_SELL);
-      lrSkip.EntryPrice = price;
-      lrSkip.SL         = sl;
-      lrSkip.TP         = tp;
-      lrSkip.ErrorCode  = 0;
-      WriteLog(lrSkip);
-      PrintFormat("RecoverAfterSL[%s]: spread %.1f > MaxSpreadPips %.1f, order skipped", flagInfo, spread, MaxSpreadPips);
-      return;
-   }
-   */
-   /* Disabled distance band check to allow SL recovery regardless of distance
-   if(UseDistanceBand && dist >= 0 && (dist < MinDistancePips || dist > MaxDistancePips))
-   {
-      LogRecord lrSkip;
-      lrSkip.Time       = TimeCurrent();
-      lrSkip.Symbol     = Symbol();
-      lrSkip.System     = system;
-      lrSkip.Reason     = "SL";
-      lrSkip.ErrorInfo  = flagInfo;
-      lrSkip.Spread     = spread;
-      lrSkip.Dist       = MathMax(dist, 0);
-      lrSkip.GridPips   = GridPips;
-      lrSkip.s          = s;
-      lrSkip.lotFactor  = lotFactor;
-      lrSkip.BaseLot    = BaseLot;
-      lrSkip.MaxLot     = MaxLot;
-      lrSkip.actualLot  = lot;
-      lrSkip.seqStr     = seq;
-      lrSkip.CommentTag = comment;
-      lrSkip.Magic      = MagicNumber;
-      lrSkip.OrderType  = OrderTypeToStr(isBuy ? OP_BUY : OP_SELL);
-      lrSkip.EntryPrice = price;
-      lrSkip.SL         = sl;
-      lrSkip.TP         = tp;
-      lrSkip.ErrorCode  = 0;
-      WriteLog(lrSkip);
-      PrintFormat("RecoverAfterSL[%s]: distance %.1f outside band [%.1f, %.1f], order skipped",
-                  flagInfo, dist, MinDistancePips, MaxDistancePips);
-      return;
-   }
-   */
+   // SL復帰時はSpreadおよび距離帯のチェックを行わない
    int type        = isBuy ? OP_BUY : OP_SELL;
    ResetLastError();
    int ticket      = OrderSend(Symbol(), type, lot, price,
