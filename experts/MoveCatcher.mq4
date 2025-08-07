@@ -961,6 +961,7 @@ void EnsureShadowOrder(const int ticket,const string system)
 
    string errcp = "";
    bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, false);
+   double distBand = MathMax(DistanceToExistingPositions(price, ticket), 0);
    if(!canPlace)
    {
       if(errcp == "DistanceBandViolation")
@@ -978,7 +979,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       lre.System     = system;
       lre.Reason     = "REFILL";
       lre.Spread     = PriceToPips(Ask - Bid);
-      lre.Dist       = GridPips;
+      lre.Dist       = distBand;
       lre.GridPips   = GridPips;
       lre.s          = s;
       lre.lotFactor  = lotFactor;
@@ -1072,7 +1073,7 @@ void EnsureShadowOrder(const int ticket,const string system)
    // REFILL: 影指値（TP反転用の指値）を設置
    lr.Reason     = "REFILL";
    lr.Spread     = PriceToPips(Ask - Bid);
-   lr.Dist       = GridPips;
+   lr.Dist       = distBand;
    lr.GridPips   = GridPips;
    lr.s          = s;
    lr.lotFactor  = lotFactor;
