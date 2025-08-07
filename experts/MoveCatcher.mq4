@@ -956,22 +956,14 @@ void EnsureShadowOrder(const int ticket,const string system)
                         : entry - PipsToPrice(GridPips);
    price = NormalizeDouble(price, Digits);
    int type = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
-   double bandDist = DistanceToExistingPositions(price, ticket);
 
    RefreshRates();
 
    string errcp = "";
-   bool   canPlace = true;
-   if(UseDistanceBand && bandDist >= 0 && (bandDist < MinDistancePips || bandDist > MaxDistancePips))
-   {
-      PrintFormat("EnsureShadowOrder: distance %.1f outside [%.1f, %.1f] - no shadow order for %s", bandDist, MinDistancePips, MaxDistancePips, system);
-      errcp    = "DistanceBandViolation";
-      canPlace = false;
-   }
-   else
-      canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, true);
+   bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, true);
    if(!canPlace)
    {
+      double bandDist = DistanceToExistingPositions(price, ticket);
       LogRecord lre;
       lre.Time       = TimeCurrent();
       lre.Symbol     = Symbol();
