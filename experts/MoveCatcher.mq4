@@ -960,9 +960,18 @@ void EnsureShadowOrder(const int ticket,const string system)
    RefreshRates();
 
    string errcp = "";
-   bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, true);
+   bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, false);
    if(!canPlace)
    {
+      if(errcp == "DistanceBandViolation")
+      {
+         if(system == "A")
+            shadowRetryA = true;
+         else
+            shadowRetryB = true;
+         return;
+      }
+
       LogRecord lre;
       lre.Time       = TimeCurrent();
       lre.Symbol     = Symbol();
