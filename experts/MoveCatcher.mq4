@@ -556,11 +556,8 @@ SystemState UpdateState(const SystemState prev,const bool exists)
          return(MissingRecovered);
       return(Alive);
    }
-   if(prev == Alive || prev == MissingRecovered)
-      return(Missing);
-   if(prev == Missing)
-      return(Missing);
-   return(None);
+   if(prev == Alive || prev == MissingRecovered) return(Missing);
+   return(prev == Missing ? Missing : None);
 }
 
 //+------------------------------------------------------------------+
