@@ -10,7 +10,6 @@ input double EpsilonPips       = 1.0;   // Tolerance width (pips)
 input double MaxSpreadPips     = 2.0;   // Max spread when placing orders
 input bool   UseProtectedLimit = true;  // Use slippage-protected market orders after SL
 input double SlippagePips      = 1.0;   // Maximum slippage for market orders
-input double MarketSlippagePips = 0.0;   // Slippage when UseProtectedLimit=false
 input bool   UseDistanceBand   = false; // Filter by distance band before ordering
 input double MinDistancePips   = 50;    // Minimum distance (pips)
 input double MaxDistancePips   = 55;    // Maximum distance (pips)
@@ -1154,9 +1153,8 @@ void DeletePendings(const string system,const string reason)
 }
 
 //+------------------------------------------------------------------+
-//| Re-enter position after SL. Slippage from SlippagePips is used    |
-//| only when UseProtectedLimit=true; otherwise MarketSlippagePips or |
-//| zero is applied.                                                  |
+//| Re-enter position after SL. SlippagePips is always applied,       |
+//| while UseProtectedLimit only tags log output.                     |
 //+------------------------------------------------------------------+
 void RecoverAfterSL(const string system)
 {
@@ -1193,7 +1191,7 @@ void RecoverAfterSL(const string system)
       return;
 
    bool   isBuy    = (lastType == OP_BUY);
-   double reSlippagePips = UseProtectedLimit ? SlippagePips : MarketSlippagePips;
+   double reSlippagePips = SlippagePips;
    int    slippage = (int)MathRound(reSlippagePips * Pip() / Point);
    string flagInfo = UseProtectedLimit ? "UseProtectedLimit=true" : "UseProtectedLimit=false";
    double price    = isBuy ? Ask : Bid;
@@ -2827,11 +2825,6 @@ int OnInit()
    if(SlippagePips < 0)
    {
       Print("SlippagePips must be non-negative");
-      return(INIT_PARAMETERS_INCORRECT);
-   }
-   if(MarketSlippagePips < 0)
-   {
-      Print("MarketSlippagePips must be non-negative");
       return(INIT_PARAMETERS_INCORRECT);
    }
    if(UseDistanceBand)
