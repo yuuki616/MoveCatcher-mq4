@@ -12,9 +12,10 @@ def estimate_reason(order):
     if is_tp or is_sl:
         return "TP" if is_tp else "SL"
     comment = order.get("comment", "")
-    if "TP" in comment:
+    comment_upper = comment.upper()
+    if "TP" in comment_upper:
         return "TP"
-    if "SL" in comment:
+    if "SL" in comment_upper:
         return "SL"
     open_price = order["open"]
     if order["type"] == "buy":
@@ -31,3 +32,10 @@ def test_reason_uses_price_when_profit_near_zero():
     assert estimate_reason(buy_loss) == "SL"
     sell_loss = {"type": "sell", "open": 1.0, "close": 1.00001}
     assert estimate_reason(sell_loss) == "SL"
+
+
+def test_reason_finds_tp_sl_in_comment_case_insensitively():
+    tp_comment = {"type": "buy", "open": 1.0, "close": 0.5, "comment": "hit tp"}
+    assert estimate_reason(tp_comment) == "TP"
+    sl_comment = {"type": "buy", "open": 1.0, "close": 1.5, "comment": "via sl"}
+    assert estimate_reason(sl_comment) == "SL"
