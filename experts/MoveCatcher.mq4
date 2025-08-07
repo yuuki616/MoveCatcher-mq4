@@ -3013,12 +3013,18 @@ void OnTick()
       if(hasA && !hasB && !pendB && ticketA != -1)
       {
          if(OrderSelect(ticketA, SELECT_BY_TICKET))
+         {
             PlaceRefillOrders("B", OrderOpenPrice());
+            pendB = true;
+         }
       }
       else if(hasB && !hasA && !pendA && ticketB != -1)
       {
          if(OrderSelect(ticketB, SELECT_BY_TICKET))
+         {
             PlaceRefillOrders("A", OrderOpenPrice());
+            pendA = true;
+         }
       }
    }
 
@@ -3030,9 +3036,9 @@ void OnTick()
    if(hasB && shadowRetryB)
       EnsureShadowOrder(ticketB, "B");
 
-   if(state_A == Missing)
+   if(state_A == Missing && !pendA)
       RecoverAfterSL("A");
-   if(state_B == Missing)
+   if(state_B == Missing && !pendB)
       RecoverAfterSL("B");
 }
 
