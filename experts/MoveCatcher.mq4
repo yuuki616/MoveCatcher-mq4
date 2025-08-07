@@ -697,10 +697,24 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
          double tol        = Point * 0.5;
          bool isTP = (MathAbs(closePrice - OrderTakeProfit()) <= tol);
          bool isSL = (MathAbs(closePrice - OrderStopLoss())  <= tol);
-         if(!isTP && !isSL)
-            rsn = ((OrderProfit() + OrderSwap() + OrderCommission()) >= 0) ? "TP" : "SL";
-         else
+         if(isTP || isSL)
             rsn = isTP ? "TP" : "SL";
+         else
+         {
+            string cmt = OrderComment();
+            if(StringFind(cmt, "TP") >= 0)
+               rsn = "TP";
+            else if(StringFind(cmt, "SL") >= 0)
+               rsn = "SL";
+            else
+            {
+               double openPrice = OrderOpenPrice();
+               if(OrderType() == OP_BUY)
+                  rsn = (closePrice >= openPrice) ? "TP" : "SL";
+               else
+                  rsn = (closePrice <= openPrice) ? "TP" : "SL";
+            }
+         }
       }
 
       bool win = (rsn == "TP");
