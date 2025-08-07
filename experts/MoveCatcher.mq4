@@ -33,6 +33,8 @@ int lastSnapBar = -1; // last bar index when tick snap reset occurred
 
 datetime lastCloseTimeA = 0; // last processed close time for system A
 datetime lastCloseTimeB = 0; // last processed close time for system B
+int      lastTicketsA[];     // tickets processed at lastCloseTimeA
+int      lastTicketsB[];     // tickets processed at lastCloseTimeB
 
 int retryTicketA = -1; // ticket to retry TP/SL setting for system A
 int retryTicketB = -1; // ticket to retry TP/SL setting for system B
@@ -181,7 +183,24 @@ double NormalizeLot(const double lotCandidate)
    if(lot > maxLotNorm)
       lot = maxLotNorm;
 
-   return(NormalizeDouble(lot, lotDigits));
+  return(NormalizeDouble(lot, lotDigits));
+}
+
+void AddTicket(int &arr[],const int ticket)
+{
+   int idx=ArraySize(arr);
+   ArrayResize(arr,idx+1);
+   arr[idx]=ticket;
+}
+
+bool ContainsTicket(const int &arr[],const int ticket)
+{
+   for(int i=0;i<ArraySize(arr);i++)
+   {
+      if(arr[i]==ticket)
+         return(true);
+   }
+   return(false);
 }
 
 bool SaveDMCState(const string system,const CDecompMC &state,int &err)
@@ -545,6 +564,8 @@ void InitCloseTimes()
 {
    lastCloseTimeA = 0;
    lastCloseTimeB = 0;
+   ArrayResize(lastTicketsA,0);
+   ArrayResize(lastTicketsB,0);
    for(int i = OrdersHistoryTotal()-1; i >= 0; i--)
    {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY))
@@ -558,10 +579,28 @@ void InitCloseTimes()
       if(!ParseComment(OrderComment(), sys, seq))
          continue;
       datetime ct = OrderCloseTime();
-      if(sys == "A" && ct > lastCloseTimeA)
-         lastCloseTimeA = ct;
-      else if(sys == "B" && ct > lastCloseTimeB)
-         lastCloseTimeB = ct;
+      if(sys == "A")
+      {
+         if(ct > lastCloseTimeA)
+         {
+            lastCloseTimeA = ct;
+            ArrayResize(lastTicketsA,0);
+            AddTicket(lastTicketsA,OrderTicket());
+         }
+         else if(ct == lastCloseTimeA)
+            AddTicket(lastTicketsA,OrderTicket());
+      }
+      else if(sys == "B")
+      {
+         if(ct > lastCloseTimeB)
+         {
+            lastCloseTimeB = ct;
+            ArrayResize(lastTicketsB,0);
+            AddTicket(lastTicketsB,OrderTicket());
+         }
+         else if(ct == lastCloseTimeB)
+            AddTicket(lastTicketsB,OrderTicket());
+      }
    }
 }
 
@@ -575,6 +614,7 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
    datetime lastTime = (system == "A") ? lastCloseTimeA : lastCloseTimeB;
    int tickets[];
    datetime times[];
+   int newTickets[];
    datetime newLastTime = lastTime;
    for(int i = OrdersHistoryTotal()-1; i >= 0; i--)
    {
@@ -593,13 +633,31 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       datetime ct = OrderCloseTime();
       if(ct < lastTime)
          continue;
+      if(ct == lastTime)
+      {
+         if(system == "A")
+         {
+            if(ContainsTicket(lastTicketsA,OrderTicket()))
+               continue;
+         }
+         else
+         {
+            if(ContainsTicket(lastTicketsB,OrderTicket()))
+               continue;
+         }
+      }
       int idx = ArraySize(tickets);
       ArrayResize(tickets, idx + 1);
       ArrayResize(times, idx + 1);
       tickets[idx] = OrderTicket();
       times[idx]   = ct;
       if(ct > newLastTime)
+      {
          newLastTime = ct;
+         ArrayResize(newTickets,0);
+      }
+      if(ct == newLastTime)
+         AddTicket(newTickets,OrderTicket());
    }
    for(int i = ArraySize(tickets)-1; i >= 0; i--)
    {
@@ -674,9 +732,15 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       WriteLog(lr);
    }
    if(system == "A")
+   {
       lastCloseTimeA = newLastTime;
+      ArrayCopy(lastTicketsA,newTickets);
+   }
    else
+   {
       lastCloseTimeB = newLastTime;
+      ArrayCopy(lastTicketsB,newTickets);
+   }
 }
 
 //+------------------------------------------------------------------+
