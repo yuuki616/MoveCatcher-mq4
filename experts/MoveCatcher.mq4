@@ -1062,6 +1062,7 @@ void EnsureShadowOrder(const int ticket,const string system)
    }
 
    price = NormalizeDouble(price, Digits);
+   RefreshRates();
    ResetLastError();
    int tk = OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrNONE);
    LogRecord lr;
@@ -1118,6 +1119,7 @@ void DeletePendings(const string system,const string reason)
       int type = OrderType();
       if(type != OP_BUYLIMIT && type != OP_SELLLIMIT && type != OP_BUYSTOP && type != OP_SELLSTOP)
          continue;
+      RefreshRates();
       string sys, seq;
       if(!ParseComment(OrderComment(), sys, seq))
          continue;
@@ -1203,6 +1205,7 @@ void RecoverAfterSL(const string system)
    double reSlippagePips = SlippagePips;
    int    slippage = (int)MathRound(reSlippagePips * Pip() / Point);
    string flagInfo = UseProtectedLimit ? "UseProtectedLimit=true" : "UseProtectedLimit=false";
+   RefreshRates();
    double price    = isBuy ? Ask : Bid;
    double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);
    double tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), Digits);
@@ -1488,6 +1491,7 @@ void CorrectDuplicatePositions()
          if(!OrderSelect(tk, SELECT_BY_TICKET))
             continue;
          int type          = OrderType();
+         RefreshRates();
          double price      = (type == OP_BUY) ? Bid : Ask;
          double lot        = OrderLots();
          string comment    = OrderComment();
@@ -1545,6 +1549,7 @@ void CorrectDuplicatePositions()
          if(!OrderSelect(tk, SELECT_BY_TICKET))
             continue;
          int type          = OrderType();
+         RefreshRates();
          double price      = (type == OP_BUY) ? Bid : Ask;
          double lot        = OrderLots();
          string comment    = OrderComment();
@@ -1646,6 +1651,7 @@ bool PlaceRefillOrders(const string system,const double refPrice)
    }
    else
    {
+      RefreshRates();
       ResetLastError();
       ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
                              0, 0, 0, comment, MagicNumber, 0, clrNONE);
@@ -1713,9 +1719,10 @@ bool PlaceRefillOrders(const string system,const double refPrice)
    }
    else
    {
+      RefreshRates();
       ResetLastError();
       ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
-                             0, 0, 0, comment, MagicNumber, 0, clrNONE);
+                            0, 0, 0, comment, MagicNumber, 0, clrNONE);
       LogRecord lr2;
       lr2.Time       = TimeCurrent();
       lr2.Symbol     = Symbol();
@@ -1900,6 +1907,8 @@ bool InitStrategy()
       return(false);
    }
    int typeA   = isBuy ? OP_BUY : OP_SELL;
+   RefreshRates();
+   price = isBuy ? Ask : Bid;
    ResetLastError();
    int ticketA = OrderSend(Symbol(), typeA, lotA, price,
                            slippage, entrySL, entryTP, commentA, MagicNumber, 0, clrNONE);
@@ -2059,14 +2068,15 @@ bool InitStrategy()
             WriteLog(lrS);
             okSell = false;
          }
-         else
-         {
-            ResetLastError();
-            ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
-                                   0, 0, 0, commentB, MagicNumber, 0, clrNONE);
-            LogRecord lrS;
-            lrS.Time       = TimeCurrent();
-            lrS.Symbol     = Symbol();
+      else
+      {
+         RefreshRates();
+         ResetLastError();
+         ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
+                                0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+         LogRecord lrS;
+         lrS.Time       = TimeCurrent();
+         lrS.Symbol     = Symbol();
             lrS.System     = "B";
             lrS.Reason     = "INIT";
             lrS.Spread     = PriceToPips(Ask - Bid);
@@ -2196,14 +2206,15 @@ bool InitStrategy()
             WriteLog(lrB);
             okBuy = false;
          }
-         else
-         {
-            ResetLastError();
-            ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
-                                  0, 0, 0, commentB, MagicNumber, 0, clrNONE);
-            LogRecord lrB;
-            lrB.Time       = TimeCurrent();
-            lrB.Symbol     = Symbol();
+      else
+      {
+         RefreshRates();
+         ResetLastError();
+         ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
+                               0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+         LogRecord lrB;
+         lrB.Time       = TimeCurrent();
+         lrB.Symbol     = Symbol();
             lrB.System     = "B";
             lrB.Reason     = "INIT";
          lrB.Spread     = PriceToPips(Ask - Bid);
@@ -2601,6 +2612,7 @@ void HandleOCODetectionFor(const string system)
             retryTicketB = -1;
          return;
       }
+      RefreshRates();
       ResetLastError();
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
                                 slippage, slInit, tpInit,
