@@ -71,6 +71,7 @@ README.md                                  ← 本ドキュメント
 | `MaxSpreadPips`     | double | 例: 2.0                 | **置く前だけ**判定（初期OCO／補充／SL後の Pending 再建て）                 |
 | `UseProtectedLimit` |   bool | true/false              | **SL 復帰＝成行＋Slippage**（MT4 標準の価格保護）                           |
 | `SlippagePips`      | double | 例: 1.0                 | 成行の最大許容スリッページ（pips）                                      |
+| `MarketSlippagePips`| double | 例: 0.0                 | `UseProtectedLimit=false` 時の成行許容スリッページ（pips）          |
 | `UseDistanceBand`   |   bool | true/false              | true で発注前に距離帯 `[Min, Max]` をチェック                             |
 | `MinDistancePips`   | double | 例: 50                  | 距離帯下限（`UseDistanceBand=true` のとき有効）                            |
 | `MaxDistancePips`   | double | 例: 55                  | 距離帯上限（`UseDistanceBand=true` のとき有効）                            |

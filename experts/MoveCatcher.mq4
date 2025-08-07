@@ -10,6 +10,7 @@ input double EpsilonPips       = 1.0;   // Tolerance width (pips)
 input double MaxSpreadPips     = 2.0;   // Max spread when placing orders
 input bool   UseProtectedLimit = true;  // Use slippage-protected market orders after SL
 input double SlippagePips      = 1.0;   // Maximum slippage for market orders
+input double MarketSlippagePips = 0.0;   // Slippage when UseProtectedLimit=false
 input bool   UseDistanceBand   = false; // Filter by distance band before ordering
 input double MinDistancePips   = 50;    // Minimum distance (pips)
 input double MaxDistancePips   = 55;    // Maximum distance (pips)
@@ -1130,8 +1131,9 @@ void DeletePendings(const string system,const string reason)
 }
 
 //+------------------------------------------------------------------+
-//| Re-enter position after SL. If UseProtectedLimit is true,         |
-//| slippage protection is applied; otherwise slippage=0.             |
+//| Re-enter position after SL. Slippage from SlippagePips is used    |
+//| only when UseProtectedLimit=true; otherwise MarketSlippagePips or |
+//| zero is applied.                                                  |
 //+------------------------------------------------------------------+
 void RecoverAfterSL(const string system)
 {
@@ -1168,8 +1170,9 @@ void RecoverAfterSL(const string system)
       return;
 
    bool   isBuy    = (lastType == OP_BUY);
-   // Use SlippagePips regardless of UseProtectedLimit
-   int    slippage = (int)MathRound(SlippagePips * Pip() / Point);
+   double reSlippagePips = UseProtectedLimit ? SlippagePips : MarketSlippagePips;
+   int    slippage = (int)MathRound(reSlippagePips * Pip() / Point);
+   string flagInfo = UseProtectedLimit ? "UseProtectedLimit=true" : "UseProtectedLimit=false";
    double price    = isBuy ? Ask : Bid;
    double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);
    double tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), Digits);
@@ -1207,6 +1210,7 @@ void RecoverAfterSL(const string system)
       lrSkip.Symbol     = Symbol();
       lrSkip.System     = system;
       lrSkip.Reason     = "SL";
+      lrSkip.ErrorInfo  = flagInfo;
       lrSkip.Spread     = spread;
       lrSkip.Dist       = MathMax(dist, 0);
       lrSkip.GridPips   = GridPips;
@@ -1224,7 +1228,7 @@ void RecoverAfterSL(const string system)
       lrSkip.TP         = tp;
       lrSkip.ErrorCode  = 0;
       WriteLog(lrSkip);
-      PrintFormat("RecoverAfterSL: spread %.1f > MaxSpreadPips %.1f, order skipped", spread, MaxSpreadPips);
+      PrintFormat("RecoverAfterSL[%s]: spread %.1f > MaxSpreadPips %.1f, order skipped", flagInfo, spread, MaxSpreadPips);
       return;
    }
    */
@@ -1236,6 +1240,7 @@ void RecoverAfterSL(const string system)
       lrSkip.Symbol     = Symbol();
       lrSkip.System     = system;
       lrSkip.Reason     = "SL";
+      lrSkip.ErrorInfo  = flagInfo;
       lrSkip.Spread     = spread;
       lrSkip.Dist       = MathMax(dist, 0);
       lrSkip.GridPips   = GridPips;
@@ -1253,8 +1258,8 @@ void RecoverAfterSL(const string system)
       lrSkip.TP         = tp;
       lrSkip.ErrorCode  = 0;
       WriteLog(lrSkip);
-      PrintFormat("RecoverAfterSL: distance %.1f outside band [%.1f, %.1f], order skipped",
-                  dist, MinDistancePips, MaxDistancePips);
+      PrintFormat("RecoverAfterSL[%s]: distance %.1f outside band [%.1f, %.1f], order skipped",
+                  flagInfo, dist, MinDistancePips, MaxDistancePips);
       return;
    }
    */
@@ -1267,6 +1272,7 @@ void RecoverAfterSL(const string system)
    lr.Symbol     = Symbol();
    lr.System     = system;
    lr.Reason     = "SL";
+   lr.ErrorInfo  = flagInfo;
    lr.Spread     = spread;
    lr.Dist       = MathMax(dist, 0);
    lr.GridPips   = GridPips;
@@ -1286,7 +1292,7 @@ void RecoverAfterSL(const string system)
    WriteLog(lr);
    if(ticket < 0)
    {
-      PrintFormat("RecoverAfterSL: failed to reopen %s err=%d", system, lr.ErrorCode);
+      PrintFormat("RecoverAfterSL[%s]: failed to reopen %s err=%d", flagInfo, system, lr.ErrorCode);
       return;
    }
 
@@ -1294,7 +1300,7 @@ void RecoverAfterSL(const string system)
    {
       lr.ErrorCode = GetLastError();
       WriteLog(lr);
-      PrintFormat("RecoverAfterSL: failed to select reopened order for %s err=%d", system, lr.ErrorCode);
+      PrintFormat("RecoverAfterSL[%s]: failed to select reopened order for %s err=%d", flagInfo, system, lr.ErrorCode);
       return;
    }
    double entry = OrderOpenPrice();
@@ -1329,7 +1335,7 @@ void RecoverAfterSL(const string system)
       err = GetLastError();
       lr.ErrorCode = err;
       WriteLog(lr);
-      PrintFormat("RecoverAfterSL: failed to adjust TP/SL for %s ticket %d err=%d", system, ticket, err);
+      PrintFormat("RecoverAfterSL[%s]: failed to adjust TP/SL for %s ticket %d err=%d", flagInfo, system, ticket, err);
       if(system == "A")
          retryTicketA = ticket;
       else
@@ -2765,6 +2771,11 @@ int OnInit()
    if(SlippagePips < 0)
    {
       Print("SlippagePips must be non-negative");
+      return(INIT_PARAMETERS_INCORRECT);
+   }
+   if(MarketSlippagePips < 0)
+   {
+      Print("MarketSlippagePips must be non-negative");
       return(INIT_PARAMETERS_INCORRECT);
    }
    if(UseDistanceBand)
