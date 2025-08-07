@@ -3009,6 +3009,7 @@ void OnTick()
             lr.ErrorCode  = 0;
             WriteLog(lr);
             CloseAllOrders("RESET_SNAP");
+            InitCloseTimes();
               state_A = None;
               state_B = None;
               if(!InitStrategy())
@@ -3051,6 +3052,7 @@ void OnTick()
          lr.ErrorCode  = 0;
          WriteLog(lr);
            CloseAllOrders("RESET_ALIVE");
+           InitCloseTimes();
            state_A = None;
            state_B = None;
            if(!InitStrategy())
