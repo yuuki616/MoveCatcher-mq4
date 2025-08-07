@@ -1092,8 +1092,8 @@ void RecoverAfterSL(const string system)
       return;
 
    bool   isBuy    = (lastType == OP_BUY);
-   // Disable slippage when UseProtectedLimit is false
-   int    slippage = UseProtectedLimit ? (int)MathRound(SlippagePips * Pip() / Point) : 0;
+   // Use SlippagePips regardless of UseProtectedLimit
+   int    slippage = (int)MathRound(SlippagePips * Pip() / Point);
    double price    = isBuy ? Ask : Bid;
    double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);
    double tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), Digits);
