@@ -2577,7 +2577,14 @@ void HandleOCODetectionFor(const string system)
       if(sys == system && (OrderType() == OP_BUYLIMIT || OrderType() == OP_SELLLIMIT ||
                            OrderType() == OP_BUYSTOP  || OrderType() == OP_SELLSTOP))
       {
-         int delTicket = OrderTicket();
+         int delTicket  = OrderTicket();
+         double lot     = OrderLots();
+         string comment = OrderComment();
+         int type       = OrderType();
+         double entry   = OrderOpenPrice();
+         double sl      = OrderStopLoss();
+         double tp      = OrderTakeProfit();
+         string typeStr = OrderTypeToStr(type);
          int err = 0;
          ResetLastError();
          bool ok = OrderDelete(delTicket);
@@ -2595,20 +2602,20 @@ void HandleOCODetectionFor(const string system)
          lr.lotFactor  = 0;
          lr.BaseLot    = BaseLot;
          lr.MaxLot     = MaxLot;
-         lr.actualLot  = OrderLots();
+         lr.actualLot  = lot;
          lr.seqStr     = seq;
-         lr.CommentTag = OrderComment();
+         lr.CommentTag = comment;
          lr.Magic      = MagicNumber;
-         lr.OrderType  = OrderTypeToStr(OrderType());
-         lr.EntryPrice = OrderOpenPrice();
-         lr.SL         = OrderStopLoss();
-         lr.TP         = OrderTakeProfit();
+         lr.OrderType  = typeStr;
+         lr.EntryPrice = entry;
+         lr.SL         = sl;
+         lr.TP         = tp;
          lr.ErrorCode  = err;
          WriteLog(lr);
          if(!ok)
             PrintFormat("Failed to delete pending order %d err=%d", delTicket, err);
+      }
    }
-  }
 
    RefreshRates(); // 最新の Bid/Ask を取得
    double entry = OrderOpenPrice();
