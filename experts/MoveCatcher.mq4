@@ -172,32 +172,34 @@ double NormalizeLot(const double lotCandidate)
 
    if(lot < minLot)
       lot = minLot;
-  if(lot > maxLot)
-     lot = maxLot;
+   if(lot > maxLot)
+      lot = maxLot;
 
-  return(NormalizeDouble(lot, lotDigits));
+   if(lotStep > 0)
+      return(NormalizeDouble(lot, lotDigits));
+   return(lot);
 }
 
 double ClipToUserMax(const double lot)
 {
    double lotStep = MarketInfo(Symbol(), MODE_LOTSTEP);
-   int    lotDigits = 0;
-   double maxLotAdj = MaxLot;
-   if(lotStep > 0)
+   if(lotStep <= 0)
    {
-      lotDigits = (int)MathRound(-MathLog(lotStep) / MathLog(10));
-      maxLotAdj = MathFloor(MaxLot / lotStep) * lotStep;
-      maxLotAdj = NormalizeDouble(maxLotAdj, lotDigits);
+      double result = lot;
+      if(result > MaxLot)
+         result = MaxLot;
+      return(result);
    }
+
+   int    lotDigits = (int)MathRound(-MathLog(lotStep) / MathLog(10));
+   double maxLotAdj = MathFloor(MaxLot / lotStep) * lotStep;
+   maxLotAdj = NormalizeDouble(maxLotAdj, lotDigits);
 
    double result = lot;
    if(result > maxLotAdj)
       result = maxLotAdj;
 
-   if(lotStep > 0)
-      result = NormalizeDouble(result, lotDigits);
-
-   return(result);
+   return(NormalizeDouble(result, lotDigits));
 }
 
 void AddTicket(int &arr[],const int ticket)

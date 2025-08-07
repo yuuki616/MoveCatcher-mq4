@@ -13,22 +13,22 @@ def normalize_lot(lot_candidate: float, min_lot: float, max_lot_broker: float, l
         lot = min_lot
     if lot > max_lot_broker:
         lot = max_lot_broker
-    return round(lot, lot_digits)
+    if lot_step > 0:
+        return round(lot, lot_digits)
+    return lot
 
 
 def clip_to_user_max(lot: float, user_max: float, lot_step: float) -> float:
-    lot_digits = 0
-    max_lot_adj = user_max
-    if lot_step > 0:
-        lot_digits = int(round(-math.log10(lot_step)))
-        max_lot_adj = math.floor(user_max / lot_step) * lot_step
-        max_lot_adj = round(max_lot_adj, lot_digits)
+    if lot_step <= 0:
+        return min(lot, user_max)
+
+    lot_digits = int(round(-math.log10(lot_step)))
+    max_lot_adj = math.floor(user_max / lot_step) * lot_step
+    max_lot_adj = round(max_lot_adj, lot_digits)
     result = lot
     if result > max_lot_adj:
         result = max_lot_adj
-    if lot_step > 0:
-        result = round(result, lot_digits)
-    return result
+    return round(result, lot_digits)
 
 
 def calc_lot(lot_candidate: float, user_max: float, min_lot: float, max_lot_broker: float, lot_step: float) -> float:
@@ -44,6 +44,7 @@ def calc_lot(lot_candidate: float, user_max: float, min_lot: float, max_lot_brok
         (0.05, 1.0, 0.1, 10.0, 0.1, 0.1),
         (2.0, 1.5, 0.01, 10.0, 0.01, 1.5),
         (1.4, 1.45, 0.01, 2.0, 0.3, 1.2),
+        (0.123, 1.0, 0.01, 10.0, 0.0, 0.123),
     ],
 )
 
