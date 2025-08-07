@@ -3099,9 +3099,63 @@ void OnDeinit(const int reason)
    int err;
 
    err = 0;
-   SaveDMCState("A", stateA, err);
+   bool savedA = SaveDMCState("A", stateA, err);
+   if(!savedA)
+   {
+      PrintFormat("SaveDMCState(%s) err=%d", "A", err);
+      LogRecord lr;
+      lr.Time       = TimeCurrent();
+      lr.Symbol     = Symbol();
+      lr.System     = "A";
+      lr.Reason     = "DEINIT";
+      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Dist       = 0;
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = 0;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = 0;
+      lr.seqStr     = "";
+      lr.CommentTag = "";
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = "";
+      lr.EntryPrice = 0;
+      lr.SL         = 0;
+      lr.TP         = 0;
+      lr.ErrorCode  = err;
+      lr.ErrorInfo  = "";
+      WriteLog(lr);
+   }
 
    err = 0;
-   SaveDMCState("B", stateB, err);
+   bool savedB = SaveDMCState("B", stateB, err);
+   if(!savedB)
+   {
+      PrintFormat("SaveDMCState(%s) err=%d", "B", err);
+      LogRecord lr;
+      lr.Time       = TimeCurrent();
+      lr.Symbol     = Symbol();
+      lr.System     = "B";
+      lr.Reason     = "DEINIT";
+      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Dist       = 0;
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = 0;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = 0;
+      lr.seqStr     = "";
+      lr.CommentTag = "";
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = "";
+      lr.EntryPrice = 0;
+      lr.SL         = 0;
+      lr.TP         = 0;
+      lr.ErrorCode  = err;
+      lr.ErrorInfo  = "";
+      WriteLog(lr);
+   }
 }
 
