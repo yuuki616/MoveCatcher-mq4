@@ -107,7 +107,7 @@ void WriteLog(const LogRecord &rec)
          rec.ErrorInfo);
       FileClose(handle);
    }
-   PrintFormat("LOG %s,%s,%s,%s,%.1f,%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%s,%s,%d,%s,%.5f,%.5f,%.5f,%d,%s",
+   PrintFormat("LOG %s,%s,%s,%s,%.1f,%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%s,%s,%d,%s,%.*f,%.*f,%.*f,%d,%s",
                timeStr,
                rec.Symbol,
                rec.System,
@@ -124,9 +124,9 @@ void WriteLog(const LogRecord &rec)
                rec.CommentTag,
                rec.Magic,
                rec.OrderType,
-               rec.EntryPrice,
-               rec.SL,
-               rec.TP,
+               Digits, rec.EntryPrice,
+               Digits, rec.SL,
+               Digits, rec.TP,
                rec.ErrorCode,
                rec.ErrorInfo);
 }
