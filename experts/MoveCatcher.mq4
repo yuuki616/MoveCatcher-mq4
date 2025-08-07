@@ -693,7 +693,7 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       if(rsn == "")
       {
          double closePrice = OrderClosePrice();
-         double tol        = Point * 0.5;
+        double tol        = Pip() * 0.5;
          bool isTP = (MathAbs(closePrice - OrderTakeProfit()) <= tol);
          bool isSL = (MathAbs(closePrice - OrderStopLoss())  <= tol);
          if(isTP || isSL)
@@ -786,7 +786,7 @@ bool FindShadowPending(const string system,const double entry,const bool isBuy,
 {
    double target = isBuy ? entry + PipsToPrice(GridPips)
                          : entry - PipsToPrice(GridPips);
-   double tol = Point * 0.5;
+   double tol = Pip() * 0.5;
    for(int i = OrdersTotal()-1; i >= 0; i--)
    {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
@@ -851,7 +851,7 @@ void EnsureTPSL(const int ticket)
    }
    desiredSL = NormalizeDouble(desiredSL, Digits);
    desiredTP = NormalizeDouble(desiredTP, Digits);
-   double tol = Point * 0.5;
+   double tol = Pip() * 0.5;
    bool needModify = (OrderStopLoss() == 0 || OrderTakeProfit() == 0 ||
                       MathAbs(OrderStopLoss() - desiredSL) > tol ||
                       MathAbs(OrderTakeProfit() - desiredTP) > tol);
