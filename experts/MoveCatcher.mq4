@@ -1582,8 +1582,13 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lr.EntryPrice = priceSell;
       lr.SL         = 0;
       lr.TP         = 0;
-      lr.ErrorCode  = 0;
-      lr.ErrorInfo  = errSell;
+      int codeSell  = 0;
+      if(errSell == "FreezeLevel violation")
+         codeSell = ERR_INVALID_STOPS;
+      else if(errSell == "Wrong direction")
+         codeSell = ERR_INVALID_PRICE;
+      lr.ErrorCode  = codeSell;
+      lr.ErrorInfo  = (errSell == "DistanceBandViolation") ? "Distance band violation" : errSell;
       WriteLog(lr);
       okSell = false;
    }
@@ -1644,8 +1649,13 @@ void PlaceRefillOrders(const string system,const double refPrice)
       lrb.EntryPrice = priceBuy;
       lrb.SL         = 0;
       lrb.TP         = 0;
-      lrb.ErrorCode  = 0;
-      lrb.ErrorInfo  = errBuy;
+      int codeBuy    = 0;
+      if(errBuy == "FreezeLevel violation")
+         codeBuy = ERR_INVALID_STOPS;
+      else if(errBuy == "Wrong direction")
+         codeBuy = ERR_INVALID_PRICE;
+      lrb.ErrorCode  = codeBuy;
+      lrb.ErrorInfo  = (errBuy == "DistanceBandViolation") ? "Distance band violation" : errBuy;
       WriteLog(lrb);
       okBuy = false;
    }
