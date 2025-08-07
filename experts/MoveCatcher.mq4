@@ -392,12 +392,6 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
       }
    }
 
-   if(absDist < stopLevel)
-   {
-      errorInfo = "StopLevel violation";
-      return(false);
-   }
-
    double spread = PriceToPips(Ask - Bid);
    if(checkSpread && spread > MaxSpreadPips)
    {
