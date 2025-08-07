@@ -960,7 +960,7 @@ void EnsureShadowOrder(const int ticket,const string system)
    RefreshRates();
 
    string errcp = "";
-   bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, false);
+   bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, true);
    if(!canPlace)
    {
       LogRecord lre;
