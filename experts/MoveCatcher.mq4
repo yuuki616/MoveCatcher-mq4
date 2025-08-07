@@ -964,15 +964,6 @@ void EnsureShadowOrder(const int ticket,const string system)
    double distBand = MathMax(DistanceToExistingPositions(price, ticket), 0);
    if(!canPlace)
    {
-      if(errcp == "DistanceBandViolation")
-      {
-         if(system == "A")
-            shadowRetryA = true;
-         else
-            shadowRetryB = true;
-         return;
-      }
-
       LogRecord lre;
       lre.Time       = TimeCurrent();
       lre.Symbol     = Symbol();
