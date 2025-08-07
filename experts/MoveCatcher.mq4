@@ -223,12 +223,12 @@ bool SaveDMCState(const string system,const CDecompMC &state,int &err)
 {
    err=0; bool ok=true;
    string data=state.Serialize();
-   string parts[]; int cnt=StringSplit(data,'|',parts);
+   string parts[]; int cnt=StringSplit(data,"|",parts);
    if(cnt==3)
    {
       int stock=(int)StringToInteger(parts[0]);
       int streak=(int)StringToInteger(parts[1]);
-      string seqParts[]; int n=StringSplit(parts[2],',',seqParts);
+      string seqParts[]; int n=StringSplit(parts[2],",",seqParts);
 
       string prefix="MoveCatcher_"+system+"_";
 

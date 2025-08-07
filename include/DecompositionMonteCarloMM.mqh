@@ -118,11 +118,11 @@ public:
    }
 
    bool Deserialize(const string data){
-      string parts[]; int cnt=StringSplit(data,'|',parts);
+      string parts[]; int cnt=StringSplit(data,"|",parts);
       if(cnt!=3) return(false);
       stock=(int)StringToInteger(parts[0]);
       streak=(int)StringToInteger(parts[1]);
-      string seqParts[]; int n=StringSplit(parts[2],',',seqParts);
+      string seqParts[]; int n=StringSplit(parts[2],",",seqParts);
       if(n<2) return(false);
       ArrayResize(seq,n);
       for(int i=0;i<n;i++) seq[i]=(int)StringToInteger(seqParts[i]);
