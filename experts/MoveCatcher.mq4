@@ -1591,7 +1591,7 @@ void CorrectDuplicatePositions()
 //+------------------------------------------------------------------+
 //| Place refill pending orders at ±s from reference price           |
 //+------------------------------------------------------------------+
-void PlaceRefillOrders(const string system,const double refPrice)
+bool PlaceRefillOrders(const string system,const double refPrice)
 {
    RefreshRates();
 
@@ -1599,7 +1599,7 @@ void PlaceRefillOrders(const string system,const double refPrice)
    double lotFactor;
    double lot = CalcLot(system, seq, lotFactor);
    if(lot <= 0)
-      return;
+      return(false);
 
    string comment  = MakeComment(system, seq);
    double priceSell = refPrice + PipsToPrice(s);
@@ -1815,6 +1815,8 @@ void PlaceRefillOrders(const string system,const double refPrice)
       else
          PrintFormat("PlaceRefillOrders: failed to delete BuyLimit for %s err=%d", system, err);
    }
+
+   return(okSell && okBuy);
 }
 
 //+------------------------------------------------------------------+
@@ -3099,18 +3101,12 @@ void OnTick()
       if(hasA && !hasB && !pendB && ticketA != -1)
       {
          if(OrderSelect(ticketA, SELECT_BY_TICKET))
-         {
-            PlaceRefillOrders("B", OrderOpenPrice());
-            pendB = true;
-         }
+            pendB = PlaceRefillOrders("B", OrderOpenPrice());
       }
       else if(hasB && !hasA && !pendA && ticketB != -1)
       {
          if(OrderSelect(ticketB, SELECT_BY_TICKET))
-         {
-            PlaceRefillOrders("A", OrderOpenPrice());
-            pendA = true;
-         }
+            pendA = PlaceRefillOrders("A", OrderOpenPrice());
       }
    }
 
