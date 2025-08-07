@@ -1267,9 +1267,9 @@ void RecoverAfterSL(const string system)
    double entry = OrderOpenPrice();
    double desiredSL = isBuy ? entry - PipsToPrice(GridPips) : entry + PipsToPrice(GridPips);
    double desiredTP = isBuy ? entry + PipsToPrice(GridPips) : entry - PipsToPrice(GridPips);
-   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
-   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
-   double minLevel    = MathMax(stopLevel, freezeLevel);
+   stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
+   freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   minLevel    = MathMax(stopLevel, freezeLevel);
    if(isBuy)
    {
       if(Bid - desiredSL < minLevel)
