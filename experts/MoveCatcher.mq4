@@ -2504,8 +2504,94 @@ void HandleOCODetectionFor(const string system)
          slInit = price + PipsToPrice(GridPips);
          tpInit = price - PipsToPrice(GridPips);
       }
+      double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL)   * Point;
+      double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+      double distSL      = MathAbs(price - slInit);
+      double distTP      = MathAbs(tpInit - price);
+      if(distSL < stopLevel)
+      {
+         double old = slInit;
+         slInit = (type == OP_BUY) ? price - stopLevel : price + stopLevel;
+         slInit = NormalizeDouble(slInit, Digits);
+         PrintFormat("HandleOCODetectionFor: SL adjusted from %.5f to %.5f due to stop level %.1f pips",
+                     old, slInit, PriceToPips(stopLevel));
+         distSL = MathAbs(price - slInit);
+      }
+      if(distTP < stopLevel)
+      {
+         double old = tpInit;
+         tpInit = (type == OP_BUY) ? price + stopLevel : price - stopLevel;
+         tpInit = NormalizeDouble(tpInit, Digits);
+         PrintFormat("HandleOCODetectionFor: TP adjusted from %.5f to %.5f due to stop level %.1f pips",
+                     old, tpInit, PriceToPips(stopLevel));
+         distTP = MathAbs(tpInit - price);
+      }
+      if(distSL < freezeLevel || distTP < freezeLevel)
+      {
+         LogRecord lrFail;
+         lrFail.Time       = TimeCurrent();
+         lrFail.Symbol     = Symbol();
+         lrFail.System     = system;
+         lrFail.Reason     = "REFILL";
+         lrFail.Spread     = PriceToPips(Ask - Bid);
+         lrFail.Dist       = MathMax(dist, 0);
+         lrFail.GridPips   = GridPips;
+         lrFail.s          = s;
+         lrFail.lotFactor  = lotFactorAdj;
+         lrFail.BaseLot    = BaseLot;
+         lrFail.MaxLot     = MaxLot;
+         lrFail.actualLot  = expectedLot;
+         lrFail.seqStr     = seqAdj;
+         lrFail.CommentTag = expectedComment;
+         lrFail.Magic      = MagicNumber;
+         lrFail.OrderType  = OrderTypeToStr(type);
+         lrFail.EntryPrice = price;
+         lrFail.SL         = slInit;
+         lrFail.TP         = tpInit;
+         lrFail.ErrorCode  = ERR_INVALID_STOPS;
+         WriteLog(lrFail);
+         PrintFormat("HandleOCODetectionFor: SL/TP within freeze level %.1f pips, retry next tick",
+                     PriceToPips(freezeLevel));
+         if(system == "A")
+            retryTicketA = -1;
+         else
+            retryTicketB = -1;
+         return;
+      }
       slInit = NormalizeDouble(slInit, Digits);
       tpInit = NormalizeDouble(tpInit, Digits);
+      if((type == OP_BUY && (slInit >= price || tpInit <= price)) ||
+         (type == OP_SELL && (slInit <= price || tpInit >= price)))
+      {
+         LogRecord lrFail;
+         lrFail.Time       = TimeCurrent();
+         lrFail.Symbol     = Symbol();
+         lrFail.System     = system;
+         lrFail.Reason     = "REFILL";
+         lrFail.Spread     = PriceToPips(Ask - Bid);
+         lrFail.Dist       = MathMax(dist, 0);
+         lrFail.GridPips   = GridPips;
+         lrFail.s          = s;
+         lrFail.lotFactor  = lotFactorAdj;
+         lrFail.BaseLot    = BaseLot;
+         lrFail.MaxLot     = MaxLot;
+         lrFail.actualLot  = expectedLot;
+         lrFail.seqStr     = seqAdj;
+         lrFail.CommentTag = expectedComment;
+         lrFail.Magic      = MagicNumber;
+         lrFail.OrderType  = OrderTypeToStr(type);
+         lrFail.EntryPrice = price;
+         lrFail.SL         = slInit;
+         lrFail.TP         = tpInit;
+         lrFail.ErrorCode  = ERR_INVALID_STOPS;
+         WriteLog(lrFail);
+         Print("HandleOCODetectionFor: SL/TP on wrong side after adjustment, retry next tick");
+         if(system == "A")
+            retryTicketA = -1;
+         else
+            retryTicketB = -1;
+         return;
+      }
       ResetLastError();
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
                                 slippage, slInit, tpInit,
