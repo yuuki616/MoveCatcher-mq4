@@ -1164,8 +1164,8 @@ void DeletePendings(const string system,const string reason)
 }
 
 //+------------------------------------------------------------------+
-//| Re-enter position after SL. SlippagePips is always applied,       |
-//| while UseProtectedLimit only tags log output.                     |
+//| Re-enter position after SL. SlippagePips is applied only when     |
+//| UseProtectedLimit is true.                                        |
 //+------------------------------------------------------------------+
 void RecoverAfterSL(const string system)
 {
@@ -1202,9 +1202,18 @@ void RecoverAfterSL(const string system)
       return;
 
    bool   isBuy    = (lastType == OP_BUY);
-   double reSlippagePips = SlippagePips;
-   int    slippage = (int)MathRound(reSlippagePips * Pip() / Point);
-   string flagInfo = UseProtectedLimit ? "UseProtectedLimit=true" : "UseProtectedLimit=false";
+   int    slippage = 0;
+   string flagInfo;
+   if(UseProtectedLimit)
+   {
+      double reSlippagePips = SlippagePips;
+      slippage = (int)MathRound(reSlippagePips * Pip() / Point);
+      flagInfo = StringFormat("UseProtectedLimit=true slippage=%d", slippage);
+   }
+   else
+   {
+      flagInfo = "UseProtectedLimit=false slippage=0";
+   }
    RefreshRates();
    double price    = isBuy ? Ask : Bid;
    double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);
