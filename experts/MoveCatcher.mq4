@@ -854,11 +854,17 @@ void EnsureShadowOrder(const int ticket,const string system)
    double bandDist = DistanceToExistingPositions(price, ticket);
 
    RefreshRates();
-   if(UseDistanceBand && bandDist >= 0 && (bandDist < MinDistancePips || bandDist > MaxDistancePips))
-      PrintFormat("EnsureShadowOrder: distance %.1f outside [%.1f, %.1f] - ignored for shadow order", bandDist, MinDistancePips, MaxDistancePips);
 
-   string errcp;
-   bool canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, false);
+   string errcp = "";
+   bool   canPlace = true;
+   if(UseDistanceBand && bandDist >= 0 && (bandDist < MinDistancePips || bandDist > MaxDistancePips))
+   {
+      PrintFormat("EnsureShadowOrder: distance %.1f outside [%.1f, %.1f] - no shadow order for %s", bandDist, MinDistancePips, MaxDistancePips, system);
+      errcp    = "DistanceBandViolation";
+      canPlace = false;
+   }
+   else
+      canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, true);
    if(!canPlace)
    {
       LogRecord lre;
@@ -869,7 +875,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       lre.Spread     = PriceToPips(Ask - Bid);
       double logDist = GridPips;
       if(errcp == "DistanceBandViolation")
-         logDist = MathMax(DistanceToExistingPositions(price, ticket), 0);
+         logDist = MathMax(bandDist, 0);
       lre.Dist       = logDist;
       lre.GridPips   = GridPips;
       lre.s          = s;
