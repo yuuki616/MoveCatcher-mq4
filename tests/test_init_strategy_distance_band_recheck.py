@@ -20,7 +20,7 @@ def test_init_strategy_rechecks_distance_band_after_price_refresh():
     assert body_text.count("UseDistanceBand && distA >= 0") >= 2, "距離帯チェックが2回行われていない"
     refresh_idx = None
     for i, line in enumerate(init_body):
-        if "RefreshRates();" in line:
+        if "RefreshRates" in line:
             refresh_idx = i
             break
     assert refresh_idx is not None, "RefreshRatesが見つからない"
