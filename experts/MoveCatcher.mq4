@@ -418,7 +418,6 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
       }
    }
 
-   price     = NormalizeDouble(price, Digits);
    errorInfo = "";
    return(true);
 }
