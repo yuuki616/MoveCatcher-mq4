@@ -858,47 +858,106 @@ void EnsureTPSL(const int ticket)
    if(!OrderSelect(ticket, SELECT_BY_TICKET))
       return;
    double entry = OrderOpenPrice();
-   double desiredSL, desiredTP;
+   bool   isBuy = (OrderType() == OP_BUY);
+   double desiredSL = isBuy ? entry - PipsToPrice(GridPips)
+                            : entry + PipsToPrice(GridPips);
+   double desiredTP = isBuy ? entry + PipsToPrice(GridPips)
+                            : entry - PipsToPrice(GridPips);
+
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
    double minDist     = MathMax(stopLevel, freezeLevel);
-   if(OrderType() == OP_BUY)
-   {
-      desiredSL = entry - PipsToPrice(GridPips);
-      desiredTP = entry + PipsToPrice(GridPips);
-      if(Bid - desiredSL < minDist)
-         desiredSL = Bid - minDist;
-      if(desiredTP - Bid < minDist)    // Bid 基準で最小距離を確認
-         desiredTP = Bid + minDist;    // Bid を基準にTPを設定
-   }
-   else
-   {
-      desiredSL = entry + PipsToPrice(GridPips);
-      desiredTP = entry - PipsToPrice(GridPips);
-      if(desiredSL - Ask < minDist)
-         desiredSL = Ask + minDist;
-      if(Ask - desiredTP < minDist)
-         desiredTP = Ask - minDist;
-   }
+
    desiredSL = NormalizeDouble(desiredSL, Digits);
    desiredTP = NormalizeDouble(desiredTP, Digits);
    double tol = Pip() * 0.5;
    bool needModify = (OrderStopLoss() == 0 || OrderTakeProfit() == 0 ||
                       MathAbs(OrderStopLoss() - desiredSL) > tol ||
                       MathAbs(OrderTakeProfit() - desiredTP) > tol);
-  if(needModify)
-  {
-      ResetLastError();
-      if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
-      {
-         int err = GetLastError();
-         if(err == ERR_INVALID_STOPS)
-            PrintFormat("EnsureTPSL: TP/SL for ticket %d within stop/freeze level, retry next tick err=%d", ticket, err);
-         else
-            PrintFormat("EnsureTPSL: failed to set TP/SL for ticket %d err=%d", ticket, err);
+   if(!needModify)
+      return;
 
-         string sys, seq;
-         ParseComment(OrderComment(), sys, seq);
+   bool violates = false;
+   if(isBuy)
+      violates = (Bid - desiredSL < minDist) || (desiredTP - Bid < minDist);
+   else
+      violates = (desiredSL - Ask < minDist) || (Ask - desiredTP < minDist);
+
+   string sys, seq;
+   ParseComment(OrderComment(), sys, seq);
+   if(violates)
+   {
+      LogRecord lrv;
+      lrv.Time       = TimeCurrent();
+      lrv.Symbol     = Symbol();
+      lrv.System     = sys;
+      lrv.Reason     = "REFILL";
+      lrv.Spread     = PriceToPips(Ask - Bid);
+      lrv.Dist       = 0;
+      lrv.GridPips   = GridPips;
+      lrv.s          = s;
+      lrv.lotFactor  = 0;
+      lrv.BaseLot    = BaseLot;
+      lrv.MaxLot     = MaxLot;
+      lrv.actualLot  = OrderLots();
+      lrv.seqStr     = seq;
+      lrv.CommentTag = OrderComment();
+      lrv.Magic      = MagicNumber;
+      lrv.OrderType  = OrderTypeToStr(OrderType());
+      lrv.EntryPrice = entry;
+      lrv.SL         = desiredSL;
+      lrv.TP         = desiredTP;
+      lrv.ErrorCode  = ERR_INVALID_STOPS;
+      lrv.ErrorInfo  = "Stop/Freeze level violation";
+      WriteLog(lrv);
+      if(sys == "A")
+         retryTicketA = ticket;
+      else if(sys == "B")
+         retryTicketB = ticket;
+      PrintFormat("EnsureTPSL: TP/SL for ticket %d within stop/freeze level, retry next tick", ticket);
+      return;
+   }
+
+   ResetLastError();
+   if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
+   {
+      int err = GetLastError();
+      if(err == ERR_INVALID_STOPS)
+         PrintFormat("EnsureTPSL: TP/SL for ticket %d within stop/freeze level, retry next tick err=%d", ticket, err);
+      else
+         PrintFormat("EnsureTPSL: failed to set TP/SL for ticket %d err=%d", ticket, err);
+
+      LogRecord lr;
+      lr.Time       = TimeCurrent();
+      lr.Symbol     = Symbol();
+      lr.System     = sys;
+      lr.Reason     = "REFILL";
+      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Dist       = 0;
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = 0;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = OrderLots();
+      lr.seqStr     = seq;
+      lr.CommentTag = OrderComment();
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = OrderTypeToStr(OrderType());
+      lr.EntryPrice = entry;
+      lr.SL         = desiredSL;
+      lr.TP         = desiredTP;
+      lr.ErrorCode  = err;
+      WriteLog(lr);
+      if(sys == "A")
+         retryTicketA = ticket;
+      else if(sys == "B")
+         retryTicketB = ticket;
+   }
+   else
+   {
+      if(OrderSelect(ticket, SELECT_BY_TICKET))
+      {
          LogRecord lr;
          lr.Time       = TimeCurrent();
          lr.Symbol     = Symbol();
@@ -917,41 +976,15 @@ void EnsureTPSL(const int ticket)
          lr.Magic      = MagicNumber;
          lr.OrderType  = OrderTypeToStr(OrderType());
          lr.EntryPrice = entry;
-         lr.SL         = desiredSL;
-         lr.TP         = desiredTP;
-         lr.ErrorCode  = err;
+         lr.SL         = OrderStopLoss();
+         lr.TP         = OrderTakeProfit();
+         lr.ErrorCode  = 0;
          WriteLog(lr);
       }
-      else
-      {
-         if(OrderSelect(ticket, SELECT_BY_TICKET))
-         {
-            string sys, seq;
-            ParseComment(OrderComment(), sys, seq);
-            LogRecord lr;
-            lr.Time       = TimeCurrent();
-            lr.Symbol     = Symbol();
-            lr.System     = sys;
-            lr.Reason     = "REFILL";
-            lr.Spread     = PriceToPips(Ask - Bid);
-            lr.Dist       = 0;
-            lr.GridPips   = GridPips;
-            lr.s          = s;
-            lr.lotFactor  = 0;
-            lr.BaseLot    = BaseLot;
-            lr.MaxLot     = MaxLot;
-            lr.actualLot  = OrderLots();
-            lr.seqStr     = seq;
-            lr.CommentTag = OrderComment();
-            lr.Magic      = MagicNumber;
-            lr.OrderType  = OrderTypeToStr(OrderType());
-            lr.EntryPrice = entry;
-            lr.SL         = OrderStopLoss();
-            lr.TP         = OrderTakeProfit();
-            lr.ErrorCode  = 0;
-            WriteLog(lr);
-         }
-      }
+      if(sys == "A")
+         retryTicketA = -1;
+      else if(sys == "B")
+         retryTicketB = -1;
    }
 }
 
@@ -1257,25 +1290,20 @@ void RecoverAfterSL(const string system)
    double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
    double minLevel    = MathMax(stopLevel, freezeLevel);
 
-   double distSL = MathAbs(price - sl);
-   if(distSL < minLevel)
+   bool violateSend = false;
+   if(MathAbs(price - sl) < minLevel)
    {
-      double oldSL = sl;
-      sl = isBuy ? price - minLevel : price + minLevel;
-      sl = NormalizeDouble(sl, Digits);
-      PrintFormat("RecoverAfterSL: SL adjusted from %.5f to %.5f due to min distance %.1f pips",
-                  oldSL, sl, PriceToPips(minLevel));
+      sl = 0;
+      violateSend = true;
    }
+   if(MathAbs(tp - price) < minLevel)
+   {
+      tp = 0;
+      violateSend = true;
+   }
+   if(violateSend)
+      PrintFormat("RecoverAfterSL[%s]: initial TP/SL within stop/freeze level, placing without TP/SL for %s", flagInfo, system);
 
-   double distTP = MathAbs(tp - price);
-   if(distTP < minLevel)
-   {
-      double oldTP = tp;
-      tp = isBuy ? price + minLevel : price - minLevel;
-      tp = NormalizeDouble(tp, Digits);
-      PrintFormat("RecoverAfterSL: TP adjusted from %.5f to %.5f due to min distance %.1f pips",
-                  oldTP, tp, PriceToPips(minLevel));
-   }
    string comment  = MakeComment(system, seq);
    double spread   = PriceToPips(Ask - Bid);
    double dist     = DistanceToExistingPositions(price);
@@ -1285,12 +1313,15 @@ void RecoverAfterSL(const string system)
    ResetLastError();
    int ticket      = OrderSend(Symbol(), type, lot, price,
                                slippage, sl, tp, comment, MagicNumber, 0, clrNONE);
+   string errInfo  = flagInfo;
+   if(violateSend)
+      errInfo = flagInfo + " TP/SL pending";
    LogRecord lr;
    lr.Time       = TimeCurrent();
    lr.Symbol     = Symbol();
    lr.System     = system;
    lr.Reason     = "SL";
-   lr.ErrorInfo  = flagInfo;
+   lr.ErrorInfo  = errInfo;
    lr.Spread     = spread;
    lr.Dist       = MathMax(dist, 0);
    lr.GridPips   = GridPips;
@@ -1328,39 +1359,17 @@ void RecoverAfterSL(const string system)
    stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
    minLevel    = MathMax(stopLevel, freezeLevel);
-   if(isBuy)
-   {
-      if(Bid - desiredSL < minLevel)
-         desiredSL = Bid - minLevel;
-      if(desiredTP - Bid < minLevel)   // Bid 基準で最小距離を確認
-         desiredTP = Bid + minLevel;   // Bid を基準にTPを設定
-   }
-   else
-   {
-      if(desiredSL - Ask < minLevel)
-         desiredSL = Ask + minLevel;
-      if(Ask - desiredTP < minLevel)
-         desiredTP = Ask - minLevel;
-  }
-  desiredSL = NormalizeDouble(desiredSL, Digits);
+   desiredSL = NormalizeDouble(desiredSL, Digits);
    desiredTP = NormalizeDouble(desiredTP, Digits);
+   double tol = Pip() * 0.5;
+   bool needModify = (OrderStopLoss() == 0 || OrderTakeProfit() == 0 ||
+                      MathAbs(OrderStopLoss() - desiredSL) > tol ||
+                      MathAbs(OrderTakeProfit() - desiredTP) > tol);
+
    lr.EntryPrice = entry;
    lr.SL         = desiredSL;
    lr.TP         = desiredTP;
-   int err = 0;
-   ResetLastError();
-   if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
-   {
-      err = GetLastError();
-      lr.ErrorCode = err;
-      WriteLog(lr);
-      PrintFormat("RecoverAfterSL[%s]: failed to adjust TP/SL for %s ticket %d err=%d", flagInfo, system, ticket, err);
-      if(system == "A")
-         retryTicketA = ticket;
-      else
-         retryTicketB = ticket;
-   }
-   else
+   if(!needModify)
    {
       lr.ErrorCode = 0;
       WriteLog(lr);
@@ -1368,6 +1377,59 @@ void RecoverAfterSL(const string system)
          retryTicketA = -1;
       else
          retryTicketB = -1;
+      EnsureShadowOrder(ticket, system);
+      if(system == "A")
+         state_A = Alive;
+      else if(system == "B")
+         state_B = Alive;
+      return;
+   }
+
+   bool violates = false;
+   if(isBuy)
+      violates = (Bid - desiredSL < minLevel) || (desiredTP - Bid < minLevel);
+   else
+      violates = (desiredSL - Ask < minLevel) || (Ask - desiredTP < minLevel);
+
+   if(violates)
+   {
+      lr.ErrorCode = ERR_INVALID_STOPS;
+      lr.ErrorInfo = flagInfo + " Stop/Freeze level violation";
+      WriteLog(lr);
+      PrintFormat("RecoverAfterSL[%s]: TP/SL for %s ticket %d within stop/freeze level, retry next tick", flagInfo, system, ticket);
+      if(system == "A")
+         retryTicketA = ticket;
+      else
+         retryTicketB = ticket;
+   }
+   else
+   {
+      int err = 0;
+      ResetLastError();
+      if(!OrderModify(ticket, entry, desiredSL, desiredTP, 0, clrNONE))
+      {
+         err = GetLastError();
+         lr.ErrorCode = err;
+         lr.ErrorInfo = flagInfo;
+         WriteLog(lr);
+         PrintFormat("RecoverAfterSL[%s]: failed to adjust TP/SL for %s ticket %d err=%d", flagInfo, system, ticket, err);
+         if(system == "A")
+            retryTicketA = ticket;
+         else
+            retryTicketB = ticket;
+      }
+      else
+      {
+         lr.ErrorCode = 0;
+         lr.ErrorInfo = flagInfo;
+         lr.SL        = OrderStopLoss();
+         lr.TP        = OrderTakeProfit();
+         WriteLog(lr);
+         if(system == "A")
+            retryTicketA = -1;
+         else
+            retryTicketB = -1;
+      }
    }
 
    EnsureShadowOrder(ticket, system);
