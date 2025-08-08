@@ -1136,15 +1136,8 @@ void EnsureShadowOrder(const int ticket,const string system)
          errCode = ERR_INVALID_STOPS;
       else if(errcp == "Wrong direction")
          errCode = ERR_INVALID_PRICE;
-      else if(errcp == "SpreadExceeded")
-         errCode = ERR_SPREAD_EXCEEDED;
-      else if(errcp == "DistanceBandViolation")
-         errCode = ERR_DISTANCE_BAND;
-      string errInfo = errcp;
-      if(errcp == "DistanceBandViolation")
-         errInfo = "Distance band violation";
       lre.ErrorCode  = errCode;
-      lre.ErrorInfo  = hasPend ? errInfo + " (existing order kept)" : errInfo;
+      lre.ErrorInfo  = hasPend ? errcp + " (existing order kept)" : errcp;
       WriteLog(lre);
       if(hasPend)
          PrintFormat("EnsureShadowOrder: %s - keeping existing shadow order for %s", errcp, system);
