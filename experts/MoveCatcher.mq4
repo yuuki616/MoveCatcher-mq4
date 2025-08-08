@@ -41,6 +41,8 @@ int      lastTicketsB[];     // tickets processed at lastCloseTimeB
 
 int retryTicketA = -1; // ticket to retry TP/SL setting for system A
 int retryTicketB = -1; // ticket to retry TP/SL setting for system B
+int retryTypeA   = -1; // order type to retry opening after failure for system A
+int retryTypeB   = -1; // order type to retry opening after failure for system B
 
 bool shadowRetryA = false; // flag to retry shadow order for system A
 bool shadowRetryB = false; // flag to retry shadow order for system B
@@ -2531,25 +2533,30 @@ void HandleOCODetectionFor(const string system)
    ProcessClosedTrades(system, true);
    RefreshRates();
    int posTicket = -1;
+   int retryType = -1;
    if(system == "A")
    {
-      if(retryTicketA != -1)
+      if(retryTicketA > 0)
       {
          if(OrderSelect(retryTicketA, SELECT_BY_TICKET))
             posTicket = retryTicketA;
          else
             retryTicketA = -1;
       }
+      else if(retryTicketA == 0)
+         retryType = retryTypeA;
    }
    else
    {
-      if(retryTicketB != -1)
+      if(retryTicketB > 0)
       {
          if(OrderSelect(retryTicketB, SELECT_BY_TICKET))
             posTicket = retryTicketB;
          else
             retryTicketB = -1;
       }
+      else if(retryTicketB == 0)
+         retryType = retryTypeB;
    }
    if(posTicket == -1)
    {
@@ -2569,12 +2576,213 @@ void HandleOCODetectionFor(const string system)
          }
       }
    }
+   if(posTicket == -1 && retryType != -1)
+   {
+      string seqAdj; double lotFactorAdj;
+      double expectedLot = CalcLot(system, seqAdj, lotFactorAdj);
+      if(expectedLot <= 0)
+      {
+         string tmpComment = MakeComment(system, seqAdj);
+         LogRecord lrSkip;
+         lrSkip.Time       = TimeCurrent();
+         lrSkip.Symbol     = Symbol();
+         lrSkip.System     = system;
+         lrSkip.Reason     = "REFILL";
+         lrSkip.Spread     = PriceToPips(MathAbs(Ask - Bid));
+         lrSkip.Dist       = 0;
+         lrSkip.GridPips   = GridPips;
+         lrSkip.s          = s;
+         lrSkip.lotFactor  = lotFactorAdj;
+         lrSkip.BaseLot    = BaseLot;
+         lrSkip.MaxLot     = MaxLot;
+         lrSkip.actualLot  = 0;
+         lrSkip.seqStr     = seqAdj;
+         lrSkip.CommentTag = tmpComment;
+         lrSkip.Magic      = MagicNumber;
+         lrSkip.OrderType  = "";
+         lrSkip.EntryPrice = 0;
+         lrSkip.SL         = 0;
+         lrSkip.TP         = 0;
+         lrSkip.ErrorCode  = 0;
+         WriteLog(lrSkip);
+         return;
+      }
+      string expectedComment = MakeComment(system, seqAdj);
+      RefreshRates();
+      double price = (retryType == OP_BUY) ? Ask : Bid;
+      double dist = DistanceToExistingPositions(price);
+      int slippage = (int)MathRound(SlippagePips * Pip() / Point);
+      double slInit = (retryType == OP_BUY) ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips);
+      double tpInit = (retryType == OP_BUY) ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips);
+      double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL)   * Point;
+      double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+      double distSL      = MathAbs(price - slInit);
+      double distTP      = MathAbs(tpInit - price);
+      if(distSL < stopLevel)
+      {
+         slInit = (retryType == OP_BUY) ? price - stopLevel : price + stopLevel;
+         slInit = NormalizeDouble(slInit, Digits);
+      }
+      if(distTP < stopLevel)
+      {
+         tpInit = (retryType == OP_BUY) ? price + stopLevel : price - stopLevel;
+         tpInit = NormalizeDouble(tpInit, Digits);
+      }
+      if(distSL < freezeLevel || distTP < freezeLevel)
+      {
+         LogRecord lrFail;
+         lrFail.Time       = TimeCurrent();
+         lrFail.Symbol     = Symbol();
+         lrFail.System     = system;
+         lrFail.Reason     = "REFILL";
+         lrFail.Spread     = PriceToPips(MathAbs(Ask - Bid));
+         lrFail.Dist       = MathMax(dist, 0);
+         lrFail.GridPips   = GridPips;
+         lrFail.s          = s;
+         lrFail.lotFactor  = lotFactorAdj;
+         lrFail.BaseLot    = BaseLot;
+         lrFail.MaxLot     = MaxLot;
+         lrFail.actualLot  = expectedLot;
+         lrFail.seqStr     = seqAdj;
+         lrFail.CommentTag = expectedComment;
+         lrFail.Magic      = MagicNumber;
+         lrFail.OrderType  = OrderTypeToStr(retryType);
+         lrFail.EntryPrice = price;
+         lrFail.SL         = slInit;
+         lrFail.TP         = tpInit;
+         lrFail.ErrorCode  = ERR_INVALID_STOPS;
+         lrFail.ErrorInfo  = "SL/TP within freeze level";
+         WriteLog(lrFail);
+         return;
+      }
+      slInit = NormalizeDouble(slInit, Digits);
+      tpInit = NormalizeDouble(tpInit, Digits);
+      if((retryType == OP_BUY && (slInit >= price || tpInit <= price)) ||
+         (retryType == OP_SELL && (slInit <= price || tpInit >= price)))
+      {
+         LogRecord lrFail;
+         lrFail.Time       = TimeCurrent();
+         lrFail.Symbol     = Symbol();
+         lrFail.System     = system;
+         lrFail.Reason     = "REFILL";
+         lrFail.Spread     = PriceToPips(MathAbs(Ask - Bid));
+         lrFail.Dist       = MathMax(dist, 0);
+         lrFail.GridPips   = GridPips;
+         lrFail.s          = s;
+         lrFail.lotFactor  = lotFactorAdj;
+         lrFail.BaseLot    = BaseLot;
+         lrFail.MaxLot     = MaxLot;
+         lrFail.actualLot  = expectedLot;
+         lrFail.seqStr     = seqAdj;
+         lrFail.CommentTag = expectedComment;
+         lrFail.Magic      = MagicNumber;
+         lrFail.OrderType  = OrderTypeToStr(retryType);
+         lrFail.EntryPrice = price;
+         lrFail.SL         = slInit;
+         lrFail.TP         = tpInit;
+         lrFail.ErrorCode  = ERR_INVALID_STOPS;
+         lrFail.ErrorInfo  = "SL/TP on wrong side after adjustment";
+         WriteLog(lrFail);
+         return;
+      }
+      string errcp;
+      if(!CanPlaceOrder(price, (retryType == OP_BUY), errcp))
+      {
+         LogRecord lrFail;
+         lrFail.Time       = TimeCurrent();
+         lrFail.Symbol     = Symbol();
+         lrFail.System     = system;
+         lrFail.Reason     = "REFILL";
+         lrFail.Spread     = PriceToPips(MathAbs(Ask - Bid));
+         lrFail.Dist       = MathMax(dist, 0);
+         lrFail.GridPips   = GridPips;
+         lrFail.s          = s;
+         lrFail.lotFactor  = lotFactorAdj;
+         lrFail.BaseLot    = BaseLot;
+         lrFail.MaxLot     = MaxLot;
+         lrFail.actualLot  = expectedLot;
+         lrFail.seqStr     = seqAdj;
+         lrFail.CommentTag = expectedComment;
+         lrFail.Magic      = MagicNumber;
+         lrFail.OrderType  = OrderTypeToStr(retryType);
+         lrFail.EntryPrice = price;
+         lrFail.SL         = slInit;
+         lrFail.TP         = tpInit;
+         int errCode = 0;
+         if(errcp == "SpreadExceeded")
+            errCode = ERR_SPREAD_EXCEEDED;
+         else if(errcp == "DistanceBandViolation")
+            errCode = ERR_DISTANCE_BAND;
+         lrFail.ErrorCode  = errCode;
+         lrFail.ErrorInfo  = (errcp == "DistanceBandViolation") ? "Distance band violation" :
+                             (errcp == "SpreadExceeded") ? "Spread exceeded" : errcp;
+         WriteLog(lrFail);
+         return;
+      }
+      RefreshRates();
+      double spread = PriceToPips(MathAbs(Ask - Bid));
+      ResetLastError();
+      int newTicket = OrderSend(Symbol(), retryType, expectedLot, price,
+                                slippage, slInit, tpInit,
+                                expectedComment, MagicNumber, 0, clrNONE);
+      if(newTicket < 0)
+      {
+         int errCode = GetLastError();
+         LogRecord lrFail;
+         lrFail.Time       = TimeCurrent();
+         lrFail.Symbol     = Symbol();
+         lrFail.System     = system;
+         lrFail.Reason     = "REFILL";
+         lrFail.Spread     = spread;
+         lrFail.Dist       = MathMax(dist, 0);
+         lrFail.GridPips   = GridPips;
+         lrFail.s          = s;
+         lrFail.lotFactor  = lotFactorAdj;
+         lrFail.BaseLot    = BaseLot;
+         lrFail.MaxLot     = MaxLot;
+         lrFail.actualLot  = expectedLot;
+         lrFail.seqStr     = seqAdj;
+         lrFail.CommentTag = expectedComment;
+         lrFail.Magic      = MagicNumber;
+         lrFail.OrderType  = OrderTypeToStr(retryType);
+         lrFail.EntryPrice = price;
+         lrFail.SL         = slInit;
+         lrFail.TP         = tpInit;
+         lrFail.ErrorCode  = errCode;
+         lrFail.ErrorInfo  = ErrorDescription(errCode);
+         WriteLog(lrFail);
+         if(system == "A")
+            state_A = None;
+         else
+            state_B = None;
+         return;
+      }
+      posTicket = newTicket;
+      if(system == "A")
+         retryTicketA = newTicket;
+      else
+         retryTicketB = newTicket;
+      if(!OrderSelect(posTicket, SELECT_BY_TICKET))
+      {
+         if(system == "A")
+            state_A = None;
+         else
+            state_B = None;
+         return;
+      }
+   }
    if(posTicket == -1)
    {
       if(system == "A")
+      {
          retryTicketA = -1;
+         retryTypeA   = -1;
+      }
       else
+      {
          retryTicketB = -1;
+         retryTypeB   = -1;
+      }
       return;
    }
 
@@ -2856,18 +3064,34 @@ void HandleOCODetectionFor(const string system)
          WriteLog(lrFail);
          PrintFormat("HandleOCODetectionFor: failed to reopen %s position err=%d", system, errCode);
          if(system == "A")
-            retryTicketA = -1;
+         {
+            retryTicketA = 0;
+            retryTypeA   = type;
+            state_A = None;
+         }
          else
-            retryTicketB = -1;
+         {
+            retryTicketB = 0;
+            retryTypeB   = type;
+            state_B = None;
+         }
          return;
       }
       posTicket = newTicket;
       if(!OrderSelect(posTicket, SELECT_BY_TICKET))
       {
          if(system == "A")
-            retryTicketA = -1;
+         {
+            retryTicketA = 0;
+            retryTypeA   = type;
+            state_A = None;
+         }
          else
-            retryTicketB = -1;
+         {
+            retryTicketB = 0;
+            retryTypeB   = type;
+            state_B = None;
+         }
          return;
       }
    }
@@ -2875,9 +3099,15 @@ void HandleOCODetectionFor(const string system)
    if(OrderStopLoss() != 0 && OrderTakeProfit() != 0)
    {
       if(system == "A")
+      {
          retryTicketA = -1;
+         retryTypeA   = -1;
+      }
       else
+      {
          retryTicketB = -1;
+         retryTypeB   = -1;
+      }
       return; // already processed
    }
 
@@ -3002,9 +3232,15 @@ void HandleOCODetectionFor(const string system)
    }
 
    if(system == "A")
+   {
       retryTicketA = -1;
+      retryTypeA   = -1;
+   }
    else
+   {
       retryTicketB = -1;
+      retryTypeB   = -1;
+   }
    EnsureShadowOrder(posTicket, system);
 
    if(system == "A")
