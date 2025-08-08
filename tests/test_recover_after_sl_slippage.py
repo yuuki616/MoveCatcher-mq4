@@ -6,6 +6,7 @@ def test_recover_after_sl_slippage_toggle():
     code = mc_path.read_text(encoding="utf-8")
     assert "double reSlippagePips = SlippagePips;" in code
     assert "int    slippage = (int)MathRound(reSlippagePips * Pip() / Point);" in code
-    assert "if(UseProtectedLimit)" in code
-    assert "flagInfo = StringFormat(\"UseProtectedLimit=true slippage=%d\", slippage);" in code
-    assert "flagInfo = StringFormat(\"UseProtectedLimit=false slippage=%d\", slippage);" in code
+    assert "if(!UseProtectedLimit)" in code
+    assert "slippage = 0;" in code
+    assert "StringFormat(\"UseProtectedLimit=%s slippage=%d\"" in code
+    assert "UseProtectedLimit ? \"true\" : \"false\"" in code
