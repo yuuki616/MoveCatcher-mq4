@@ -1040,6 +1040,7 @@ void EnsureShadowOrder(const int ticket,const string system)
          pendType  = OrderType();
          pendPrice = OrderOpenPrice();
       }
+      double distPend = MathMax(DistanceToExistingPositions(pendPrice, ticket), 0);
       int err = 0;
       ResetLastError();
       bool ok = OrderDelete(pendTicket);
@@ -1053,7 +1054,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       // REFILL: 影指値の更新
       lru.Reason     = "REFILL";
       lru.Spread     = PriceToPips(Ask - Bid);
-      lru.Dist       = GridPips;
+      lru.Dist       = distPend;
       lru.GridPips   = GridPips;
       lru.s          = s;
       lru.lotFactor  = 0;
