@@ -637,8 +637,16 @@ string MakeComment(const string system,const string seq)
    int len = StringLen(comment);
    if(len > MAX_COMMENT_LENGTH)
    {
-      PrintFormat("MakeComment: comment '%s' length %d exceeds %d, truncating", comment, len, MAX_COMMENT_LENGTH);
-      comment = StringSubstr(comment, 0, MAX_COMMENT_LENGTH);
+      string prefix = StringFormat("MoveCatcher_%s_", system);
+      int tailLen = MAX_COMMENT_LENGTH - StringLen(prefix) - 3;
+      if(tailLen < 0) tailLen = 0;
+      int seqLen = StringLen(seq);
+      int tailStart = seqLen - tailLen;
+      if(tailStart < 0) tailStart = 0;
+      string tail = StringSubstr(seq, tailStart);
+      string truncated = prefix + "..." + tail;
+      PrintFormat("MakeComment: comment '%s' length %d exceeds %d, truncated to '%s'", comment, len, MAX_COMMENT_LENGTH, truncated);
+      comment = truncated;
    }
    return(comment);
 }
