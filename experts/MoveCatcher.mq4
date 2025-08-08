@@ -402,7 +402,7 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
       }
    }
 
-   double spread = PriceToPips(Ask - Bid);
+   double spread = PriceToPips(MathAbs(Ask - Bid));
    if(checkSpread && spread > MaxSpreadPips)
    {
       PrintFormat("Spread %.1f exceeds MaxSpreadPips %.1f", spread, MaxSpreadPips);
@@ -481,7 +481,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
          lr.Symbol     = Symbol();
          lr.System     = system;
          lr.Reason     = "LOT_RESET";
-         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
@@ -511,7 +511,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       lr.Symbol     = Symbol();
       lr.System     = system;
       lr.Reason     = "LOT_RESET";
-      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
       lr.s          = s;
@@ -712,7 +712,7 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
 
       // 現在のスプレッドを取得（履歴からは取得不可のため近似値）
       RefreshRates();
-      double spreadNow = PriceToPips(Ask - Bid);
+      double spreadNow = PriceToPips(MathAbs(Ask - Bid));
       int type  = OrderType();
 
       string sysTmp, seq;
@@ -892,7 +892,7 @@ void EnsureTPSL(const int ticket)
       lrv.Symbol     = Symbol();
       lrv.System     = sys;
       lrv.Reason     = "REFILL";
-      lrv.Spread     = PriceToPips(Ask - Bid);
+      lrv.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lrv.Dist       = 0;
       lrv.GridPips   = GridPips;
       lrv.s          = s;
@@ -932,7 +932,7 @@ void EnsureTPSL(const int ticket)
       lr.Symbol     = Symbol();
       lr.System     = sys;
       lr.Reason     = "REFILL";
-      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
       lr.s          = s;
@@ -963,7 +963,7 @@ void EnsureTPSL(const int ticket)
          lr.Symbol     = Symbol();
          lr.System     = sys;
          lr.Reason     = "REFILL";
-         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
@@ -1033,7 +1033,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       lre.Symbol     = Symbol();
       lre.System     = system;
       lre.Reason     = "REFILL";
-      lre.Spread     = PriceToPips(Ask - Bid);
+      lre.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lre.Dist       = distBand;
       lre.GridPips   = GridPips;
       lre.s          = s;
@@ -1098,7 +1098,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       lru.System     = system;
       // REFILL: 影指値の更新
       lru.Reason     = "REFILL";
-      lru.Spread     = PriceToPips(Ask - Bid);
+      lru.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lru.Dist       = distPend;
       lru.GridPips   = GridPips;
       lru.s          = s;
@@ -1137,7 +1137,7 @@ void EnsureShadowOrder(const int ticket,const string system)
    lr.System     = system;
    // REFILL: 影指値（TP反転用の指値）を設置
    lr.Reason     = "REFILL";
-   lr.Spread     = PriceToPips(Ask - Bid);
+   lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
    lr.Dist       = distBand;
    lr.GridPips   = GridPips;
    lr.s          = s;
@@ -1207,7 +1207,7 @@ void DeletePendings(const string system,const string reason)
       lr.Symbol     = Symbol();
       lr.System     = system;
       lr.Reason     = reason;
-      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
       lr.s          = s;
@@ -1305,7 +1305,7 @@ void RecoverAfterSL(const string system)
       PrintFormat("RecoverAfterSL[%s]: initial TP/SL within stop/freeze level, placing without TP/SL for %s", flagInfo, system);
 
    string comment  = MakeComment(system, seq);
-   double spread   = PriceToPips(Ask - Bid);
+   double spread   = PriceToPips(MathAbs(Ask - Bid));
    double dist     = DistanceToExistingPositions(price);
    // SL復帰時はSpreadおよび距離帯のチェックを行わない
    int type        = isBuy ? OP_BUY : OP_SELL;
@@ -1459,7 +1459,7 @@ void CloseAllOrders(const string reason)
       if(type == OP_BUY || type == OP_SELL)
       {
          RefreshRates();
-         double spreadClose = PriceToPips(Ask - Bid);
+         double spreadClose = PriceToPips(MathAbs(Ask - Bid));
          double price      = (type == OP_BUY) ? Bid : Ask;
          double actualLot  = OrderLots();
          string comment    = OrderComment();
@@ -1504,7 +1504,7 @@ void CloseAllOrders(const string reason)
               type == OP_BUYSTOP  || type == OP_SELLSTOP)
       {
          RefreshRates();
-         double spreadPend = PriceToPips(Ask - Bid);
+         double spreadPend = PriceToPips(MathAbs(Ask - Bid));
          int err = 0;
          ResetLastError();
          bool ok = OrderDelete(ticket);
@@ -1618,7 +1618,7 @@ void CorrectDuplicatePositions()
          lr.Symbol     = Symbol();
          lr.System     = "A";
          lr.Reason     = "RESET_ALIVE";
-         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
@@ -1676,7 +1676,7 @@ void CorrectDuplicatePositions()
          lr.Symbol     = Symbol();
          lr.System     = "B";
          lr.Reason     = "RESET_ALIVE";
-         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
@@ -1732,7 +1732,7 @@ bool PlaceRefillOrders(const string system,const double refPrice)
       lr.Symbol     = Symbol();
       lr.System     = system;
       lr.Reason     = "REFILL";
-      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lr.Dist       = MathMax(DistanceToExistingPositions(priceSell), 0);
       lr.GridPips   = GridPips;
       lr.s          = s;
@@ -1768,7 +1768,7 @@ bool PlaceRefillOrders(const string system,const double refPrice)
       lr.Symbol     = Symbol();
       lr.System     = system;
       lr.Reason     = "REFILL";
-      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lr.Dist       = MathMax(DistanceToExistingPositions(priceSell), 0);
       lr.GridPips   = GridPips;
       lr.s          = s;
@@ -1800,7 +1800,7 @@ bool PlaceRefillOrders(const string system,const double refPrice)
       lrb.Symbol     = Symbol();
       lrb.System     = system;
       lrb.Reason     = "REFILL";
-      lrb.Spread     = PriceToPips(Ask - Bid);
+      lrb.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lrb.Dist       = MathMax(DistanceToExistingPositions(priceBuy), 0);
       lrb.GridPips   = GridPips;
       lrb.s          = s;
@@ -1836,7 +1836,7 @@ bool PlaceRefillOrders(const string system,const double refPrice)
       lr2.Symbol     = Symbol();
       lr2.System     = system;
       lr2.Reason     = "REFILL";
-      lr2.Spread     = PriceToPips(Ask - Bid);
+      lr2.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lr2.Dist       = MathMax(DistanceToExistingPositions(priceBuy), 0);
       lr2.GridPips   = GridPips;
       lr2.s          = s;
@@ -1873,7 +1873,7 @@ bool PlaceRefillOrders(const string system,const double refPrice)
       lrd.Symbol     = Symbol();
       lrd.System     = system;
       lrd.Reason     = "REFILL";
-      lrd.Spread     = PriceToPips(Ask - Bid);
+      lrd.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lrd.Dist       = MathMax(DistanceToExistingPositions(priceSell), 0);
       lrd.GridPips   = GridPips;
       lrd.s          = s;
@@ -1908,7 +1908,7 @@ bool PlaceRefillOrders(const string system,const double refPrice)
       lrd.Symbol     = Symbol();
       lrd.System     = system;
       lrd.Reason     = "REFILL";
-      lrd.Spread     = PriceToPips(Ask - Bid);
+      lrd.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lrd.Dist       = MathMax(DistanceToExistingPositions(priceBuy), 0);
       lrd.GridPips   = GridPips;
       lrd.s          = s;
@@ -1993,7 +1993,7 @@ bool InitStrategy()
       lrSkipA.Symbol     = Symbol();
       lrSkipA.System     = "A";
       lrSkipA.Reason     = "INIT";
-      lrSkipA.Spread     = PriceToPips(Ask - Bid);
+      lrSkipA.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lrSkipA.Dist       = MathMax(distA, 0);
       lrSkipA.GridPips   = GridPips;
       lrSkipA.s          = s;
@@ -2061,7 +2061,7 @@ bool InitStrategy()
       lrSkipA.Symbol     = Symbol();
       lrSkipA.System     = "A";
       lrSkipA.Reason     = "INIT";
-      lrSkipA.Spread     = PriceToPips(Ask - Bid);
+      lrSkipA.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lrSkipA.Dist       = MathMax(distA, 0);
       lrSkipA.GridPips   = GridPips;
       lrSkipA.s          = s;
@@ -2084,7 +2084,7 @@ bool InitStrategy()
       return(false);
    }
 
-   double spread = PriceToPips(Ask - Bid); // 参考情報のみ（成行では判定しない）
+   double spread = PriceToPips(MathAbs(Ask - Bid)); // 参考情報のみ（成行では判定しない）
 
    price       = NormalizeDouble(price, Digits);
    ResetLastError();
@@ -2153,7 +2153,7 @@ bool InitStrategy()
       lrS.Symbol     = Symbol();
       lrS.System     = "B";
       lrS.Reason     = "INIT";
-      lrS.Spread     = PriceToPips(Ask - Bid);
+      lrS.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lrS.Dist       = MathMax(distBand, 0);
       lrS.GridPips   = GridPips;
       lrS.s          = s;
@@ -2193,7 +2193,7 @@ bool InitStrategy()
          lrS.Symbol     = Symbol();
          lrS.System     = "B";
          lrS.Reason     = "INIT";
-         lrS.Spread     = PriceToPips(Ask - Bid);
+         lrS.Spread     = PriceToPips(MathAbs(Ask - Bid));
          lrS.Dist       = MathMax(distBand, 0);
          lrS.GridPips   = GridPips;
          lrS.s          = s;
@@ -2225,7 +2225,7 @@ bool InitStrategy()
             lrS.Symbol     = Symbol();
             lrS.System     = "B";
             lrS.Reason     = "INIT";
-            lrS.Spread     = PriceToPips(Ask - Bid);
+            lrS.Spread     = PriceToPips(MathAbs(Ask - Bid));
             lrS.Dist       = MathMax(distBand, 0);
             lrS.GridPips   = GridPips;
             lrS.s          = s;
@@ -2256,7 +2256,7 @@ bool InitStrategy()
          lrS.Symbol     = Symbol();
             lrS.System     = "B";
             lrS.Reason     = "INIT";
-            lrS.Spread     = PriceToPips(Ask - Bid);
+            lrS.Spread     = PriceToPips(MathAbs(Ask - Bid));
             lrS.Dist       = MathMax(distBand, 0);
             lrS.GridPips   = GridPips;
             lrS.s          = s;
@@ -2291,7 +2291,7 @@ bool InitStrategy()
       lrB.Symbol     = Symbol();
       lrB.System     = "B";
       lrB.Reason     = "INIT";
-      lrB.Spread     = PriceToPips(Ask - Bid);
+      lrB.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lrB.Dist       = MathMax(distBandB, 0);
       lrB.GridPips   = GridPips;
       lrB.s          = s;
@@ -2331,7 +2331,7 @@ bool InitStrategy()
          lrB.Symbol     = Symbol();
          lrB.System     = "B";
          lrB.Reason     = "INIT";
-         lrB.Spread     = PriceToPips(Ask - Bid);
+         lrB.Spread     = PriceToPips(MathAbs(Ask - Bid));
          lrB.Dist       = MathMax(distBandB, 0);
          lrB.GridPips   = GridPips;
          lrB.s          = s;
@@ -2363,7 +2363,7 @@ bool InitStrategy()
             lrB.Symbol     = Symbol();
             lrB.System     = "B";
             lrB.Reason     = "INIT";
-            lrB.Spread     = PriceToPips(Ask - Bid);
+            lrB.Spread     = PriceToPips(MathAbs(Ask - Bid));
             lrB.Dist       = MathMax(distBandB, 0);
             lrB.GridPips   = GridPips;
             lrB.s          = s;
@@ -2394,7 +2394,7 @@ bool InitStrategy()
          lrB.Symbol     = Symbol();
             lrB.System     = "B";
             lrB.Reason     = "INIT";
-         lrB.Spread     = PriceToPips(Ask - Bid);
+         lrB.Spread     = PriceToPips(MathAbs(Ask - Bid));
          lrB.Dist       = MathMax(distBandB, 0);
          lrB.GridPips   = GridPips;
          lrB.s          = s;
@@ -2432,7 +2432,7 @@ bool InitStrategy()
       lrd.Symbol     = Symbol();
       lrd.System     = "B";
       lrd.Reason     = "INIT";
-      lrd.Spread     = PriceToPips(Ask - Bid);
+      lrd.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lrd.Dist       = MathMax(DistanceToExistingPositions(priceSell), 0);
       lrd.GridPips   = GridPips;
       lrd.s          = s;
@@ -2469,7 +2469,7 @@ bool InitStrategy()
       lrd.Symbol     = Symbol();
       lrd.System     = "B";
       lrd.Reason     = "INIT";
-      lrd.Spread     = PriceToPips(Ask - Bid);
+      lrd.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lrd.Dist       = MathMax(DistanceToExistingPositions(priceBuy), 0);
       lrd.GridPips   = GridPips;
       lrd.s          = s;
@@ -2588,7 +2588,7 @@ void HandleOCODetectionFor(const string system)
          lrSkip.Symbol     = Symbol();
          lrSkip.System     = system;
          lrSkip.Reason     = "REFILL";
-         lrSkip.Spread     = PriceToPips(Ask - Bid);
+         lrSkip.Spread     = PriceToPips(MathAbs(Ask - Bid));
          lrSkip.Dist       = 0;
          lrSkip.GridPips   = GridPips;
          lrSkip.s          = s;
@@ -2614,7 +2614,7 @@ void HandleOCODetectionFor(const string system)
    if(MathAbs(OrderLots() - expectedLot) > lotTol || OrderComment() != expectedComment)
    {
       RefreshRates();
-      double spreadClose = PriceToPips(Ask - Bid);
+      double spreadClose = PriceToPips(MathAbs(Ask - Bid));
       int    type      = OrderType();
       double oldLots   = OrderLots();
       double closePrice = (type == OP_BUY) ? Bid : Ask;
@@ -2698,7 +2698,7 @@ void HandleOCODetectionFor(const string system)
          lrFail.Symbol     = Symbol();
          lrFail.System     = system;
          lrFail.Reason     = "REFILL";
-         lrFail.Spread     = PriceToPips(Ask - Bid);
+         lrFail.Spread     = PriceToPips(MathAbs(Ask - Bid));
          lrFail.Dist       = MathMax(dist, 0);
          lrFail.GridPips   = GridPips;
          lrFail.s          = s;
@@ -2733,7 +2733,7 @@ void HandleOCODetectionFor(const string system)
          lrFail.Symbol     = Symbol();
          lrFail.System     = system;
          lrFail.Reason     = "REFILL";
-         lrFail.Spread     = PriceToPips(Ask - Bid);
+         lrFail.Spread     = PriceToPips(MathAbs(Ask - Bid));
          lrFail.Dist       = MathMax(dist, 0);
          lrFail.GridPips   = GridPips;
          lrFail.s          = s;
@@ -2758,7 +2758,7 @@ void HandleOCODetectionFor(const string system)
          return;
       }
       RefreshRates();
-      double spread = PriceToPips(Ask - Bid);
+      double spread = PriceToPips(MathAbs(Ask - Bid));
       ResetLastError();
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
                                 slippage, slInit, tpInit,
@@ -2846,7 +2846,7 @@ void HandleOCODetectionFor(const string system)
          lr.Symbol     = Symbol();
          lr.System     = system;
          lr.Reason     = "REFILL";
-         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
@@ -2909,7 +2909,7 @@ void HandleOCODetectionFor(const string system)
       lrFail.Symbol     = Symbol();
       lrFail.System     = system;
       lrFail.Reason     = "REFILL";
-      lrFail.Spread     = PriceToPips(Ask - Bid);
+      lrFail.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lrFail.Dist       = 0;
       lrFail.GridPips   = GridPips;
       lrFail.s          = s;
@@ -2954,7 +2954,7 @@ void HandleOCODetectionFor(const string system)
    lr.Symbol     = Symbol();
    lr.System     = system;
    lr.Reason     = "REFILL";
-   lr.Spread     = PriceToPips(Ask - Bid);
+   lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
    lr.Dist       = 0;
    lr.GridPips   = GridPips;
    lr.s          = s;
@@ -3220,7 +3220,7 @@ void OnTick()
             lr.Symbol     = Symbol();
             lr.System     = "";
             lr.Reason     = "RESET_SNAP";
-            lr.Spread     = PriceToPips(Ask - Bid);
+            lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
             lr.Dist       = MathMax(dist, 0);
             lr.GridPips   = GridPips;
             lr.s          = s;
@@ -3263,7 +3263,7 @@ void OnTick()
          lr.Symbol     = Symbol();
          lr.System     = "";
          lr.Reason     = "RESET_ALIVE";
-         lr.Spread     = PriceToPips(Ask - Bid);
+         lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
          lr.Dist       = 0;
          lr.GridPips   = GridPips;
          lr.s          = s;
@@ -3332,7 +3332,7 @@ void OnDeinit(const int reason)
       lr.Symbol     = Symbol();
       lr.System     = "A";
       lr.Reason     = "DEINIT";
-      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
       lr.s          = s;
@@ -3362,7 +3362,7 @@ void OnDeinit(const int reason)
       lr.Symbol     = Symbol();
       lr.System     = "B";
       lr.Reason     = "DEINIT";
-      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
       lr.s          = s;
@@ -3394,7 +3394,7 @@ void OnDeinit(const int reason)
       lr.Symbol     = Symbol();
       lr.System     = "A";
       lr.Reason     = "DEINIT";
-      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
       lr.s          = s;
@@ -3424,7 +3424,7 @@ void OnDeinit(const int reason)
       lr.Symbol     = Symbol();
       lr.System     = "B";
       lr.Reason     = "DEINIT";
-      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
       lr.Dist       = 0;
       lr.GridPips   = GridPips;
       lr.s          = s;
