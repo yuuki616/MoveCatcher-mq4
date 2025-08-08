@@ -478,7 +478,40 @@ double CalcLot(const string system,string &seq,double &lotFactor)
    seq                = "(" + seqCore + ")";
    double lotCandidate = BaseLot * lotFactor;
    if(lotFactor <= 0)
+   {
+      PrintFormat("CalcLot: lotFactor=%f <= 0 for system %s", lotFactor, system);
+      state.Init();
+      int err = 0;
+      bool ok = SaveDMCState(system, *state, err);
+      if(!ok && err != 0)
+         PrintFormat("SaveDMCState(%s) err=%d %s", system, err, ErrorDescription(err));
+
+      LogRecord lr;
+      lr.Time       = TimeCurrent();
+      lr.Symbol     = Symbol();
+      lr.System     = system;
+      lr.Reason     = "LOT_RESET";
+      lr.Spread     = PriceToPips(MathAbs(Ask - Bid));
+      lr.Dist       = 0;
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = lotFactor;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = 0.0;
+      lr.seqStr     = seq;
+      lr.CommentTag = MakeComment(system, seq);
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = "";
+      lr.EntryPrice = 0;
+      lr.SL         = 0;
+      lr.TP         = 0;
+      lr.ErrorCode  = err;
+      lr.ErrorInfo  = ErrorDescription(err);
+      WriteLog(lr);
+
       return(0.0);
+   }
 
    if(lotCandidate > MaxLot)
    {
