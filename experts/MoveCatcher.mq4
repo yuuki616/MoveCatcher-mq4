@@ -521,33 +521,35 @@ double CalcLot(const string system,string &seq,double &lotFactor)
 //+------------------------------------------------------------------+
 string MakeComment(const string system,const string seq)
 {
-   string comment = StringFormat("MoveCatcher_%s_%s", system, seq);
-   if(StringLen(comment) <= 31)
-      return(comment);
-
-   string compactSeq = "";
+   string base64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+   string cleaned = "";
    for(int i=0; i<StringLen(seq); i++)
    {
       int ch = StringGetChar(seq, i);
       if(ch=='(' || ch==')' || ch==' ')
          continue;
-      compactSeq += StringSubstr(seq, i, 1);
+      cleaned += StringSubstr(seq, i, 1);
    }
-   comment = StringFormat("MoveCatcher_%s_%s", system, compactSeq);
-   if(StringLen(comment) <= 31)
-      return(comment);
 
-   ulong hash = 0;
-   for(int j=0; j<StringLen(seq); j++)
-      hash = (hash * 131 + StringGetChar(seq, j)) & 0x7FFFFFFF;
-   string hashStr = StringToLower(IntegerToString((int)hash, 16));
-   comment = StringFormat("MoveCatcher_%s_%s", system, hashStr);
-   if(StringLen(comment) > 31)
+   string parts[]; int cnt = StringSplit(cleaned, ",", parts);
+   string encoded = "";
+   bool ok = true;
+   for(int i=0; i<cnt; i++)
    {
-      int allowed = 31 - StringLen(StringFormat("MoveCatcher_%s_", system));
-      hashStr = StringSubstr(hashStr, 0, allowed);
-      comment = StringFormat("MoveCatcher_%s_%s", system, hashStr);
+      int v = (int)StringToInteger(parts[i]);
+      if(v < 0 || v >= 64)
+      {
+         ok = false; break;
+      }
+      encoded += StringSubstr(base64, v, 1);
    }
+
+   if(!ok)
+      encoded = cleaned; // fallback without compression if out of range
+
+   string comment = StringFormat("MoveCatcher_%s_%s", system, encoded);
+   if(StringLen(comment) > 31)
+      comment = StringSubstr(comment, 0, 31); // final safeguard
    return(comment);
 }
 
@@ -570,15 +572,30 @@ bool ParseComment(const string comment,string &system,string &seq)
       return(false);
 
    system=StringSubstr(comment,prefixLen,pos-prefixLen);
-   seq=StringSubstr(comment,pos+1);
+   string enc=StringSubstr(comment,pos+1);
 
    if(system!="A" && system!="B")
    {
-      system="";
-      seq="";
-      return(false);
+      system=""; seq=""; return(false);
    }
 
+   string base64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+   string decoded = "";
+   for(int i=0; i<StringLen(enc); i++)
+   {
+      string ch = StringSubstr(enc, i, 1);
+      int idx = StringFind(base64, ch);
+      if(idx < 0)
+      {
+         // treat remaining as raw string (fallback)
+         decoded = enc;
+         seq = decoded;
+         return(true);
+      }
+      if(i) decoded += ",";
+      decoded += IntegerToString(idx);
+   }
+   seq = "(" + decoded + ")";
    return(true);
 }
 
