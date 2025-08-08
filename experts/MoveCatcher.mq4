@@ -1980,6 +1980,35 @@ bool InitStrategy()
       }
    }
    distA = DistanceToExistingPositions(price);
+   if(UseDistanceBand && distA >= 0 && (distA < MinDistancePips || distA > MaxDistancePips))
+   {
+      LogRecord lrSkipA;
+      lrSkipA.Time       = TimeCurrent();
+      lrSkipA.Symbol     = Symbol();
+      lrSkipA.System     = "A";
+      lrSkipA.Reason     = "INIT";
+      lrSkipA.Spread     = PriceToPips(Ask - Bid);
+      lrSkipA.Dist       = MathMax(distA, 0);
+      lrSkipA.GridPips   = GridPips;
+      lrSkipA.s          = s;
+      lrSkipA.lotFactor  = lotFactorA;
+      lrSkipA.BaseLot    = BaseLot;
+      lrSkipA.MaxLot     = MaxLot;
+      lrSkipA.actualLot  = lotA;
+      lrSkipA.seqStr     = seqA;
+      lrSkipA.CommentTag = commentA;
+      lrSkipA.Magic      = MagicNumber;
+      lrSkipA.OrderType  = OrderTypeToStr(isBuy ? OP_BUY : OP_SELL);
+      lrSkipA.EntryPrice = price;
+      lrSkipA.SL         = entrySL;
+      lrSkipA.TP         = entryTP;
+      lrSkipA.ErrorCode  = 0;
+      lrSkipA.ErrorInfo  = "Distance band violation";
+      WriteLog(lrSkipA);
+      PrintFormat("InitStrategy: distance %.1f outside band [%.1f, %.1f], order skipped",
+                  distA, MinDistancePips, MaxDistancePips);
+      return(false);
+   }
 
    double spread = PriceToPips(Ask - Bid); // 参考情報のみ（成行では判定しない）
 
