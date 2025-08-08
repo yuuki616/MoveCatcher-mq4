@@ -1238,6 +1238,7 @@ void RecoverAfterSL(const string system)
    }
    RefreshRates();
    double price    = isBuy ? Ask : Bid;
+   price           = NormalizeDouble(price, Digits);
    double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);
    double tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), Digits);
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
@@ -1268,6 +1269,7 @@ void RecoverAfterSL(const string system)
    double dist     = DistanceToExistingPositions(price);
    // SL復帰時はSpreadおよび距離帯のチェックを行わない
    int type        = isBuy ? OP_BUY : OP_SELL;
+   price           = NormalizeDouble(price, Digits);
    ResetLastError();
    int ticket      = OrderSend(Symbol(), type, lot, price,
                                slippage, sl, tp, comment, MagicNumber, 0, clrNONE);
@@ -1872,6 +1874,7 @@ bool InitStrategy()
    bool isBuy = (MathRand() % 2) == 0;
    int    slippage = (int)MathRound(SlippagePips * Pip() / Point);
    double price    = isBuy ? Ask : Bid;
+   price           = NormalizeDouble(price, Digits);
    double entrySL, entryTP;
    if(isBuy)
    {
@@ -1942,6 +1945,7 @@ bool InitStrategy()
    double oldPrice = price;
    RefreshRates();
    price = isBuy ? Ask : Bid;
+   price = NormalizeDouble(price, Digits);
    if(price != oldPrice)
    {
       if(isBuy)
@@ -1979,6 +1983,7 @@ bool InitStrategy()
 
    double spread = PriceToPips(Ask - Bid); // 参考情報のみ（成行では判定しない）
 
+   price       = NormalizeDouble(price, Digits);
    ResetLastError();
    int ticketA = OrderSend(Symbol(), typeA, lotA, price,
                            slippage, entrySL, entryTP, commentA, MagicNumber, 0, clrNONE);
