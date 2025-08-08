@@ -1229,9 +1229,8 @@ void RecoverAfterSL(const string system)
    }
    else
    {
-      double reSlippagePips = SlippagePips;
-      slippage = (int)MathRound(reSlippagePips * Pip() / Point);
-      flagInfo = StringFormat("UseProtectedLimit=false slippage=%d", slippage);
+      slippage = 0;         // no slippage
+      flagInfo = "UseProtectedLimit=false slippage=0";
    }
    RefreshRates();
    double price    = isBuy ? Ask : Bid;
