@@ -81,10 +81,31 @@ string OrderTypeToStr(const int type)
    return("UNKNOWN");
 }
 
+void MigrateLogIfNeeded()
+{
+   static bool migrated = false;
+   if(migrated)
+      return;
+   string filename = "MoveCatcher.log";
+   if(FileIsExist(filename) && !FileIsExist(filename, FILE_COMMON))
+   {
+      string src = TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL4\\Files\\" + filename;
+      string dst = TerminalInfoString(TERMINAL_COMMONDATA_PATH) + "\\Files\\" + filename;
+      ResetLastError();
+      if(!FileMove(src, dst))
+      {
+         int err = GetLastError();
+         PrintFormat("MigrateLog: FileMove err=%d %s", err, ErrorDescription(err));
+      }
+   }
+   migrated = true;
+}
+
 void WriteLog(const LogRecord &rec)
 {
+   MigrateLogIfNeeded();
    ResetLastError();
-   int handle = FileOpen("MoveCatcher.log", FILE_CSV|FILE_WRITE|FILE_READ|FILE_APPEND);
+   int handle = FileOpen("MoveCatcher.log", FILE_CSV|FILE_COMMON|FILE_WRITE|FILE_READ|FILE_APPEND);
    string timeStr = TimeToString(rec.Time, TIME_DATE|TIME_SECONDS);
    double distNorm = MathMax(rec.Dist, 0);
    if(handle == INVALID_HANDLE)
