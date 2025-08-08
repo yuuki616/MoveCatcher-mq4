@@ -458,7 +458,9 @@ double CalcLot(const string system,string &seq,double &lotFactor)
    {
       state.Init();
       int err = 0;
-      SaveDMCState(system, *state, err);
+      bool ok = SaveDMCState(system, *state, err);
+      if(!ok && err != 0)
+         PrintFormat("SaveDMCState(%s) err=%d", system, err);
 
       lotFactor    = state.NextLot();
       if(!state.Seq(seqCore, seqMaxLen))
