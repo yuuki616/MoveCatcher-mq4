@@ -1524,7 +1524,7 @@ void CloseAllOrders(const string reason)
 {
    bool updateDMC = (reason != "RESET_ALIVE" && reason != "RESET_SNAP");
    if(!RefreshRatesChecked(__FUNCTION__))
-      return;
+      Print("CloseAllOrders: RefreshRatesChecked failed at start");
    int slippage = (int)MathRound(SlippagePips * Pip() / Point);
    for(int i = OrdersTotal()-1; i >= 0; i--)
    {
@@ -1537,7 +1537,10 @@ void CloseAllOrders(const string reason)
       if(type == OP_BUY || type == OP_SELL)
       {
          if(!RefreshRatesChecked(__FUNCTION__))
-            return;
+         {
+            PrintFormat("CloseAllOrders: RefreshRatesChecked failed, skip ticket %d", ticket);
+            continue;
+         }
          double spreadClose = PriceToPips(MathAbs(Ask - Bid));
          double price      = (type == OP_BUY) ? Bid : Ask;
          double actualLot  = OrderLots();
@@ -1583,7 +1586,10 @@ void CloseAllOrders(const string reason)
               type == OP_BUYSTOP  || type == OP_SELLSTOP)
       {
          if(!RefreshRatesChecked(__FUNCTION__))
-            return;
+         {
+            PrintFormat("CloseAllOrders: RefreshRatesChecked failed, skip ticket %d", ticket);
+            continue;
+         }
          double spreadPend = PriceToPips(MathAbs(Ask - Bid));
          int err = 0;
          ResetLastError();
