@@ -1314,6 +1314,7 @@ void RecoverAfterSL(const string system)
       PrintFormat("RecoverAfterSL[%s]: failed to select reopened order for %s err=%d", flagInfo, system, lr.ErrorCode);
       return;
    }
+   RefreshRates(); // Bid と Ask を最新化
    double entry = OrderOpenPrice();
    double desiredSL = isBuy ? entry - PipsToPrice(GridPips) : entry + PipsToPrice(GridPips);
    double desiredTP = isBuy ? entry + PipsToPrice(GridPips) : entry - PipsToPrice(GridPips);
