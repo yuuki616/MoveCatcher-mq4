@@ -532,7 +532,10 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       lr.SL         = 0;
       lr.TP         = 0;
       lr.ErrorCode  = err;
-      lr.ErrorInfo  = ErrorDescription(err);
+      if(err == 0)
+         lr.ErrorInfo  = "";
+      else
+         lr.ErrorInfo  = ErrorDescription(err);
       WriteLog(lr);
 
       return(0.0);
@@ -578,7 +581,10 @@ double CalcLot(const string system,string &seq,double &lotFactor)
          lr.SL         = 0;
          lr.TP         = 0;
          lr.ErrorCode  = err;
-         lr.ErrorInfo  = ErrorDescription(err);
+         if(err == 0)
+            lr.ErrorInfo  = "";
+         else
+            lr.ErrorInfo  = ErrorDescription(err);
          WriteLog(lr);
          return(0.0);
       }
@@ -607,7 +613,10 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       lr.SL         = 0;
       lr.TP         = 0;
       lr.ErrorCode  = err;
-      lr.ErrorInfo  = ErrorDescription(err);
+      if(err == 0)
+         lr.ErrorInfo  = "";
+      else
+         lr.ErrorInfo  = ErrorDescription(err);
       WriteLog(lr);
 
       return(lotActual);
