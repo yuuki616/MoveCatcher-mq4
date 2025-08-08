@@ -3236,8 +3236,65 @@ void OnDeinit(const int reason)
 {
    string gvA = "MoveCatcher_state_A";
    string gvB = "MoveCatcher_state_B";
-   GlobalVariableSet(gvA, state_A);
-   GlobalVariableSet(gvB, state_B);
+   ResetLastError();
+   if(!GlobalVariableSet(gvA, state_A))
+   {
+      int err = GetLastError();
+      PrintFormat("GlobalVariableSet(%s) err=%d %s", gvA, err, ErrorDescription(err));
+      LogRecord lr;
+      lr.Time       = TimeCurrent();
+      lr.Symbol     = Symbol();
+      lr.System     = "A";
+      lr.Reason     = "DEINIT";
+      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Dist       = 0;
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = 0;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = 0;
+      lr.seqStr     = "";
+      lr.CommentTag = "";
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = "";
+      lr.EntryPrice = 0;
+      lr.SL         = 0;
+      lr.TP         = 0;
+      lr.ErrorCode  = err;
+      lr.ErrorInfo  = ErrorDescription(err);
+      WriteLog(lr);
+   }
+
+   ResetLastError();
+   if(!GlobalVariableSet(gvB, state_B))
+   {
+      int err = GetLastError();
+      PrintFormat("GlobalVariableSet(%s) err=%d %s", gvB, err, ErrorDescription(err));
+      LogRecord lr;
+      lr.Time       = TimeCurrent();
+      lr.Symbol     = Symbol();
+      lr.System     = "B";
+      lr.Reason     = "DEINIT";
+      lr.Spread     = PriceToPips(Ask - Bid);
+      lr.Dist       = 0;
+      lr.GridPips   = GridPips;
+      lr.s          = s;
+      lr.lotFactor  = 0;
+      lr.BaseLot    = BaseLot;
+      lr.MaxLot     = MaxLot;
+      lr.actualLot  = 0;
+      lr.seqStr     = "";
+      lr.CommentTag = "";
+      lr.Magic      = MagicNumber;
+      lr.OrderType  = "";
+      lr.EntryPrice = 0;
+      lr.SL         = 0;
+      lr.TP         = 0;
+      lr.ErrorCode  = err;
+      lr.ErrorInfo  = ErrorDescription(err);
+      WriteLog(lr);
+   }
 
    int err;
 
