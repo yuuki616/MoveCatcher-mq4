@@ -3041,12 +3041,16 @@ int OnInit()
       }
    }
 
+   // Detect and resolve any duplicate positions before proceeding
+   CorrectDuplicatePositions();
+
    SystemState prevA = state_A;
    SystemState prevB = state_B;
    state_A = UpdateState(prevA, hasA);
    state_B = UpdateState(prevB, hasB);
 
    MathSrand(GetTickCount());
+   // Initialize close time tracking before processing historical trades
    InitCloseTimes();
    ProcessClosedTrades("A", true);
    ProcessClosedTrades("B", true);
