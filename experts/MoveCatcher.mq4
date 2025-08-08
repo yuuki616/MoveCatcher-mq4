@@ -1355,9 +1355,7 @@ void RecoverAfterSL(const string system)
 
    bool   isBuy    = (lastType == OP_BUY);
    double reSlippagePips = SlippagePips;
-   int    slippage = (int)MathRound(reSlippagePips * Pip() / Point);
-   if(!UseProtectedLimit)
-      slippage = 0;
+   int    slippage = (int)MathRound(reSlippagePips * Pip() / Point); // always apply SlippagePips (UseProtectedLimit only toggles protection)
    string flagInfo = StringFormat("UseProtectedLimit=%s slippage=%d",
                                   UseProtectedLimit ? "true" : "false", slippage);
    if(!RefreshRatesChecked(__FUNCTION__))
