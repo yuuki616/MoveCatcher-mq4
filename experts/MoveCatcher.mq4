@@ -2896,6 +2896,11 @@ void HandleOCODetectionFor(const string system)
       retryTicketB = -1;
    EnsureShadowOrder(posTicket, system);
 
+   if(system == "A")
+      state_A = Alive;
+   else if(system == "B")
+      state_B = Alive;
+
    string sys2, seq2;
    ParseComment(OrderComment(), sys2, seq2);
    LogRecord lr;
