@@ -110,6 +110,7 @@ void WriteLog(const LogRecord &rec)
    int handle = FileOpen("MoveCatcher.log", FILE_CSV|FILE_COMMON|FILE_WRITE|FILE_READ|FILE_APPEND);
    string timeStr = TimeToString(rec.Time, TIME_DATE|TIME_SECONDS);
    double distNorm = MathMax(rec.Dist, 0);
+   LogRecord lr = rec;
    if(handle == INVALID_HANDLE)
    {
       int err = GetLastError();
@@ -117,7 +118,7 @@ void WriteLog(const LogRecord &rec)
    }
    else
    {
-      FileWrite(handle,
+      int written = FileWrite(handle,
          timeStr,
          rec.Symbol,
          rec.System,
@@ -139,6 +140,14 @@ void WriteLog(const LogRecord &rec)
          DoubleToString(rec.TP,Digits),
          rec.ErrorCode,
          rec.ErrorInfo);
+      if(written <= 0)
+      {
+         int err = GetLastError();
+         string info = ErrorDescription(err);
+         PrintFormat("WriteLog: FileWrite err=%d %s", err, info);
+         lr.ErrorCode = err;
+         lr.ErrorInfo = info;
+      }
       FileClose(handle);
    }
    PrintFormat("LOG %s,%s,%s,%s,%.1f,%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%s,%s,%d,%s,%.*f,%.*f,%.*f,%d,%s",
@@ -161,8 +170,8 @@ void WriteLog(const LogRecord &rec)
                Digits, rec.EntryPrice,
                Digits, rec.SL,
                Digits, rec.TP,
-               rec.ErrorCode,
-               rec.ErrorInfo);
+               lr.ErrorCode,
+               lr.ErrorInfo);
 }
 
 bool IsStep(const double value,const double step)
