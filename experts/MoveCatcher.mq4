@@ -3045,6 +3045,30 @@ int OnInit()
    // Detect and resolve any duplicate positions before proceeding
    CorrectDuplicatePositions();
 
+   // Recalculate flags after potential corrections
+   hasAny = false;
+   hasA   = false;
+   hasB   = false;
+   for(int j = OrdersTotal() - 1; j >= 0; j--)
+   {
+      if(!OrderSelect(j, SELECT_BY_POS, MODE_TRADES))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      hasAny = true;
+      int t2 = OrderType();
+      string sys2, seq2;
+      if(!ParseComment(OrderComment(), sys2, seq2))
+         continue;
+      if(t2 == OP_BUY || t2 == OP_SELL)
+      {
+         if(sys2 == "A")
+            hasA = true;
+         else if(sys2 == "B")
+            hasB = true;
+      }
+   }
+
    SystemState prevA = state_A;
    SystemState prevB = state_B;
    state_A = UpdateState(prevA, hasA);
