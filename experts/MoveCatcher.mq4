@@ -1938,6 +1938,38 @@ bool InitStrategy()
    int typeA   = isBuy ? OP_BUY : OP_SELL;
    RefreshRates();
    price = isBuy ? Ask : Bid;
+
+   double spread = PriceToPips(Ask - Bid);
+   if(spread > MaxSpreadPips)
+   {
+      LogRecord lrSkipA;
+      lrSkipA.Time       = TimeCurrent();
+      lrSkipA.Symbol     = Symbol();
+      lrSkipA.System     = "A";
+      lrSkipA.Reason     = "INIT";
+      lrSkipA.Spread     = spread;
+      lrSkipA.Dist       = MathMax(distA, 0);
+      lrSkipA.GridPips   = GridPips;
+      lrSkipA.s          = s;
+      lrSkipA.lotFactor  = lotFactorA;
+      lrSkipA.BaseLot    = BaseLot;
+      lrSkipA.MaxLot     = MaxLot;
+      lrSkipA.actualLot  = lotA;
+      lrSkipA.seqStr     = seqA;
+      lrSkipA.CommentTag = commentA;
+      lrSkipA.Magic      = MagicNumber;
+      lrSkipA.OrderType  = OrderTypeToStr(isBuy ? OP_BUY : OP_SELL);
+      lrSkipA.EntryPrice = price;
+      lrSkipA.SL         = entrySL;
+      lrSkipA.TP         = entryTP;
+      lrSkipA.ErrorCode  = 0;
+      lrSkipA.ErrorInfo  = "SpreadExceeded";
+      WriteLog(lrSkipA);
+      PrintFormat("InitStrategy: spread %.1f exceeds MaxSpreadPips %.1f, order skipped",
+                  spread, MaxSpreadPips);
+      return(false);
+   }
+
    ResetLastError();
    int ticketA = OrderSend(Symbol(), typeA, lotA, price,
                            slippage, entrySL, entryTP, commentA, MagicNumber, 0, clrNONE);
