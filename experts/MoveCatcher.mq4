@@ -1129,7 +1129,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       return;
 
    string errcp = "";
-   bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, true, ticket, false);
+   bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, false);
    double distBand = MathMax(DistanceToExistingPositions(price, ticket), 0);
    if(!canPlace)
    {
@@ -1159,11 +1159,6 @@ void EnsureShadowOrder(const int ticket,const string system)
          errCode = ERR_INVALID_STOPS;
       else if(errcp == "Wrong direction")
          errCode = ERR_INVALID_PRICE;
-      else if(errcp == "SpreadExceeded")
-      {
-         errCode = ERR_SPREAD_EXCEEDED;
-         errMsg  = "Spread exceeded";
-      }
       lre.ErrorCode  = errCode;
       lre.ErrorInfo  = hasPend ? errMsg + " (existing order kept)" : errMsg;
       WriteLog(lre);
