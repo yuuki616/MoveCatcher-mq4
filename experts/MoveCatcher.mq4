@@ -2675,6 +2675,40 @@ void HandleOCODetectionFor(const string system)
          return;
       }
       RefreshRates();
+      double spread = PriceToPips(Ask - Bid);
+      if(spread > MaxSpreadPips)
+      {
+         LogRecord lrSkip;
+         lrSkip.Time       = TimeCurrent();
+         lrSkip.Symbol     = Symbol();
+         lrSkip.System     = system;
+         lrSkip.Reason     = "REFILL";
+         lrSkip.Spread     = spread;
+         lrSkip.Dist       = MathMax(dist, 0);
+         lrSkip.GridPips   = GridPips;
+         lrSkip.s          = s;
+         lrSkip.lotFactor  = lotFactorAdj;
+         lrSkip.BaseLot    = BaseLot;
+         lrSkip.MaxLot     = MaxLot;
+         lrSkip.actualLot  = expectedLot;
+         lrSkip.seqStr     = seqAdj;
+         lrSkip.CommentTag = expectedComment;
+         lrSkip.Magic      = MagicNumber;
+         lrSkip.OrderType  = OrderTypeToStr(type);
+         lrSkip.EntryPrice = price;
+         lrSkip.SL         = slInit;
+         lrSkip.TP         = tpInit;
+         lrSkip.ErrorCode  = 0;
+         lrSkip.ErrorInfo  = "SpreadExceeded";
+         WriteLog(lrSkip);
+         PrintFormat("HandleOCODetectionFor: spread %.1f exceeds MaxSpreadPips %.1f, order skipped",
+                     spread, MaxSpreadPips);
+         if(system == "A")
+            retryTicketA = -1;
+         else
+            retryTicketB = -1;
+         return;
+      }
       ResetLastError();
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
                                 slippage, slInit, tpInit,
