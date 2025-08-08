@@ -2720,31 +2720,32 @@ void HandleOCODetectionFor(const string system)
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
                                 slippage, slInit, tpInit,
                                 expectedComment, MagicNumber, 0, clrNONE);
-      LogRecord lrOpen;
-      lrOpen.Time       = TimeCurrent();
-      lrOpen.Symbol     = Symbol();
-      lrOpen.System     = system;
-      lrOpen.Reason     = "REFILL";
-      lrOpen.Spread     = PriceToPips(Ask - Bid);
-      lrOpen.Dist       = MathMax(dist, 0);
-      lrOpen.GridPips   = GridPips;
-      lrOpen.s          = s;
-      lrOpen.lotFactor  = lotFactorAdj;
-      lrOpen.BaseLot    = BaseLot;
-      lrOpen.MaxLot     = MaxLot;
-      lrOpen.actualLot  = expectedLot;
-      lrOpen.seqStr     = seqAdj;
-      lrOpen.CommentTag = expectedComment;
-      lrOpen.Magic      = MagicNumber;
-      lrOpen.OrderType  = OrderTypeToStr(type);
-      lrOpen.EntryPrice = price;
-      lrOpen.SL         = slInit;
-      lrOpen.TP         = tpInit;
-      lrOpen.ErrorCode  = (newTicket < 0) ? GetLastError() : 0;
-      WriteLog(lrOpen);
       if(newTicket < 0)
       {
-         PrintFormat("HandleOCODetectionFor: failed to reopen %s position err=%d", system, lrOpen.ErrorCode);
+         int errCode = GetLastError();
+         LogRecord lrFail;
+         lrFail.Time       = TimeCurrent();
+         lrFail.Symbol     = Symbol();
+         lrFail.System     = system;
+         lrFail.Reason     = "REFILL";
+         lrFail.Spread     = PriceToPips(Ask - Bid);
+         lrFail.Dist       = MathMax(dist, 0);
+         lrFail.GridPips   = GridPips;
+         lrFail.s          = s;
+         lrFail.lotFactor  = lotFactorAdj;
+         lrFail.BaseLot    = BaseLot;
+         lrFail.MaxLot     = MaxLot;
+         lrFail.actualLot  = expectedLot;
+         lrFail.seqStr     = seqAdj;
+         lrFail.CommentTag = expectedComment;
+         lrFail.Magic      = MagicNumber;
+         lrFail.OrderType  = OrderTypeToStr(type);
+         lrFail.EntryPrice = price;
+         lrFail.SL         = slInit;
+         lrFail.TP         = tpInit;
+         lrFail.ErrorCode  = errCode;
+         WriteLog(lrFail);
+         PrintFormat("HandleOCODetectionFor: failed to reopen %s position err=%d", system, errCode);
          if(system == "A")
             retryTicketA = -1;
          else
@@ -2902,7 +2903,9 @@ void HandleOCODetectionFor(const string system)
       state_B = Alive;
 
    string sys2, seq2;
+   OrderSelect(posTicket, SELECT_BY_TICKET);
    ParseComment(OrderComment(), sys2, seq2);
+   double entryActual = OrderOpenPrice();
    LogRecord lr;
    lr.Time       = TimeCurrent();
    lr.Symbol     = Symbol();
@@ -2912,7 +2915,7 @@ void HandleOCODetectionFor(const string system)
    lr.Dist       = 0;
    lr.GridPips   = GridPips;
    lr.s          = s;
-   lr.lotFactor  = 0;
+   lr.lotFactor  = lotFactorAdj;
    lr.BaseLot    = BaseLot;
    lr.MaxLot     = MaxLot;
    lr.actualLot  = OrderLots();
@@ -2920,7 +2923,7 @@ void HandleOCODetectionFor(const string system)
    lr.CommentTag = OrderComment();
    lr.Magic      = MagicNumber;
    lr.OrderType  = OrderTypeToStr(OrderType());
-   lr.EntryPrice = entry;
+   lr.EntryPrice = entryActual;
    lr.SL         = sl;
    lr.TP         = tp;
    lr.ErrorCode  = 0;
