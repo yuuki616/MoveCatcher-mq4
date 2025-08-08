@@ -195,6 +195,18 @@ double PriceToPips(const double priceDiff)
    return(priceDiff / Pip());
 }
 
+bool RefreshRatesChecked(const string func)
+{
+   ResetLastError();
+   if(!RefreshRates())
+   {
+      int err = GetLastError();
+      PrintFormat("%s: RefreshRates failed err=%d %s", func, err, ErrorDescription(err));
+      return(false);
+   }
+   return(true);
+}
+
 double NormalizeLot(const double lotCandidate)
 {
    double minLot  = MarketInfo(Symbol(), MODE_MINLOT);
@@ -379,7 +391,11 @@ double DistanceToExistingPositions(const double price,const int excludeTicket=-1
 bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
                    bool checkSpread=true,int excludeTicket=-1,bool checkDistance=true)
 {
-   RefreshRates();
+   if(!RefreshRatesChecked(__FUNCTION__))
+   {
+      errorInfo = "RefreshRates failed";
+      return(false);
+   }
 
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
    double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
@@ -776,7 +792,8 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
          continue;
 
       // 現在のスプレッドを取得（履歴からは取得不可のため近似値）
-      RefreshRates();
+      if(!RefreshRatesChecked(__FUNCTION__))
+         return;
       double spreadNow = PriceToPips(MathAbs(Ask - Bid));
       int type  = OrderType();
 
@@ -919,7 +936,8 @@ bool FindShadowPending(const string system,const double entry,const bool isBuy,
 //+------------------------------------------------------------------+
 void EnsureTPSL(const int ticket)
 {
-   RefreshRates();
+   if(!RefreshRatesChecked(__FUNCTION__))
+      return;
    if(!OrderSelect(ticket, SELECT_BY_TICKET))
       return;
    double entry = OrderOpenPrice();
@@ -1085,8 +1103,8 @@ void EnsureShadowOrder(const int ticket,const string system)
                         : entry - PipsToPrice(GridPips);
    price = NormalizeDouble(price, Digits);
    int type = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
-
-   RefreshRates();
+   if(!RefreshRatesChecked(__FUNCTION__))
+      return;
 
    string errcp = "";
    bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, false);
@@ -1193,7 +1211,8 @@ void EnsureShadowOrder(const int ticket,const string system)
    }
 
    price = NormalizeDouble(price, Digits);
-   RefreshRates();
+   if(!RefreshRatesChecked(__FUNCTION__))
+      return;
    ResetLastError();
    int tk = OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrNONE);
    LogRecord lr;
@@ -1250,7 +1269,8 @@ void DeletePendings(const string system,const string reason)
       int type = OrderType();
       if(type != OP_BUYLIMIT && type != OP_SELLLIMIT && type != OP_BUYSTOP && type != OP_SELLSTOP)
          continue;
-      RefreshRates();
+      if(!RefreshRatesChecked(__FUNCTION__))
+         return;
       string sys, seq;
       if(!ParseComment(OrderComment(), sys, seq))
          continue;
@@ -1301,7 +1321,8 @@ void DeletePendings(const string system,const string reason)
 void RecoverAfterSL(const string system)
 {
    ProcessClosedTrades(system, true);
-   RefreshRates();
+   if(!RefreshRatesChecked(__FUNCTION__))
+      return;
    DeletePendings(system, "SL");
 
    int lastType = -1;
@@ -1339,7 +1360,8 @@ void RecoverAfterSL(const string system)
       slippage = 0;
    string flagInfo = StringFormat("UseProtectedLimit=%s slippage=%d",
                                   UseProtectedLimit ? "true" : "false", slippage);
-   RefreshRates();
+   if(!RefreshRatesChecked(__FUNCTION__))
+      return;
    double price    = isBuy ? Ask : Bid;
    price           = NormalizeDouble(price, Digits);
    double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);
@@ -1410,7 +1432,8 @@ void RecoverAfterSL(const string system)
       PrintFormat("RecoverAfterSL[%s]: failed to select reopened order for %s err=%d", flagInfo, system, lr.ErrorCode);
       return;
    }
-   RefreshRates(); // Bid と Ask を最新化
+   if(!RefreshRatesChecked(__FUNCTION__)) // Bid と Ask を最新化
+      return;
    double entry = OrderOpenPrice();
    double desiredSL = isBuy ? entry - PipsToPrice(GridPips) : entry + PipsToPrice(GridPips);
    double desiredTP = isBuy ? entry + PipsToPrice(GridPips) : entry - PipsToPrice(GridPips);
@@ -1504,7 +1527,8 @@ void RecoverAfterSL(const string system)
 void CloseAllOrders(const string reason)
 {
    bool updateDMC = (reason != "RESET_ALIVE" && reason != "RESET_SNAP");
-   RefreshRates();
+   if(!RefreshRatesChecked(__FUNCTION__))
+      return;
    int slippage = (int)MathRound(SlippagePips * Pip() / Point);
    for(int i = OrdersTotal()-1; i >= 0; i--)
    {
@@ -1516,7 +1540,8 @@ void CloseAllOrders(const string reason)
       int ticket = OrderTicket();
       if(type == OP_BUY || type == OP_SELL)
       {
-         RefreshRates();
+         if(!RefreshRatesChecked(__FUNCTION__))
+            return;
          double spreadClose = PriceToPips(MathAbs(Ask - Bid));
          double price      = (type == OP_BUY) ? Bid : Ask;
          double actualLot  = OrderLots();
@@ -1561,7 +1586,8 @@ void CloseAllOrders(const string reason)
       else if(type == OP_BUYLIMIT || type == OP_SELLLIMIT ||
               type == OP_BUYSTOP  || type == OP_SELLSTOP)
       {
-         RefreshRates();
+         if(!RefreshRatesChecked(__FUNCTION__))
+            return;
          double spreadPend = PriceToPips(MathAbs(Ask - Bid));
          int err = 0;
          ResetLastError();
@@ -1605,7 +1631,8 @@ void CloseAllOrders(const string reason)
 //+------------------------------------------------------------------+
 void CorrectDuplicatePositions()
 {
-   RefreshRates();
+   if(!RefreshRatesChecked(__FUNCTION__))
+      return;
 
    int slippage = (int)MathRound(SlippagePips * Pip() / Point);
 
@@ -1657,7 +1684,8 @@ void CorrectDuplicatePositions()
          if(!OrderSelect(tk, SELECT_BY_TICKET))
             continue;
          int type          = OrderType();
-         RefreshRates();
+         if(!RefreshRatesChecked(__FUNCTION__))
+            return;
          double price      = (type == OP_BUY) ? Bid : Ask;
          double lot        = OrderLots();
          string comment    = OrderComment();
@@ -1715,7 +1743,8 @@ void CorrectDuplicatePositions()
          if(!OrderSelect(tk, SELECT_BY_TICKET))
             continue;
          int type          = OrderType();
-         RefreshRates();
+         if(!RefreshRatesChecked(__FUNCTION__))
+            return;
          double price      = (type == OP_BUY) ? Bid : Ask;
          double lot        = OrderLots();
          string comment    = OrderComment();
@@ -1764,7 +1793,8 @@ void CorrectDuplicatePositions()
 //+------------------------------------------------------------------+
 bool PlaceRefillOrders(const string system,const double refPrice)
 {
-   RefreshRates();
+   if(!RefreshRatesChecked(__FUNCTION__))
+      return(false);
 
    string seq;
    double lotFactor;
@@ -1819,7 +1849,8 @@ bool PlaceRefillOrders(const string system,const double refPrice)
    }
    else
    {
-      RefreshRates();
+      if(!RefreshRatesChecked(__FUNCTION__))
+         return(false);
       ResetLastError();
       ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
                              0, 0, 0, comment, MagicNumber, 0, clrNONE);
@@ -1889,7 +1920,8 @@ bool PlaceRefillOrders(const string system,const double refPrice)
    }
    else
    {
-      RefreshRates();
+      if(!RefreshRatesChecked(__FUNCTION__))
+         return(false);
       ResetLastError();
       ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
                             0, 0, 0, comment, MagicNumber, 0, clrNONE);
@@ -2001,7 +2033,8 @@ bool PlaceRefillOrders(const string system,const double refPrice)
 //+------------------------------------------------------------------+
 bool InitStrategy()
 {
-   RefreshRates();
+   if(!RefreshRatesChecked(__FUNCTION__))
+      return(false);
 
    //---- system A market order
    string seqA; double lotFactorA; double lotA = CalcLot("A", seqA, lotFactorA);
@@ -2079,7 +2112,8 @@ bool InitStrategy()
    }
    int typeA   = isBuy ? OP_BUY : OP_SELL;
    double oldPrice = price;
-   RefreshRates();
+   if(!RefreshRatesChecked(__FUNCTION__))
+      return(false);
    price = isBuy ? Ask : Bid;
    price = NormalizeDouble(price, Digits);
    if(price != oldPrice)
@@ -2310,7 +2344,8 @@ bool InitStrategy()
          }
       else
       {
-         RefreshRates();
+         if(!RefreshRatesChecked(__FUNCTION__))
+            return(false);
          ResetLastError();
          ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
                                 0, 0, 0, commentB, MagicNumber, 0, clrNONE);
@@ -2449,7 +2484,8 @@ bool InitStrategy()
          }
       else
       {
-         RefreshRates();
+         if(!RefreshRatesChecked(__FUNCTION__))
+            return(false);
          ResetLastError();
          ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
                                0, 0, 0, commentB, MagicNumber, 0, clrNONE);
@@ -2569,7 +2605,8 @@ bool InitStrategy()
 void HandleOCODetectionFor(const string system)
 {
    ProcessClosedTrades(system, true);
-   RefreshRates();
+   if(!RefreshRatesChecked(__FUNCTION__))
+      return;
    int posTicket = -1;
    int retryType = -1;
    if(system == "A")
@@ -2646,7 +2683,8 @@ void HandleOCODetectionFor(const string system)
          return;
       }
       string expectedComment = MakeComment(system, seqAdj);
-      RefreshRates();
+      if(!RefreshRatesChecked(__FUNCTION__))
+         return;
       double price = (retryType == OP_BUY) ? Ask : Bid;
       double dist = DistanceToExistingPositions(price);
       int slippage = (int)MathRound(SlippagePips * Pip() / Point);
@@ -2757,7 +2795,8 @@ void HandleOCODetectionFor(const string system)
          WriteLog(lrFail);
          return;
       }
-      RefreshRates();
+      if(!RefreshRatesChecked(__FUNCTION__))
+         return;
       double spread = PriceToPips(MathAbs(Ask - Bid));
       ResetLastError();
       int newTicket = OrderSend(Symbol(), retryType, expectedLot, price,
@@ -2883,7 +2922,8 @@ void HandleOCODetectionFor(const string system)
    double lotTol  = (lotStep > 0) ? lotStep * 0.5 : 1e-8;
    if(MathAbs(OrderLots() - expectedLot) > lotTol || OrderComment() != expectedComment)
    {
-      RefreshRates();
+      if(!RefreshRatesChecked(__FUNCTION__))
+         return;
       double spreadClose = PriceToPips(MathAbs(Ask - Bid));
       int    type      = OrderType();
       double oldLots   = OrderLots();
@@ -2923,8 +2963,8 @@ void HandleOCODetectionFor(const string system)
       }
 
       ProcessClosedTrades(system, false, "REFILL");
-
-      RefreshRates();
+      if(!RefreshRatesChecked(__FUNCTION__))
+         return;
       double price = (type == OP_BUY) ? Ask : Bid;
       double dist = DistanceToExistingPositions(price);
       slippage = (int)MathRound(SlippagePips * Pip() / Point);
@@ -3068,7 +3108,8 @@ void HandleOCODetectionFor(const string system)
             retryTicketB = -1;
          return;
       }
-      RefreshRates();
+      if(!RefreshRatesChecked(__FUNCTION__))
+         return;
       double spread = PriceToPips(MathAbs(Ask - Bid));
       ResetLastError();
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
@@ -3202,7 +3243,8 @@ void HandleOCODetectionFor(const string system)
       }
    }
 
-   RefreshRates(); // 最新の Bid/Ask を取得
+   if(!RefreshRatesChecked(__FUNCTION__)) // 最新の Bid/Ask を取得
+      return;
    double entry = OrderOpenPrice();
    double sl, tp;
    double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
