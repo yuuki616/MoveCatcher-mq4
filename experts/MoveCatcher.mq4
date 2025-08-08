@@ -1945,8 +1945,43 @@ bool InitStrategy()
       return(false);
    }
    int typeA   = isBuy ? OP_BUY : OP_SELL;
+   double oldPrice = price;
    RefreshRates();
    price = isBuy ? Ask : Bid;
+   if(price != oldPrice)
+   {
+      if(isBuy)
+      {
+         entrySL = price - PipsToPrice(GridPips);
+         entryTP = price + PipsToPrice(GridPips);
+      }
+      else
+      {
+         entrySL = price + PipsToPrice(GridPips);
+         entryTP = price - PipsToPrice(GridPips);
+      }
+
+      distSL = MathAbs(price - entrySL);
+      if(distSL < minLevel)
+      {
+         double oldSL = entrySL;
+         entrySL = isBuy ? price - minLevel : price + minLevel;
+         entrySL = NormalizeDouble(entrySL, Digits);
+         PrintFormat("InitStrategy: SL adjusted from %.5f to %.5f due to min distance %.1f pips",
+                     oldSL, entrySL, PriceToPips(minLevel));
+      }
+
+      distTP = MathAbs(entryTP - price);
+      if(distTP < minLevel)
+      {
+         double oldTP = entryTP;
+         entryTP = isBuy ? price + minLevel : price - minLevel;
+         entryTP = NormalizeDouble(entryTP, Digits);
+         PrintFormat("InitStrategy: TP adjusted from %.5f to %.5f due to min distance %.1f pips",
+                     oldTP, entryTP, PriceToPips(minLevel));
+      }
+   }
+   distA = DistanceToExistingPositions(price);
 
    double spread = PriceToPips(Ask - Bid); // 参考情報のみ（成行では判定しない）
 
