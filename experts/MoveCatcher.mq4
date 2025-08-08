@@ -1121,7 +1121,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       return;
 
    string errcp = "";
-   bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, false, ticket, false);
+   bool   canPlace = CanPlaceOrder(price, (type == OP_BUYLIMIT), errcp, true, ticket, false);
    double distBand = MathMax(DistanceToExistingPositions(price, ticket), 0);
    if(!canPlace)
    {
@@ -1146,17 +1146,23 @@ void EnsureShadowOrder(const int ticket,const string system)
       lre.SL         = 0;
       lre.TP         = 0;
       int errCode = 0;
+      string errMsg = errcp;
       if(errcp == "FreezeLevel violation")
          errCode = ERR_INVALID_STOPS;
       else if(errcp == "Wrong direction")
          errCode = ERR_INVALID_PRICE;
+      else if(errcp == "SpreadExceeded")
+      {
+         errCode = ERR_SPREAD_EXCEEDED;
+         errMsg  = "Spread exceeded";
+      }
       lre.ErrorCode  = errCode;
-      lre.ErrorInfo  = hasPend ? errcp + " (existing order kept)" : errcp;
+      lre.ErrorInfo  = hasPend ? errMsg + " (existing order kept)" : errMsg;
       WriteLog(lre);
       if(hasPend)
-         PrintFormat("EnsureShadowOrder: %s - keeping existing shadow order for %s", errcp, system);
+         PrintFormat("EnsureShadowOrder: %s - keeping existing shadow order for %s", errMsg, system);
       else
-         PrintFormat("EnsureShadowOrder: %s - will retry for %s", errcp, system);
+         PrintFormat("EnsureShadowOrder: %s - will retry for %s", errMsg, system);
 
       if(system == "A")
          shadowRetryA = true;
