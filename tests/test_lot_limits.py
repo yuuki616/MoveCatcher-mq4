@@ -31,8 +31,13 @@ def clip_to_user_max(lot: float, user_max: float, lot_step: float) -> float:
     return round(result, lot_digits)
 
 
-def calc_lot(lot_candidate: float, user_max: float, min_lot: float, max_lot_broker: float, lot_step: float) -> float:
-    lot_candidate = min(lot_candidate, user_max)
+def calc_lot(
+    lot_candidate: float,
+    user_max: float,
+    min_lot: float,
+    max_lot_broker: float,
+    lot_step: float,
+) -> float:
     lot_actual = normalize_lot(lot_candidate, min_lot, max_lot_broker, lot_step)
     lot_actual = clip_to_user_max(lot_actual, user_max, lot_step)
     return lot_actual

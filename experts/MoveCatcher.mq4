@@ -583,7 +583,6 @@ double CalcLot(const string system,string &seq,double &lotFactor)
          return(0.0);
       }
       lotCandidate = BaseLot * lotFactor;
-      lotCandidate = MathMin(lotCandidate, MaxLot);
       double lotActual = NormalizeLot(lotCandidate);
       lotActual = ClipToUserMax(lotActual);
 
@@ -614,7 +613,6 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       return(lotActual);
    }
 
-   lotCandidate = MathMin(lotCandidate, MaxLot);
    double lotActual = NormalizeLot(lotCandidate);
    lotActual = ClipToUserMax(lotActual);
    return(lotActual);
