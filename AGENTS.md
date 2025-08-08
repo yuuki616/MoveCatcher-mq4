@@ -48,7 +48,7 @@
 **派生値（内部）**
 
 * `s = GridPips / 2`（ユーザー設定不要、内部で常時算出）
-* `Pip = (Digits==3 || Digits==5) ? 10*Point : Point`（価格⇄pips 換算）
+* `Pip = (_Digits==3 || _Digits==5) ? 10*_Point : _Point`（価格⇄pips 換算）
 
 ---
 

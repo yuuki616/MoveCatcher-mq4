@@ -16,8 +16,8 @@ def test_ensure_tpsl_distance():
 def test_recover_after_sl_distance():
     mc_path = pathlib.Path(__file__).resolve().parents[1] / "experts" / "MoveCatcher.mq4"
     content = mc_path.read_text(encoding="utf-8")
-    assert "sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);" in content
-    assert "tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), Digits);" in content
+    assert "sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), _Digits);" in content
+    assert "tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), _Digits);" in content
     assert "sl = isBuy ? price - minLevel : price + minLevel" not in content
     assert "tp = isBuy ? price + minLevel : price - minLevel" not in content
     assert "double desiredSL = isBuy ? entry - PipsToPrice(GridPips) : entry + PipsToPrice(GridPips);" in content
