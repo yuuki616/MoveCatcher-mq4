@@ -130,6 +130,18 @@ public:
    }
 
    /* デバッグ用 */
-   string Seq(){string s="";for(int i=0;i<ArraySize(seq);i++){if(i)s+=",";s+=IntegerToString(seq[i]);}return s;}
+   bool Seq(string &out,const int maxLen=15) const{
+      out="";
+      for(int i=0;i<ArraySize(seq);i++){
+         string part=IntegerToString(seq[i]);
+         int addLen=StringLen(part);
+         if(i) addLen+=1;
+         if(StringLen(out)+addLen>maxLen)
+            return(false);
+         if(i) out+=",";
+         out+=part;
+      }
+      return(true);
+   }
    int    Stock(){ return stock; }
 };
