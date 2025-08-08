@@ -2,6 +2,9 @@
 
 #include <DecompositionMonteCarloMM.mqh>
 
+#define ERR_SPREAD_EXCEEDED  10001  // Spread above MaxSpreadPips
+#define ERR_DISTANCE_BAND    10002  // Distance band violation
+
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
@@ -1015,8 +1018,17 @@ void EnsureShadowOrder(const int ticket,const string system)
       int errCode = 0;
       if(errcp == "FreezeLevel violation")
          errCode = ERR_INVALID_STOPS;
+      else if(errcp == "Wrong direction")
+         errCode = ERR_INVALID_PRICE;
+      else if(errcp == "SpreadExceeded")
+         errCode = ERR_SPREAD_EXCEEDED;
+      else if(errcp == "DistanceBandViolation")
+         errCode = ERR_DISTANCE_BAND;
+      string errInfo = errcp;
+      if(errcp == "DistanceBandViolation")
+         errInfo = "Distance band violation";
       lre.ErrorCode  = errCode;
-      lre.ErrorInfo  = hasPend ? errcp + " (existing order kept)" : errcp;
+      lre.ErrorInfo  = hasPend ? errInfo + " (existing order kept)" : errInfo;
       WriteLog(lre);
       if(hasPend)
          PrintFormat("EnsureShadowOrder: %s - keeping existing shadow order for %s", errcp, system);
