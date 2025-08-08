@@ -1336,8 +1336,8 @@ void DeletePendings(const string system,const string reason)
 }
 
 //+------------------------------------------------------------------+
-//| Re-enter position after SL. SlippagePips is always used to compute |
-//| slippage regardless of UseProtectedLimit.                         |
+//| Re-enter position after SL. SlippagePips is used only when         |
+//| UseProtectedLimit=true; otherwise slippage=0.                      |
 //+------------------------------------------------------------------+
 void RecoverAfterSL(const string system)
 {
@@ -1376,7 +1376,9 @@ void RecoverAfterSL(const string system)
 
    bool   isBuy    = (lastType == OP_BUY);
    double reSlippagePips = SlippagePips;
-   int    slippage = (int)MathRound(reSlippagePips * Pip() / _Point); // always apply SlippagePips (UseProtectedLimit only toggles protection)
+   int    slippage = UseProtectedLimit
+                     ? (int)MathRound(reSlippagePips * Pip() / _Point)
+                     : 0; // UseProtectedLimit=false では slippage=0
    string flagInfo = StringFormat("UseProtectedLimit=%s slippage=%d",
                                   UseProtectedLimit ? "true" : "false", slippage);
    if(!RefreshRatesChecked(__FUNCTION__))
@@ -1548,7 +1550,9 @@ void CloseAllOrders(const string reason)
    bool updateDMC = (reason != "RESET_ALIVE" && reason != "RESET_SNAP");
    if(!RefreshRatesChecked(__FUNCTION__))
       Print("CloseAllOrders: RefreshRatesChecked failed at start");
-   int slippage = (int)MathRound(SlippagePips * Pip() / _Point);
+   int slippage = UseProtectedLimit
+                  ? (int)MathRound(SlippagePips * Pip() / _Point)
+                  : 0;
    for(int i = OrdersTotal()-1; i >= 0; i--)
    {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
@@ -1659,7 +1663,9 @@ void CorrectDuplicatePositions()
    if(!RefreshRatesChecked(__FUNCTION__))
       return;
 
-   int slippage = (int)MathRound(SlippagePips * Pip() / _Point);
+   int slippage = UseProtectedLimit
+                  ? (int)MathRound(SlippagePips * Pip() / _Point)
+                  : 0;
 
    int ticketsA[]; datetime timesA[];
    int ticketsB[]; datetime timesB[];
@@ -2066,7 +2072,9 @@ bool InitStrategy()
    if(lotA <= 0) return(false);
 
    bool isBuy = (MathRand() % 2) == 0;
-   int    slippage = (int)MathRound(SlippagePips * Pip() / _Point);
+   int    slippage = UseProtectedLimit
+                     ? (int)MathRound(SlippagePips * Pip() / _Point)
+                     : 0;
    double price    = isBuy ? Ask : Bid;
    price           = NormalizeDouble(price, _Digits);
    double entrySL, entryTP;
@@ -2712,7 +2720,9 @@ void HandleOCODetectionFor(const string system)
          return;
       double price = (retryType == OP_BUY) ? Ask : Bid;
       double dist = DistanceToExistingPositions(price);
-      int slippage = (int)MathRound(SlippagePips * Pip() / _Point);
+      int slippage = UseProtectedLimit
+                     ? (int)MathRound(SlippagePips * Pip() / _Point)
+                     : 0;
       double slInit = (retryType == OP_BUY) ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips);
       double tpInit = (retryType == OP_BUY) ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips);
       double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL)   * _Point;
@@ -2954,7 +2964,9 @@ void HandleOCODetectionFor(const string system)
       double oldLots   = OrderLots();
       double closePrice = (type == OP_BUY) ? Bid : Ask;
       string sysTmp, oldSeq; ParseComment(OrderComment(), sysTmp, oldSeq);
-      int slippage = (int)MathRound(SlippagePips * Pip() / _Point);
+      int slippage = UseProtectedLimit
+                     ? (int)MathRound(SlippagePips * Pip() / _Point)
+                     : 0;
       int errClose = 0;
       ResetLastError();
       if(!OrderClose(posTicket, oldLots, closePrice, slippage, clrNONE))
@@ -2992,7 +3004,9 @@ void HandleOCODetectionFor(const string system)
          return;
       double price = (type == OP_BUY) ? Ask : Bid;
       double dist = DistanceToExistingPositions(price);
-      slippage = (int)MathRound(SlippagePips * Pip() / _Point);
+      slippage = UseProtectedLimit
+                  ? (int)MathRound(SlippagePips * Pip() / _Point)
+                  : 0;
       double slInit, tpInit;
       if(type == OP_BUY)
       {
