@@ -2595,38 +2595,6 @@ void HandleOCODetectionFor(const string system)
       RefreshRates();
       double price = (type == OP_BUY) ? Ask : Bid;
       double dist = DistanceToExistingPositions(price);
-      if(UseDistanceBand && dist >= 0 && (dist < MinDistancePips || dist > MaxDistancePips))
-      {
-         LogRecord lrSkip;
-         lrSkip.Time       = TimeCurrent();
-         lrSkip.Symbol     = Symbol();
-         lrSkip.System     = system;
-        lrSkip.Reason     = "REFILL";
-        lrSkip.Spread     = PriceToPips(Ask - Bid);
-        lrSkip.Dist       = MathMax(dist, 0);
-         lrSkip.GridPips   = GridPips;
-         lrSkip.s          = s;
-         lrSkip.lotFactor  = lotFactorAdj;
-         lrSkip.BaseLot    = BaseLot;
-         lrSkip.MaxLot     = MaxLot;
-         lrSkip.actualLot  = expectedLot;
-         lrSkip.seqStr     = seqAdj;
-         lrSkip.CommentTag = expectedComment;
-         lrSkip.Magic      = MagicNumber;
-         lrSkip.OrderType  = OrderTypeToStr(type);
-         lrSkip.EntryPrice = price;
-         lrSkip.SL         = 0;
-         lrSkip.TP         = 0;
-         lrSkip.ErrorCode  = 0;
-         WriteLog(lrSkip);
-         PrintFormat("HandleOCODetectionFor: distance %.1f outside band [%.1f, %.1f], order skipped",
-                     dist, MinDistancePips, MaxDistancePips);
-         if(system == "A")
-            retryTicketA = -1;
-         else
-            retryTicketB = -1;
-         return;
-      }
       slippage = (int)MathRound(SlippagePips * Pip() / Point);
       double slInit, tpInit;
       if(type == OP_BUY)
