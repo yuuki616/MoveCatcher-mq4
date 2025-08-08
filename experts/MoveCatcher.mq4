@@ -441,7 +441,8 @@ double CalcLot(const string system,string &seq,double &lotFactor)
 
    lotFactor          = state.NextLot();
    string seqCore;
-   if(!state.Seq(seqCore))
+   const int seqMaxLen = 15;
+   if(!state.Seq(seqCore, seqMaxLen))
    {
       PrintFormat("Seq length overflow for system %s", system);
       seq="";
@@ -460,7 +461,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       SaveDMCState(system, *state, err);
 
       lotFactor    = state.NextLot();
-      if(!state.Seq(seqCore))
+      if(!state.Seq(seqCore, seqMaxLen))
       {
          PrintFormat("Seq length overflow for system %s", system);
          seq="";
@@ -537,8 +538,6 @@ double CalcLot(const string system,string &seq,double &lotFactor)
 string MakeComment(const string system,const string seq)
 {
    string comment = StringFormat("MoveCatcher_%s_%s", system, seq);
-   if(StringLen(comment) > 31)
-      comment = StringSubstr(comment, 0, 31); // final safeguard
    return(comment);
 }
 
