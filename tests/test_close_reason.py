@@ -7,8 +7,8 @@ def estimate_reason(order):
     close_price = order["close"]
     tp = order.get("tp", 0)
     sl = order.get("sl", 0)
-    is_tp = abs(close_price - tp) <= tol and tp != 0
-    is_sl = abs(close_price - sl) <= tol and sl != 0
+    is_tp = abs(close_price - tp) <= tol and tp > 0
+    is_sl = abs(close_price - sl) <= tol and sl > 0
     if is_tp or is_sl:
         return "TP" if is_tp else "SL"
     comment = order.get("comment", "")
@@ -39,3 +39,8 @@ def test_reason_finds_tp_sl_in_comment_case_insensitively():
     assert estimate_reason(tp_comment) == "TP"
     sl_comment = {"type": "buy", "open": 1.0, "close": 1.5, "comment": "via sl"}
     assert estimate_reason(sl_comment) == "SL"
+
+
+def test_reason_falls_back_when_tp_sl_unset_and_close_price_zero():
+    order = {"type": "buy", "open": 1.0, "close": 0.0}
+    assert estimate_reason(order) == "SL"

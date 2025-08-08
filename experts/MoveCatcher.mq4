@@ -730,8 +730,10 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
         double tol        = Pip() * 0.5;
          bool isTP = (MathAbs(closePrice - OrderTakeProfit()) <= tol);
          bool isSL = (MathAbs(closePrice - OrderStopLoss())  <= tol);
-         if(isTP || isSL)
-            rsn = isTP ? "TP" : "SL";
+         bool hasTP = (OrderTakeProfit() > 0);
+         bool hasSL = (OrderStopLoss()  > 0);
+         if((hasTP && isTP) || (hasSL && isSL))
+            rsn = (hasTP && isTP) ? "TP" : "SL";
          else
          {
             string cmt = StringToUpper(OrderComment());
