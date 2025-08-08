@@ -1752,6 +1752,8 @@ bool PlaceRefillOrders(const string system,const double refPrice)
          codeSell = ERR_INVALID_STOPS;
       else if(errSell == "Wrong direction")
          codeSell = ERR_INVALID_PRICE;
+      else if(errSell == "DistanceBandViolation")
+         codeSell = ERR_DISTANCE_BAND;
       lr.ErrorCode  = codeSell;
       lr.ErrorInfo  = (errSell == "DistanceBandViolation") ? "Distance band violation" : errSell;
       WriteLog(lr);
@@ -1820,6 +1822,8 @@ bool PlaceRefillOrders(const string system,const double refPrice)
          codeBuy = ERR_INVALID_STOPS;
       else if(errBuy == "Wrong direction")
          codeBuy = ERR_INVALID_PRICE;
+      else if(errBuy == "DistanceBandViolation")
+         codeBuy = ERR_DISTANCE_BAND;
       lrb.ErrorCode  = codeBuy;
       lrb.ErrorInfo  = (errBuy == "DistanceBandViolation") ? "Distance band violation" : errBuy;
       WriteLog(lrb);
@@ -2008,7 +2012,7 @@ bool InitStrategy()
       lrSkipA.EntryPrice = price;
       lrSkipA.SL         = entrySL;
       lrSkipA.TP         = entryTP;
-      lrSkipA.ErrorCode  = 0;
+      lrSkipA.ErrorCode  = ERR_DISTANCE_BAND;
       lrSkipA.ErrorInfo  = "Distance band violation";
       WriteLog(lrSkipA);
       PrintFormat("InitStrategy: distance %.1f outside band [%.1f, %.1f], order skipped",
@@ -2076,7 +2080,7 @@ bool InitStrategy()
       lrSkipA.EntryPrice = price;
       lrSkipA.SL         = entrySL;
       lrSkipA.TP         = entryTP;
-      lrSkipA.ErrorCode  = 0;
+      lrSkipA.ErrorCode  = ERR_DISTANCE_BAND;
       lrSkipA.ErrorInfo  = "Distance band violation";
       WriteLog(lrSkipA);
       PrintFormat("InitStrategy: distance %.1f outside band [%.1f, %.1f], order skipped",
@@ -2208,7 +2212,7 @@ bool InitStrategy()
          lrS.EntryPrice = priceSell;
          lrS.SL         = 0;
          lrS.TP         = 0;
-         lrS.ErrorCode  = 0;
+         lrS.ErrorCode  = ERR_DISTANCE_BAND;
          lrS.ErrorInfo  = "Distance band violation";
          WriteLog(lrS);
          PrintFormat("InitStrategy: SellLimit distance %.1f outside band [%.1f, %.1f]",
@@ -2240,7 +2244,8 @@ bool InitStrategy()
             lrS.EntryPrice = priceSell;
             lrS.SL         = 0;
             lrS.TP         = 0;
-            lrS.ErrorCode  = 0;
+            int codeS = (errS == "DistanceBandViolation") ? ERR_DISTANCE_BAND : 0;
+            lrS.ErrorCode  = codeS;
             lrS.ErrorInfo  = (errS == "DistanceBandViolation") ? "Distance band violation" : errS;
             WriteLog(lrS);
             okSell = false;
@@ -2346,7 +2351,7 @@ bool InitStrategy()
         lrB.EntryPrice = priceBuy;
         lrB.SL         = 0;
         lrB.TP         = 0;
-        lrB.ErrorCode  = 0;
+        lrB.ErrorCode  = ERR_DISTANCE_BAND;
         lrB.ErrorInfo  = "Distance band violation";
         WriteLog(lrB);
         PrintFormat("InitStrategy: BuyLimit distance %.1f outside band [%.1f, %.1f]",
@@ -2378,7 +2383,8 @@ bool InitStrategy()
             lrB.EntryPrice = priceBuy;
             lrB.SL         = 0;
             lrB.TP         = 0;
-            lrB.ErrorCode  = 0;
+            int codeB = (errB == "DistanceBandViolation") ? ERR_DISTANCE_BAND : 0;
+            lrB.ErrorCode  = codeB;
             lrB.ErrorInfo  = (errB == "DistanceBandViolation") ? "Distance band violation" : errB;
             WriteLog(lrB);
             okBuy = false;
