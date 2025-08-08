@@ -2738,6 +2738,7 @@ void HandleOCODetectionFor(const string system)
          lrFail.SL         = slInit;
          lrFail.TP         = tpInit;
          lrFail.ErrorCode  = ERR_INVALID_STOPS;
+         lrFail.ErrorInfo  = "SL/TP within freeze level";
          WriteLog(lrFail);
          PrintFormat("HandleOCODetectionFor: SL/TP within freeze level %.1f pips, retry next tick",
                      PriceToPips(freezeLevel));
@@ -2773,6 +2774,7 @@ void HandleOCODetectionFor(const string system)
          lrFail.SL         = slInit;
          lrFail.TP         = tpInit;
          lrFail.ErrorCode  = ERR_INVALID_STOPS;
+         lrFail.ErrorInfo  = "SL/TP on wrong side after adjustment";
          WriteLog(lrFail);
          Print("HandleOCODetectionFor: SL/TP on wrong side after adjustment, retry next tick");
          if(system == "A")
@@ -2850,6 +2852,7 @@ void HandleOCODetectionFor(const string system)
          lrFail.SL         = slInit;
          lrFail.TP         = tpInit;
          lrFail.ErrorCode  = errCode;
+         lrFail.ErrorInfo  = ErrorDescription(errCode);
          WriteLog(lrFail);
          PrintFormat("HandleOCODetectionFor: failed to reopen %s position err=%d", system, errCode);
          if(system == "A")
@@ -2988,6 +2991,7 @@ void HandleOCODetectionFor(const string system)
       lrFail.SL         = sl;
       lrFail.TP         = tp;
       lrFail.ErrorCode  = err;
+      lrFail.ErrorInfo  = ErrorDescription(err);
       WriteLog(lrFail);
 
       if(system == "A")
