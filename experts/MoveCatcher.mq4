@@ -625,7 +625,14 @@ double CalcLot(const string system,string &seq,double &lotFactor)
 //+------------------------------------------------------------------+
 string MakeComment(const string system,const string seq)
 {
+   const int MAX_COMMENT_LENGTH = 31;
    string comment = StringFormat("MoveCatcher_%s_%s", system, seq);
+   int len = StringLen(comment);
+   if(len > MAX_COMMENT_LENGTH)
+   {
+      PrintFormat("MakeComment: comment '%s' length %d exceeds %d, truncating", comment, len, MAX_COMMENT_LENGTH);
+      comment = StringSubstr(comment, 0, MAX_COMMENT_LENGTH);
+   }
    return(comment);
 }
 
