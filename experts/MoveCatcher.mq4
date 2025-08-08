@@ -1293,11 +1293,10 @@ void RecoverAfterSL(const string system)
    bool   isBuy    = (lastType == OP_BUY);
    double reSlippagePips = SlippagePips;
    int    slippage = (int)MathRound(reSlippagePips * Pip() / Point);
-   string flagInfo;
-   if(UseProtectedLimit)
-      flagInfo = StringFormat("UseProtectedLimit=true slippage=%d", slippage);
-   else
-      flagInfo = StringFormat("UseProtectedLimit=false slippage=%d", slippage);
+   if(!UseProtectedLimit)
+      slippage = 0;
+   string flagInfo = StringFormat("UseProtectedLimit=%s slippage=%d",
+                                  UseProtectedLimit ? "true" : "false", slippage);
    RefreshRates();
    double price    = isBuy ? Ask : Bid;
    price           = NormalizeDouble(price, Digits);
