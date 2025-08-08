@@ -440,7 +440,15 @@ double CalcLot(const string system,string &seq,double &lotFactor)
    }
 
    lotFactor          = state.NextLot();
-   seq                = "(" + state.Seq() + ")";
+   string seqCore;
+   if(!state.Seq(seqCore))
+   {
+      PrintFormat("Seq length overflow for system %s", system);
+      seq="";
+      lotFactor=0.0;
+      return(0.0);
+   }
+   seq                = "(" + seqCore + ")";
    double lotCandidate = BaseLot * lotFactor;
    if(lotFactor <= 0)
       return(0.0);
@@ -452,7 +460,14 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       SaveDMCState(system, *state, err);
 
       lotFactor    = state.NextLot();
-      seq          = "(" + state.Seq() + ")";
+      if(!state.Seq(seqCore))
+      {
+         PrintFormat("Seq length overflow for system %s", system);
+         seq="";
+         lotFactor=0.0;
+         return(0.0);
+      }
+      seq          = "(" + seqCore + ")";
       if(lotFactor <= 0)
       {
          LogRecord lr;
@@ -521,33 +536,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
 //+------------------------------------------------------------------+
 string MakeComment(const string system,const string seq)
 {
-   string base64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-   string cleaned = "";
-   for(int i=0; i<StringLen(seq); i++)
-   {
-      int ch = StringGetChar(seq, i);
-      if(ch=='(' || ch==')' || ch==' ')
-         continue;
-      cleaned += StringSubstr(seq, i, 1);
-   }
-
-   string parts[]; int cnt = StringSplit(cleaned, ",", parts);
-   string encoded = "";
-   bool ok = true;
-   for(int i=0; i<cnt; i++)
-   {
-      int v = (int)StringToInteger(parts[i]);
-      if(v < 0 || v >= 64)
-      {
-         ok = false; break;
-      }
-      encoded += StringSubstr(base64, v, 1);
-   }
-
-   if(!ok)
-      encoded = cleaned; // fallback without compression if out of range
-
-   string comment = StringFormat("MoveCatcher_%s_%s", system, encoded);
+   string comment = StringFormat("MoveCatcher_%s_%s", system, seq);
    if(StringLen(comment) > 31)
       comment = StringSubstr(comment, 0, 31); // final safeguard
    return(comment);
@@ -572,30 +561,14 @@ bool ParseComment(const string comment,string &system,string &seq)
       return(false);
 
    system=StringSubstr(comment,prefixLen,pos-prefixLen);
-   string enc=StringSubstr(comment,pos+1);
+   seq=StringSubstr(comment,pos+1);
 
    if(system!="A" && system!="B")
    {
-      system=""; seq=""; return(false);
+      system="";
+      seq="";
+      return(false);
    }
-
-   string base64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-   string decoded = "";
-   for(int i=0; i<StringLen(enc); i++)
-   {
-      string ch = StringSubstr(enc, i, 1);
-      int idx = StringFind(base64, ch);
-      if(idx < 0)
-      {
-         // treat remaining as raw string (fallback)
-         decoded = enc;
-         seq = decoded;
-         return(true);
-      }
-      if(i) decoded += ",";
-      decoded += IntegerToString(idx);
-   }
-   seq = "(" + decoded + ")";
    return(true);
 }
 
