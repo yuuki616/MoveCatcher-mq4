@@ -135,9 +135,9 @@ void WriteLog(const LogRecord &rec)
          rec.CommentTag,
          rec.Magic,
          rec.OrderType,
-         DoubleToString(rec.EntryPrice,Digits),
-         DoubleToString(rec.SL,Digits),
-         DoubleToString(rec.TP,Digits),
+         DoubleToString(rec.EntryPrice,_Digits),
+         DoubleToString(rec.SL,_Digits),
+         DoubleToString(rec.TP,_Digits),
          rec.ErrorCode,
          rec.ErrorInfo);
       if(written <= 0)
@@ -167,9 +167,9 @@ void WriteLog(const LogRecord &rec)
                rec.CommentTag,
                rec.Magic,
                rec.OrderType,
-               Digits, rec.EntryPrice,
-               Digits, rec.SL,
-               Digits, rec.TP,
+               _Digits, rec.EntryPrice,
+               _Digits, rec.SL,
+               _Digits, rec.TP,
                lr.ErrorCode,
                lr.ErrorInfo);
 }
@@ -182,7 +182,7 @@ bool IsStep(const double value,const double step)
 
 double Pip()
 {
-   return((Digits == 3 || Digits == 5) ? 10 * Point : Point);
+   return((_Digits == 3 || _Digits == 5) ? 10 * _Point : _Point);
 }
 
 double PipsToPrice(const double p)
@@ -397,12 +397,12 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
       return(false);
    }
 
-   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
-   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * _Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * _Point;
 
    // 注文方向に応じた基準価格を取得
    double ref  = isBuy ? Ask : Bid;
-   price       = NormalizeDouble(price, Digits);
+   price       = NormalizeDouble(price, _Digits);
    double dist = price - ref;
    double absDist = MathAbs(dist);
 
@@ -410,7 +410,7 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
    if((isBuy && dist >= 0) || (!isBuy && dist <= 0))
    {
       PrintFormat("CanPlaceOrder: price %.*f on wrong side of %s %.*f",
-                  Digits, price, isBuy ? "Ask" : "Bid", Digits, ref);
+                  _Digits, price, isBuy ? "Ask" : "Bid", _Digits, ref);
       errorInfo = "Wrong direction";
       return(false);
    }
@@ -418,7 +418,7 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
    if(absDist < freezeLevel)
    {
       PrintFormat("CanPlaceOrder: price %.*f within freeze level %.1f pips, retry next tick",
-                  Digits, price, PriceToPips(freezeLevel));
+                  _Digits, price, PriceToPips(freezeLevel));
       errorInfo = "FreezeLevel violation";
       return(false);
    }
@@ -427,9 +427,9 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
    {
       double oldPrice = price;
       price = isBuy ? ref - stopLevel : ref + stopLevel;
-      price = NormalizeDouble(price, Digits);
+      price = NormalizeDouble(price, _Digits);
       PrintFormat("CanPlaceOrder: price adjusted from %.*f to %.*f due to stop level %.1f pips",
-                  Digits, oldPrice, Digits, price, PriceToPips(stopLevel));
+                  _Digits, oldPrice, _Digits, price, PriceToPips(stopLevel));
 
       // StopLevel 補正後に距離を再計算し、方向と FreezeLevel を再チェック
       dist     = price - ref;
@@ -437,14 +437,14 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
       if((isBuy && dist >= 0) || (!isBuy && dist <= 0))
       {
          PrintFormat("CanPlaceOrder: adjusted price %.*f on wrong side of %s %.*f",
-                     Digits, price, isBuy ? "Ask" : "Bid", Digits, ref);
+                     _Digits, price, isBuy ? "Ask" : "Bid", _Digits, ref);
          errorInfo = "Wrong direction";
          return(false);
       }
       if(absDist < freezeLevel)
       {
          PrintFormat("CanPlaceOrder: price %.*f within freeze level %.1f pips after stop adjustment, retry next tick",
-                     Digits, price, PriceToPips(freezeLevel));
+                     _Digits, price, PriceToPips(freezeLevel));
          errorInfo = "FreezeLevel violation";
          return(false);
       }
@@ -961,12 +961,12 @@ void EnsureTPSL(const int ticket)
    double desiredTP = isBuy ? entry + PipsToPrice(GridPips)
                             : entry - PipsToPrice(GridPips);
 
-   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
-   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * _Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * _Point;
    double minDist     = MathMax(stopLevel, freezeLevel);
 
-   desiredSL = NormalizeDouble(desiredSL, Digits);
-   desiredTP = NormalizeDouble(desiredTP, Digits);
+   desiredSL = NormalizeDouble(desiredSL, _Digits);
+   desiredTP = NormalizeDouble(desiredTP, _Digits);
    double tol = Pip() * 0.5;
    bool needModify = (OrderStopLoss() == 0 || OrderTakeProfit() == 0 ||
                       MathAbs(OrderStopLoss() - desiredSL) > tol ||
@@ -1115,7 +1115,7 @@ void EnsureShadowOrder(const int ticket,const string system)
 
    double price = isBuy ? entry + PipsToPrice(GridPips)
                         : entry - PipsToPrice(GridPips);
-   price = NormalizeDouble(price, Digits);
+   price = NormalizeDouble(price, _Digits);
    int type = isBuy ? OP_SELLLIMIT : OP_BUYLIMIT;
    if(!RefreshRatesChecked(__FUNCTION__))
       return;
@@ -1223,7 +1223,7 @@ void EnsureShadowOrder(const int ticket,const string system)
       PrintFormat("EnsureShadowOrder: replaced shadow order for %s", system);
    }
 
-   price = NormalizeDouble(price, Digits);
+   price = NormalizeDouble(price, _Digits);
    if(!RefreshRatesChecked(__FUNCTION__))
       return;
    ResetLastError();
@@ -1368,17 +1368,17 @@ void RecoverAfterSL(const string system)
 
    bool   isBuy    = (lastType == OP_BUY);
    double reSlippagePips = SlippagePips;
-   int    slippage = (int)MathRound(reSlippagePips * Pip() / Point); // always apply SlippagePips (UseProtectedLimit only toggles protection)
+   int    slippage = (int)MathRound(reSlippagePips * Pip() / _Point); // always apply SlippagePips (UseProtectedLimit only toggles protection)
    string flagInfo = StringFormat("UseProtectedLimit=%s slippage=%d",
                                   UseProtectedLimit ? "true" : "false", slippage);
    if(!RefreshRatesChecked(__FUNCTION__))
       return;
    double price    = isBuy ? Ask : Bid;
-   price           = NormalizeDouble(price, Digits);
-   double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), Digits);
-   double tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), Digits);
-   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
-   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   price           = NormalizeDouble(price, _Digits);
+   double sl       = NormalizeDouble(isBuy ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips), _Digits);
+   double tp       = NormalizeDouble(isBuy ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips), _Digits);
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * _Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * _Point;
    double minLevel    = MathMax(stopLevel, freezeLevel);
 
    bool violateSend = false;
@@ -1400,7 +1400,7 @@ void RecoverAfterSL(const string system)
    double dist     = DistanceToExistingPositions(price);
    // SL復帰時はSpreadおよび距離帯のチェックを行わない
    int type        = isBuy ? OP_BUY : OP_SELL;
-   price           = NormalizeDouble(price, Digits);
+   price           = NormalizeDouble(price, _Digits);
    ResetLastError();
    int ticket      = OrderSend(Symbol(), type, lot, price,
                                slippage, sl, tp, comment, MagicNumber, 0, clrNONE);
@@ -1448,11 +1448,11 @@ void RecoverAfterSL(const string system)
    double entry = OrderOpenPrice();
    double desiredSL = isBuy ? entry - PipsToPrice(GridPips) : entry + PipsToPrice(GridPips);
    double desiredTP = isBuy ? entry + PipsToPrice(GridPips) : entry - PipsToPrice(GridPips);
-   stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
-   freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * _Point;
+   freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * _Point;
    minLevel    = MathMax(stopLevel, freezeLevel);
-   desiredSL = NormalizeDouble(desiredSL, Digits);
-   desiredTP = NormalizeDouble(desiredTP, Digits);
+   desiredSL = NormalizeDouble(desiredSL, _Digits);
+   desiredTP = NormalizeDouble(desiredTP, _Digits);
    double tol = Pip() * 0.5;
    bool needModify = (OrderStopLoss() == 0 || OrderTakeProfit() == 0 ||
                       MathAbs(OrderStopLoss() - desiredSL) > tol ||
@@ -1540,7 +1540,7 @@ void CloseAllOrders(const string reason)
    bool updateDMC = (reason != "RESET_ALIVE" && reason != "RESET_SNAP");
    if(!RefreshRatesChecked(__FUNCTION__))
       Print("CloseAllOrders: RefreshRatesChecked failed at start");
-   int slippage = (int)MathRound(SlippagePips * Pip() / Point);
+   int slippage = (int)MathRound(SlippagePips * Pip() / _Point);
    for(int i = OrdersTotal()-1; i >= 0; i--)
    {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
@@ -1651,7 +1651,7 @@ void CorrectDuplicatePositions()
    if(!RefreshRatesChecked(__FUNCTION__))
       return;
 
-   int slippage = (int)MathRound(SlippagePips * Pip() / Point);
+   int slippage = (int)MathRound(SlippagePips * Pip() / _Point);
 
    int ticketsA[]; datetime timesA[];
    int ticketsB[]; datetime timesB[];
@@ -1822,8 +1822,8 @@ bool PlaceRefillOrders(const string system,const double refPrice)
    string comment  = MakeComment(system, seq);
    double priceSell = refPrice + PipsToPrice(s);
    double priceBuy  = refPrice - PipsToPrice(s);
-   priceSell = NormalizeDouble(priceSell, Digits);
-   priceBuy  = NormalizeDouble(priceBuy, Digits);
+   priceSell = NormalizeDouble(priceSell, _Digits);
+   priceBuy  = NormalizeDouble(priceBuy, _Digits);
    int ticketSell = -1;
    int ticketBuy  = -1;
    bool okSell = true;
@@ -2058,9 +2058,9 @@ bool InitStrategy()
    if(lotA <= 0) return(false);
 
    bool isBuy = (MathRand() % 2) == 0;
-   int    slippage = (int)MathRound(SlippagePips * Pip() / Point);
+   int    slippage = (int)MathRound(SlippagePips * Pip() / _Point);
    double price    = isBuy ? Ask : Bid;
-   price           = NormalizeDouble(price, Digits);
+   price           = NormalizeDouble(price, _Digits);
    double entrySL, entryTP;
    if(isBuy)
    {
@@ -2073,8 +2073,8 @@ bool InitStrategy()
       entryTP = price - PipsToPrice(GridPips);
    }
 
-   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
-   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * _Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * _Point;
    double minLevel    = MathMax(stopLevel, freezeLevel);
 
    double distSL = MathAbs(price - entrySL);
@@ -2082,9 +2082,9 @@ bool InitStrategy()
    {
       double oldSL = entrySL;
       entrySL = isBuy ? price - minLevel : price + minLevel;
-      entrySL = NormalizeDouble(entrySL, Digits);
+      entrySL = NormalizeDouble(entrySL, _Digits);
       PrintFormat("InitStrategy: SL adjusted from %.*f to %.*f due to min distance %.1f pips",
-                  Digits, oldSL, Digits, entrySL, PriceToPips(minLevel));
+                  _Digits, oldSL, _Digits, entrySL, PriceToPips(minLevel));
    }
 
    double distTP = MathAbs(entryTP - price);
@@ -2092,9 +2092,9 @@ bool InitStrategy()
    {
       double oldTP = entryTP;
       entryTP = isBuy ? price + minLevel : price - minLevel;
-      entryTP = NormalizeDouble(entryTP, Digits);
+      entryTP = NormalizeDouble(entryTP, _Digits);
       PrintFormat("InitStrategy: TP adjusted from %.*f to %.*f due to min distance %.1f pips",
-                  Digits, oldTP, Digits, entryTP, PriceToPips(minLevel));
+                  _Digits, oldTP, _Digits, entryTP, PriceToPips(minLevel));
    }
    string commentA = MakeComment("A", seqA);
    double distA    = DistanceToExistingPositions(price);
@@ -2132,7 +2132,7 @@ bool InitStrategy()
    if(!RefreshRatesChecked(__FUNCTION__))
       return(false);
    price = isBuy ? Ask : Bid;
-   price = NormalizeDouble(price, Digits);
+   price = NormalizeDouble(price, _Digits);
    if(price != oldPrice)
    {
       if(isBuy)
@@ -2151,9 +2151,9 @@ bool InitStrategy()
       {
          double oldSL = entrySL;
          entrySL = isBuy ? price - minLevel : price + minLevel;
-         entrySL = NormalizeDouble(entrySL, Digits);
+         entrySL = NormalizeDouble(entrySL, _Digits);
          PrintFormat("InitStrategy: SL adjusted from %.*f to %.*f due to min distance %.1f pips",
-                     Digits, oldSL, Digits, entrySL, PriceToPips(minLevel));
+                     _Digits, oldSL, _Digits, entrySL, PriceToPips(minLevel));
       }
 
       distTP = MathAbs(entryTP - price);
@@ -2161,9 +2161,9 @@ bool InitStrategy()
       {
          double oldTP = entryTP;
          entryTP = isBuy ? price + minLevel : price - minLevel;
-         entryTP = NormalizeDouble(entryTP, Digits);
+         entryTP = NormalizeDouble(entryTP, _Digits);
          PrintFormat("InitStrategy: TP adjusted from %.*f to %.*f due to min distance %.1f pips",
-                     Digits, oldTP, Digits, entryTP, PriceToPips(minLevel));
+                     _Digits, oldTP, _Digits, entryTP, PriceToPips(minLevel));
       }
    }
    distA = DistanceToExistingPositions(price);
@@ -2199,7 +2199,7 @@ bool InitStrategy()
 
    double spread = PriceToPips(MathAbs(Ask - Bid)); // 参考情報のみ（成行では判定しない）
 
-   price       = NormalizeDouble(price, Digits);
+   price       = NormalizeDouble(price, _Digits);
    ResetLastError();
    int ticketA = OrderSend(Symbol(), typeA, lotA, price,
                            slippage, entrySL, entryTP, commentA, MagicNumber, 0, clrNONE);
@@ -2250,8 +2250,8 @@ bool InitStrategy()
 
    double priceSell = entryPrice + PipsToPrice(s);
    double priceBuy  = entryPrice - PipsToPrice(s);
-   stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
-   freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * _Point;
+   freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * _Point;
 
    int ticketSell = -1;
    int ticketBuy  = -1;
@@ -2286,7 +2286,7 @@ bool InitStrategy()
       lrS.ErrorInfo  = "Freeze level violation";
       WriteLog(lrS);
       PrintFormat("InitStrategy: SellLimit %.*f within freeze level %.1f pips, retry next tick",
-                  Digits, priceSell, PriceToPips(freezeLevel));
+                  _Digits, priceSell, PriceToPips(freezeLevel));
       okSell = false;
    }
    else
@@ -2294,9 +2294,9 @@ bool InitStrategy()
       if(distSell < stopLevel)
       {
          double oldS = priceSell;
-         priceSell = NormalizeDouble(Bid + stopLevel, Digits);
+         priceSell = NormalizeDouble(Bid + stopLevel, _Digits);
          PrintFormat("InitStrategy: SellLimit adjusted from %.*f to %.*f due to stop level %.1f pips",
-                     Digits, oldS, Digits, priceSell, PriceToPips(stopLevel));
+                     _Digits, oldS, _Digits, priceSell, PriceToPips(stopLevel));
       }
       double distBand = DistanceToExistingPositions(priceSell);
       if(UseDistanceBand && distBand >= 0 && (distBand < MinDistancePips || distBand > MaxDistancePips))
@@ -2426,7 +2426,7 @@ bool InitStrategy()
       lrB.ErrorInfo  = "Freeze level violation";
       WriteLog(lrB);
       PrintFormat("InitStrategy: BuyLimit %.*f within freeze level %.1f pips, retry next tick",
-                  Digits, priceBuy, PriceToPips(freezeLevel));
+                  _Digits, priceBuy, PriceToPips(freezeLevel));
       okBuy = false;
    }
    else
@@ -2434,9 +2434,9 @@ bool InitStrategy()
       if(distBuy < stopLevel)
       {
          double oldB = priceBuy;
-         priceBuy = NormalizeDouble(Ask - stopLevel, Digits);
+         priceBuy = NormalizeDouble(Ask - stopLevel, _Digits);
          PrintFormat("InitStrategy: BuyLimit adjusted from %.*f to %.*f due to stop level %.1f pips",
-                     Digits, oldB, Digits, priceBuy, PriceToPips(stopLevel));
+                     _Digits, oldB, _Digits, priceBuy, PriceToPips(stopLevel));
       }
       double distBandB = DistanceToExistingPositions(priceBuy);
       if(UseDistanceBand && distBandB >= 0 && (distBandB < MinDistancePips || distBandB > MaxDistancePips))
@@ -2704,22 +2704,22 @@ void HandleOCODetectionFor(const string system)
          return;
       double price = (retryType == OP_BUY) ? Ask : Bid;
       double dist = DistanceToExistingPositions(price);
-      int slippage = (int)MathRound(SlippagePips * Pip() / Point);
+      int slippage = (int)MathRound(SlippagePips * Pip() / _Point);
       double slInit = (retryType == OP_BUY) ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips);
       double tpInit = (retryType == OP_BUY) ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips);
-      double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL)   * Point;
-      double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+      double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL)   * _Point;
+      double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * _Point;
       double distSL      = MathAbs(price - slInit);
       double distTP      = MathAbs(tpInit - price);
       if(distSL < stopLevel)
       {
          slInit = (retryType == OP_BUY) ? price - stopLevel : price + stopLevel;
-         slInit = NormalizeDouble(slInit, Digits);
+         slInit = NormalizeDouble(slInit, _Digits);
       }
       if(distTP < stopLevel)
       {
          tpInit = (retryType == OP_BUY) ? price + stopLevel : price - stopLevel;
-         tpInit = NormalizeDouble(tpInit, Digits);
+         tpInit = NormalizeDouble(tpInit, _Digits);
       }
       if(distSL < freezeLevel || distTP < freezeLevel)
       {
@@ -2748,8 +2748,8 @@ void HandleOCODetectionFor(const string system)
          WriteLog(lrFail);
          return;
       }
-      slInit = NormalizeDouble(slInit, Digits);
-      tpInit = NormalizeDouble(tpInit, Digits);
+      slInit = NormalizeDouble(slInit, _Digits);
+      tpInit = NormalizeDouble(tpInit, _Digits);
       if((retryType == OP_BUY && (slInit >= price || tpInit <= price)) ||
          (retryType == OP_SELL && (slInit <= price || tpInit >= price)))
       {
@@ -2946,7 +2946,7 @@ void HandleOCODetectionFor(const string system)
       double oldLots   = OrderLots();
       double closePrice = (type == OP_BUY) ? Bid : Ask;
       string sysTmp, oldSeq; ParseComment(OrderComment(), sysTmp, oldSeq);
-      int slippage = (int)MathRound(SlippagePips * Pip() / Point);
+      int slippage = (int)MathRound(SlippagePips * Pip() / _Point);
       int errClose = 0;
       ResetLastError();
       if(!OrderClose(posTicket, oldLots, closePrice, slippage, clrNONE))
@@ -2984,7 +2984,7 @@ void HandleOCODetectionFor(const string system)
          return;
       double price = (type == OP_BUY) ? Ask : Bid;
       double dist = DistanceToExistingPositions(price);
-      slippage = (int)MathRound(SlippagePips * Pip() / Point);
+      slippage = (int)MathRound(SlippagePips * Pip() / _Point);
       double slInit, tpInit;
       if(type == OP_BUY)
       {
@@ -2996,26 +2996,26 @@ void HandleOCODetectionFor(const string system)
          slInit = price + PipsToPrice(GridPips);
          tpInit = price - PipsToPrice(GridPips);
       }
-      double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL)   * Point;
-      double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+      double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL)   * _Point;
+      double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * _Point;
       double distSL      = MathAbs(price - slInit);
       double distTP      = MathAbs(tpInit - price);
       if(distSL < stopLevel)
       {
          double old = slInit;
          slInit = (type == OP_BUY) ? price - stopLevel : price + stopLevel;
-         slInit = NormalizeDouble(slInit, Digits);
+         slInit = NormalizeDouble(slInit, _Digits);
          PrintFormat("HandleOCODetectionFor: SL adjusted from %.*f to %.*f due to stop level %.1f pips",
-                     Digits, old, Digits, slInit, PriceToPips(stopLevel));
+                     _Digits, old, _Digits, slInit, PriceToPips(stopLevel));
          distSL = MathAbs(price - slInit);
       }
       if(distTP < stopLevel)
       {
          double old = tpInit;
          tpInit = (type == OP_BUY) ? price + stopLevel : price - stopLevel;
-         tpInit = NormalizeDouble(tpInit, Digits);
+         tpInit = NormalizeDouble(tpInit, _Digits);
          PrintFormat("HandleOCODetectionFor: TP adjusted from %.*f to %.*f due to stop level %.1f pips",
-                     Digits, old, Digits, tpInit, PriceToPips(stopLevel));
+                     _Digits, old, _Digits, tpInit, PriceToPips(stopLevel));
          distTP = MathAbs(tpInit - price);
       }
       if(distSL < freezeLevel || distTP < freezeLevel)
@@ -3051,8 +3051,8 @@ void HandleOCODetectionFor(const string system)
             retryTicketB = -1;
          return;
       }
-      slInit = NormalizeDouble(slInit, Digits);
-      tpInit = NormalizeDouble(tpInit, Digits);
+      slInit = NormalizeDouble(slInit, _Digits);
+      tpInit = NormalizeDouble(tpInit, _Digits);
       if((type == OP_BUY && (slInit >= price || tpInit <= price)) ||
          (type == OP_SELL && (slInit <= price || tpInit >= price)))
       {
@@ -3264,8 +3264,8 @@ void HandleOCODetectionFor(const string system)
       return;
    double entry = OrderOpenPrice();
    double sl, tp;
-   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * Point;
-   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * Point;
+   double stopLevel   = MarketInfo(Symbol(), MODE_STOPLEVEL) * _Point;
+   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL) * _Point;
    double minDist     = MathMax(stopLevel, freezeLevel);
    if(OrderType() == OP_BUY)
    {
@@ -3285,8 +3285,8 @@ void HandleOCODetectionFor(const string system)
       if(Ask - tp < minDist)
          tp = Ask - minDist;
    }
-   sl = NormalizeDouble(sl, Digits);
-   tp = NormalizeDouble(tp, Digits);
+   sl = NormalizeDouble(sl, _Digits);
+   tp = NormalizeDouble(tp, _Digits);
 
    int err = 0;
    ResetLastError();
