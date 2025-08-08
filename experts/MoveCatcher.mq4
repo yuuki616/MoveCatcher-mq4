@@ -457,12 +457,12 @@ double CalcLot(const string system,string &seq,double &lotFactor)
    if(lotCandidate > MaxLot)
    {
       state.Init();
+      lotFactor    = state.NextLot();
       int err = 0;
       bool ok = SaveDMCState(system, *state, err);
       if(!ok && err != 0)
-         PrintFormat("SaveDMCState(%s) err=%d", system, err);
+         PrintFormat("SaveDMCState(%s) err=%d %s", system, err, ErrorDescription(err));
 
-      lotFactor    = state.NextLot();
       if(!state.Seq(seqCore, seqMaxLen))
       {
          PrintFormat("Seq length overflow for system %s", system);
@@ -494,6 +494,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
          lr.SL         = 0;
          lr.TP         = 0;
          lr.ErrorCode  = err;
+         lr.ErrorInfo  = (err != 0) ? ErrorDescription(err) : "";
          WriteLog(lr);
          return(0.0);
       }
@@ -523,6 +524,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       lr.SL         = 0;
       lr.TP         = 0;
       lr.ErrorCode  = err;
+      lr.ErrorInfo  = (err != 0) ? ErrorDescription(err) : "";
       WriteLog(lr);
 
       return(lotActual);
