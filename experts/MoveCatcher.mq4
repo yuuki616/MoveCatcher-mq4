@@ -381,50 +381,47 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
    double dist = price - ref;
    double absDist = MathAbs(dist);
 
-   if(absDist > 0)
+   // 方向チェック: BuyLimit は Ask 未満 / SellLimit は Bid 超過
+   if((isBuy && dist >= 0) || (!isBuy && dist <= 0))
    {
-      // 方向チェック: BuyLimit は Ask 未満 / SellLimit は Bid 超過
+      PrintFormat("CanPlaceOrder: price %.*f on wrong side of %s %.*f",
+                  Digits, price, isBuy ? "Ask" : "Bid", Digits, ref);
+      errorInfo = "Wrong direction";
+      return(false);
+   }
+
+   if(absDist < freezeLevel)
+   {
+      PrintFormat("CanPlaceOrder: price %.*f within freeze level %.1f pips, retry next tick",
+                  Digits, price, PriceToPips(freezeLevel));
+      errorInfo = "FreezeLevel violation";
+      return(false);
+   }
+
+   if(absDist < stopLevel)
+   {
+      double oldPrice = price;
+      price = isBuy ? ref - stopLevel : ref + stopLevel;
+      price = NormalizeDouble(price, Digits);
+      PrintFormat("CanPlaceOrder: price adjusted from %.*f to %.*f due to stop level %.1f pips",
+                  Digits, oldPrice, Digits, price, PriceToPips(stopLevel));
+
+      // StopLevel 補正後に距離を再計算し、方向と FreezeLevel を再チェック
+      dist     = price - ref;
+      absDist  = MathAbs(dist);
       if((isBuy && dist >= 0) || (!isBuy && dist <= 0))
       {
-         PrintFormat("CanPlaceOrder: price %.*f on wrong side of %s %.*f",
+         PrintFormat("CanPlaceOrder: adjusted price %.*f on wrong side of %s %.*f",
                      Digits, price, isBuy ? "Ask" : "Bid", Digits, ref);
          errorInfo = "Wrong direction";
          return(false);
       }
-
       if(absDist < freezeLevel)
       {
-         PrintFormat("CanPlaceOrder: price %.*f within freeze level %.1f pips, retry next tick",
+         PrintFormat("CanPlaceOrder: price %.*f within freeze level %.1f pips after stop adjustment, retry next tick",
                      Digits, price, PriceToPips(freezeLevel));
          errorInfo = "FreezeLevel violation";
          return(false);
-      }
-
-      if(absDist < stopLevel)
-      {
-         double oldPrice = price;
-         price = isBuy ? ref - stopLevel : ref + stopLevel;
-         price = NormalizeDouble(price, Digits);
-         PrintFormat("CanPlaceOrder: price adjusted from %.*f to %.*f due to stop level %.1f pips",
-                     Digits, oldPrice, Digits, price, PriceToPips(stopLevel));
-
-         // StopLevel 補正後に距離を再計算し、方向と FreezeLevel を再チェック
-         dist     = price - ref;
-         absDist  = MathAbs(dist);
-         if((isBuy && dist >= 0) || (!isBuy && dist <= 0))
-         {
-            PrintFormat("CanPlaceOrder: adjusted price %.*f on wrong side of %s %.*f",
-                        Digits, price, isBuy ? "Ask" : "Bid", Digits, ref);
-            errorInfo = "Wrong direction";
-            return(false);
-         }
-         if(absDist < freezeLevel)
-         {
-            PrintFormat("CanPlaceOrder: price %.*f within freeze level %.1f pips after stop adjustment, retry next tick",
-                        Digits, price, PriceToPips(freezeLevel));
-            errorInfo = "FreezeLevel violation";
-            return(false);
-         }
       }
    }
 
