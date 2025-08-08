@@ -360,8 +360,8 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
    // 方向チェック: BuyLimit は Ask 未満 / SellLimit は Bid 超過
    if((isBuy && dist >= 0) || (!isBuy && dist <= 0))
    {
-      PrintFormat("CanPlaceOrder: price %.5f on wrong side of %s %.5f",
-                  price, isBuy ? "Ask" : "Bid", ref);
+      PrintFormat("CanPlaceOrder: price %.*f on wrong side of %s %.*f",
+                  Digits, price, isBuy ? "Ask" : "Bid", Digits, ref);
       errorInfo = "Wrong direction";
       return(false);
    }
@@ -369,8 +369,8 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
    double absDist = MathAbs(dist);
    if(absDist < freezeLevel)
    {
-      PrintFormat("CanPlaceOrder: price %.5f within freeze level %.1f pips, retry next tick",
-                  price, PriceToPips(freezeLevel));
+      PrintFormat("CanPlaceOrder: price %.*f within freeze level %.1f pips, retry next tick",
+                  Digits, price, PriceToPips(freezeLevel));
       errorInfo = "FreezeLevel violation";
       return(false);
    }
@@ -380,23 +380,23 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
       double oldPrice = price;
       price = isBuy ? ref - stopLevel : ref + stopLevel;
       price = NormalizeDouble(price, Digits);
-      PrintFormat("CanPlaceOrder: price adjusted from %.5f to %.5f due to stop level %.1f pips",
-                  oldPrice, price, PriceToPips(stopLevel));
+      PrintFormat("CanPlaceOrder: price adjusted from %.*f to %.*f due to stop level %.1f pips",
+                  Digits, oldPrice, Digits, price, PriceToPips(stopLevel));
 
       // StopLevel 補正後に距離を再計算し、方向と FreezeLevel を再チェック
       dist     = price - ref;
       absDist  = MathAbs(dist);
       if((isBuy && dist >= 0) || (!isBuy && dist <= 0))
       {
-         PrintFormat("CanPlaceOrder: adjusted price %.5f on wrong side of %s %.5f",
-                     price, isBuy ? "Ask" : "Bid", ref);
+         PrintFormat("CanPlaceOrder: adjusted price %.*f on wrong side of %s %.*f",
+                     Digits, price, isBuy ? "Ask" : "Bid", Digits, ref);
          errorInfo = "Wrong direction";
          return(false);
       }
       if(absDist < freezeLevel)
       {
-         PrintFormat("CanPlaceOrder: price %.5f within freeze level %.1f pips after stop adjustment, retry next tick",
-                     price, PriceToPips(freezeLevel));
+         PrintFormat("CanPlaceOrder: price %.*f within freeze level %.1f pips after stop adjustment, retry next tick",
+                     Digits, price, PriceToPips(freezeLevel));
          errorInfo = "FreezeLevel violation";
          return(false);
       }
@@ -1975,8 +1975,8 @@ bool InitStrategy()
       double oldSL = entrySL;
       entrySL = isBuy ? price - minLevel : price + minLevel;
       entrySL = NormalizeDouble(entrySL, Digits);
-      PrintFormat("InitStrategy: SL adjusted from %.5f to %.5f due to min distance %.1f pips",
-                  oldSL, entrySL, PriceToPips(minLevel));
+      PrintFormat("InitStrategy: SL adjusted from %.*f to %.*f due to min distance %.1f pips",
+                  Digits, oldSL, Digits, entrySL, PriceToPips(minLevel));
    }
 
    double distTP = MathAbs(entryTP - price);
@@ -1985,8 +1985,8 @@ bool InitStrategy()
       double oldTP = entryTP;
       entryTP = isBuy ? price + minLevel : price - minLevel;
       entryTP = NormalizeDouble(entryTP, Digits);
-      PrintFormat("InitStrategy: TP adjusted from %.5f to %.5f due to min distance %.1f pips",
-                  oldTP, entryTP, PriceToPips(minLevel));
+      PrintFormat("InitStrategy: TP adjusted from %.*f to %.*f due to min distance %.1f pips",
+                  Digits, oldTP, Digits, entryTP, PriceToPips(minLevel));
    }
    string commentA = MakeComment("A", seqA);
    double distA    = DistanceToExistingPositions(price);
@@ -2043,8 +2043,8 @@ bool InitStrategy()
          double oldSL = entrySL;
          entrySL = isBuy ? price - minLevel : price + minLevel;
          entrySL = NormalizeDouble(entrySL, Digits);
-         PrintFormat("InitStrategy: SL adjusted from %.5f to %.5f due to min distance %.1f pips",
-                     oldSL, entrySL, PriceToPips(minLevel));
+         PrintFormat("InitStrategy: SL adjusted from %.*f to %.*f due to min distance %.1f pips",
+                     Digits, oldSL, Digits, entrySL, PriceToPips(minLevel));
       }
 
       distTP = MathAbs(entryTP - price);
@@ -2053,8 +2053,8 @@ bool InitStrategy()
          double oldTP = entryTP;
          entryTP = isBuy ? price + minLevel : price - minLevel;
          entryTP = NormalizeDouble(entryTP, Digits);
-         PrintFormat("InitStrategy: TP adjusted from %.5f to %.5f due to min distance %.1f pips",
-                     oldTP, entryTP, PriceToPips(minLevel));
+         PrintFormat("InitStrategy: TP adjusted from %.*f to %.*f due to min distance %.1f pips",
+                     Digits, oldTP, Digits, entryTP, PriceToPips(minLevel));
       }
    }
    distA = DistanceToExistingPositions(price);
@@ -2176,8 +2176,8 @@ bool InitStrategy()
       lrS.ErrorCode  = ERR_INVALID_STOPS;
       lrS.ErrorInfo  = "Freeze level violation";
       WriteLog(lrS);
-      PrintFormat("InitStrategy: SellLimit %.5f within freeze level %.1f pips, retry next tick",
-                  priceSell, PriceToPips(freezeLevel));
+      PrintFormat("InitStrategy: SellLimit %.*f within freeze level %.1f pips, retry next tick",
+                  Digits, priceSell, PriceToPips(freezeLevel));
       okSell = false;
    }
    else
@@ -2186,8 +2186,8 @@ bool InitStrategy()
       {
          double oldS = priceSell;
          priceSell = NormalizeDouble(Bid + stopLevel, Digits);
-         PrintFormat("InitStrategy: SellLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
-                     oldS, priceSell, PriceToPips(stopLevel));
+         PrintFormat("InitStrategy: SellLimit adjusted from %.*f to %.*f due to stop level %.1f pips",
+                     Digits, oldS, Digits, priceSell, PriceToPips(stopLevel));
       }
       double distBand = DistanceToExistingPositions(priceSell);
       if(UseDistanceBand && distBand >= 0 && (distBand < MinDistancePips || distBand > MaxDistancePips))
@@ -2315,8 +2315,8 @@ bool InitStrategy()
       lrB.ErrorCode  = ERR_INVALID_STOPS;
       lrB.ErrorInfo  = "Freeze level violation";
       WriteLog(lrB);
-      PrintFormat("InitStrategy: BuyLimit %.5f within freeze level %.1f pips, retry next tick",
-                  priceBuy, PriceToPips(freezeLevel));
+      PrintFormat("InitStrategy: BuyLimit %.*f within freeze level %.1f pips, retry next tick",
+                  Digits, priceBuy, PriceToPips(freezeLevel));
       okBuy = false;
    }
    else
@@ -2325,8 +2325,8 @@ bool InitStrategy()
       {
          double oldB = priceBuy;
          priceBuy = NormalizeDouble(Ask - stopLevel, Digits);
-         PrintFormat("InitStrategy: BuyLimit adjusted from %.5f to %.5f due to stop level %.1f pips",
-                     oldB, priceBuy, PriceToPips(stopLevel));
+         PrintFormat("InitStrategy: BuyLimit adjusted from %.*f to %.*f due to stop level %.1f pips",
+                     Digits, oldB, Digits, priceBuy, PriceToPips(stopLevel));
       }
       double distBandB = DistanceToExistingPositions(priceBuy);
       if(UseDistanceBand && distBandB >= 0 && (distBandB < MinDistancePips || distBandB > MaxDistancePips))
@@ -2684,8 +2684,8 @@ void HandleOCODetectionFor(const string system)
          double old = slInit;
          slInit = (type == OP_BUY) ? price - stopLevel : price + stopLevel;
          slInit = NormalizeDouble(slInit, Digits);
-         PrintFormat("HandleOCODetectionFor: SL adjusted from %.5f to %.5f due to stop level %.1f pips",
-                     old, slInit, PriceToPips(stopLevel));
+         PrintFormat("HandleOCODetectionFor: SL adjusted from %.*f to %.*f due to stop level %.1f pips",
+                     Digits, old, Digits, slInit, PriceToPips(stopLevel));
          distSL = MathAbs(price - slInit);
       }
       if(distTP < stopLevel)
@@ -2693,8 +2693,8 @@ void HandleOCODetectionFor(const string system)
          double old = tpInit;
          tpInit = (type == OP_BUY) ? price + stopLevel : price - stopLevel;
          tpInit = NormalizeDouble(tpInit, Digits);
-         PrintFormat("HandleOCODetectionFor: TP adjusted from %.5f to %.5f due to stop level %.1f pips",
-                     old, tpInit, PriceToPips(stopLevel));
+         PrintFormat("HandleOCODetectionFor: TP adjusted from %.*f to %.*f due to stop level %.1f pips",
+                     Digits, old, Digits, tpInit, PriceToPips(stopLevel));
          distTP = MathAbs(tpInit - price);
       }
       if(distSL < freezeLevel || distTP < freezeLevel)
