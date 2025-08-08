@@ -80,10 +80,16 @@ string OrderTypeToStr(const int type)
 
 void WriteLog(const LogRecord &rec)
 {
+   ResetLastError();
    int handle = FileOpen("MoveCatcher.log", FILE_CSV|FILE_WRITE|FILE_READ|FILE_APPEND);
    string timeStr = TimeToString(rec.Time, TIME_DATE|TIME_SECONDS);
    double distNorm = MathMax(rec.Dist, 0);
-   if(handle != INVALID_HANDLE)
+   if(handle == INVALID_HANDLE)
+   {
+      int err = GetLastError();
+      PrintFormat("WriteLog: FileOpen err=%d %s", err, ErrorDescription(err));
+   }
+   else
    {
       FileWrite(handle,
          timeStr,
