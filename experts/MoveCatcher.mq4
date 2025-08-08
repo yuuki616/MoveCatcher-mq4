@@ -377,49 +377,52 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
    double ref  = isBuy ? Ask : Bid;
    price       = NormalizeDouble(price, Digits);
    double dist = price - ref;
-
-   // 方向チェック: BuyLimit は Ask 未満 / SellLimit は Bid 超過
-   if((isBuy && dist >= 0) || (!isBuy && dist <= 0))
-   {
-      PrintFormat("CanPlaceOrder: price %.*f on wrong side of %s %.*f",
-                  Digits, price, isBuy ? "Ask" : "Bid", Digits, ref);
-      errorInfo = "Wrong direction";
-      return(false);
-   }
-
    double absDist = MathAbs(dist);
-   if(absDist < freezeLevel)
-   {
-      PrintFormat("CanPlaceOrder: price %.*f within freeze level %.1f pips, retry next tick",
-                  Digits, price, PriceToPips(freezeLevel));
-      errorInfo = "FreezeLevel violation";
-      return(false);
-   }
 
-   if(absDist < stopLevel)
+   if(absDist > 0)
    {
-      double oldPrice = price;
-      price = isBuy ? ref - stopLevel : ref + stopLevel;
-      price = NormalizeDouble(price, Digits);
-      PrintFormat("CanPlaceOrder: price adjusted from %.*f to %.*f due to stop level %.1f pips",
-                  Digits, oldPrice, Digits, price, PriceToPips(stopLevel));
-
-      // StopLevel 補正後に距離を再計算し、方向と FreezeLevel を再チェック
-      dist     = price - ref;
-      absDist  = MathAbs(dist);
+      // 方向チェック: BuyLimit は Ask 未満 / SellLimit は Bid 超過
       if((isBuy && dist >= 0) || (!isBuy && dist <= 0))
       {
-         PrintFormat("CanPlaceOrder: adjusted price %.*f on wrong side of %s %.*f",
+         PrintFormat("CanPlaceOrder: price %.*f on wrong side of %s %.*f",
                      Digits, price, isBuy ? "Ask" : "Bid", Digits, ref);
          errorInfo = "Wrong direction";
          return(false);
       }
+
       if(absDist < freezeLevel)
       {
-         PrintFormat("CanPlaceOrder: price %.*f within freeze level %.1f pips after stop adjustment, retry next tick",
+         PrintFormat("CanPlaceOrder: price %.*f within freeze level %.1f pips, retry next tick",
                      Digits, price, PriceToPips(freezeLevel));
          errorInfo = "FreezeLevel violation";
          return(false);
+      }
+
+      if(absDist < stopLevel)
+      {
+         double oldPrice = price;
+         price = isBuy ? ref - stopLevel : ref + stopLevel;
+         price = NormalizeDouble(price, Digits);
+         PrintFormat("CanPlaceOrder: price adjusted from %.*f to %.*f due to stop level %.1f pips",
+                     Digits, oldPrice, Digits, price, PriceToPips(stopLevel));
+
+         // StopLevel 補正後に距離を再計算し、方向と FreezeLevel を再チェック
+         dist     = price - ref;
+         absDist  = MathAbs(dist);
+         if((isBuy && dist >= 0) || (!isBuy && dist <= 0))
+         {
+            PrintFormat("CanPlaceOrder: adjusted price %.*f on wrong side of %s %.*f",
+                        Digits, price, isBuy ? "Ask" : "Bid", Digits, ref);
+            errorInfo = "Wrong direction";
+            return(false);
+         }
+         if(absDist < freezeLevel)
+         {
+            PrintFormat("CanPlaceOrder: price %.*f within freeze level %.1f pips after stop adjustment, retry next tick",
+                        Digits, price, PriceToPips(freezeLevel));
+            errorInfo = "FreezeLevel violation";
+            return(false);
+         }
       }
    }
 
@@ -2778,6 +2781,45 @@ void HandleOCODetectionFor(const string system)
          lrFail.ErrorCode  = ERR_INVALID_STOPS;
          WriteLog(lrFail);
          Print("HandleOCODetectionFor: SL/TP on wrong side after adjustment, retry next tick");
+         if(system == "A")
+            retryTicketA = -1;
+         else
+            retryTicketB = -1;
+         return;
+      }
+      string errcp;
+      if(!CanPlaceOrder(price, (type == OP_BUY), errcp))
+      {
+         LogRecord lrFail;
+         lrFail.Time       = TimeCurrent();
+         lrFail.Symbol     = Symbol();
+         lrFail.System     = system;
+         lrFail.Reason     = "REFILL";
+         lrFail.Spread     = PriceToPips(MathAbs(Ask - Bid));
+         lrFail.Dist       = MathMax(dist, 0);
+         lrFail.GridPips   = GridPips;
+         lrFail.s          = s;
+         lrFail.lotFactor  = lotFactorAdj;
+         lrFail.BaseLot    = BaseLot;
+         lrFail.MaxLot     = MaxLot;
+         lrFail.actualLot  = expectedLot;
+         lrFail.seqStr     = seqAdj;
+         lrFail.CommentTag = expectedComment;
+         lrFail.Magic      = MagicNumber;
+         lrFail.OrderType  = OrderTypeToStr(type);
+         lrFail.EntryPrice = price;
+         lrFail.SL         = slInit;
+         lrFail.TP         = tpInit;
+         int errCode = 0;
+         if(errcp == "SpreadExceeded")
+            errCode = ERR_SPREAD_EXCEEDED;
+         else if(errcp == "DistanceBandViolation")
+            errCode = ERR_DISTANCE_BAND;
+         lrFail.ErrorCode  = errCode;
+         lrFail.ErrorInfo  = (errcp == "DistanceBandViolation") ? "Distance band violation" :
+                             (errcp == "SpreadExceeded") ? "Spread exceeded" : errcp;
+         WriteLog(lrFail);
+         PrintFormat("HandleOCODetectionFor: %s - %s, retry next tick", system, lrFail.ErrorInfo);
          if(system == "A")
             retryTicketA = -1;
          else
