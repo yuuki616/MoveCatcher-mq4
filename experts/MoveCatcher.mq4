@@ -2011,11 +2011,10 @@ bool InitStrategy()
       return(false);
    }
 
-   // system A 成行成立を記録
-   state_A = Alive;
-
    if(!OrderSelect(ticketA, SELECT_BY_TICKET))
       return(false);
+   // system A 成行成立を記録
+   state_A = Alive;
    double entryPrice = OrderOpenPrice();
 
    EnsureShadowOrder(ticketA, "A");
