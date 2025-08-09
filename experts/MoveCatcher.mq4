@@ -113,7 +113,7 @@ void WriteLog(const LogRecord &rec)
 {
    MigrateLogIfNeeded();
    ResetLastError();
-   int handle = FileOpen("MoveCatcher.log", FILE_CSV|FILE_COMMON|FILE_WRITE|FILE_READ|FILE_APPEND);
+   int handle = FileOpen("MoveCatcher.log", FILE_CSV|FILE_COMMON|FILE_WRITE|FILE_READ);
    string timeStr = TimeToString(rec.Time, TIME_DATE|TIME_SECONDS);
    double distNorm = MathMax(rec.Dist, 0);
    LogRecord lr = rec;
@@ -124,6 +124,7 @@ void WriteLog(const LogRecord &rec)
    }
    else
    {
+      FileSeek(handle, 0, SEEK_END);
       int written = FileWrite(handle,
          timeStr,
          rec.Symbol,
