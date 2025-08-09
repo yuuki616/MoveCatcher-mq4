@@ -1566,6 +1566,7 @@ void CloseAllOrders(const string reason)
          }
          double spreadClose = PriceToPips(MathAbs(Ask - Bid));
          double price      = (type == OP_BUY) ? Bid : Ask;
+         price = NormalizeDouble(price, _Digits);
          double actualLot  = OrderLots();
          string comment    = OrderComment();
          double entryPrice = OrderOpenPrice();
@@ -1712,6 +1713,7 @@ void CorrectDuplicatePositions()
          if(!RefreshRatesChecked(__FUNCTION__))
             return;
          double price      = (type == OP_BUY) ? Bid : Ask;
+         price = NormalizeDouble(price, _Digits);
          double lot        = OrderLots();
          string comment    = OrderComment();
          double entryPrice = OrderOpenPrice();
@@ -1771,6 +1773,7 @@ void CorrectDuplicatePositions()
          if(!RefreshRatesChecked(__FUNCTION__))
             return;
          double price      = (type == OP_BUY) ? Bid : Ask;
+         price = NormalizeDouble(price, _Digits);
          double lot        = OrderLots();
          string comment    = OrderComment();
          double entryPrice = OrderOpenPrice();
@@ -2954,6 +2957,7 @@ void HandleOCODetectionFor(const string system)
       int    type      = OrderType();
       double oldLots   = OrderLots();
       double closePrice = (type == OP_BUY) ? Bid : Ask;
+      closePrice = NormalizeDouble(closePrice, _Digits);
       string sysTmp, oldSeq; ParseComment(OrderComment(), sysTmp, oldSeq);
       int slippage = (int)MathRound(SlippagePips * Pip() / _Point);
       int errClose = 0;
