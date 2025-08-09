@@ -1,6 +1,7 @@
 #property strict
 
 #include <DecompositionMonteCarloMM.mqh>
+#include <stderror.mqh>
 
 #define ERR_SPREAD_EXCEEDED  10001  // Spread above MaxSpreadPips
 #define ERR_DISTANCE_BAND    10002  // Distance band violation
@@ -83,6 +84,11 @@ string OrderTypeToStr(const int type)
    return("UNKNOWN");
 }
 
+string ErrorDescriptionWrap(const int code)
+{
+   return(ErrorDescription(code));
+}
+
 void MigrateLogIfNeeded()
 {
    static bool migrated = false;
@@ -94,10 +100,10 @@ void MigrateLogIfNeeded()
       string src = TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL4\\Files\\" + filename;
       string dst = TerminalInfoString(TERMINAL_COMMONDATA_PATH) + "\\Files\\" + filename;
       ResetLastError();
-      if(!FileMove(src, dst))
+      if(!FileMove(src, dst, FILE_COMMON))
       {
          int err = GetLastError();
-         PrintFormat("MigrateLog: FileMove err=%d %s", err, ErrorDescription(err));
+         PrintFormat("MigrateLog: FileMove err=%d %s", err, ErrorDescriptionWrap(err));
       }
    }
    migrated = true;
@@ -114,7 +120,7 @@ void WriteLog(const LogRecord &rec)
    if(handle == INVALID_HANDLE)
    {
       int err = GetLastError();
-      PrintFormat("WriteLog: FileOpen err=%d %s", err, ErrorDescription(err));
+      PrintFormat("WriteLog: FileOpen err=%d %s", err, ErrorDescriptionWrap(err));
    }
    else
    {
@@ -143,7 +149,7 @@ void WriteLog(const LogRecord &rec)
       if(written <= 0)
       {
          int err = GetLastError();
-         string info = ErrorDescription(err);
+         string info = ErrorDescriptionWrap(err);
          PrintFormat("WriteLog: FileWrite err=%d %s", err, info);
          lr.ErrorCode = err;
          lr.ErrorInfo = info;
@@ -201,7 +207,7 @@ bool RefreshRatesChecked(const string func)
    if(!RefreshRates())
    {
       int err = GetLastError();
-      PrintFormat("%s: RefreshRates failed err=%d %s", func, err, ErrorDescription(err));
+      PrintFormat("%s: RefreshRates failed err=%d %s", func, err, ErrorDescriptionWrap(err));
       return(false);
    }
    return(true);
@@ -218,7 +224,7 @@ double NormalizeLot(const double lotCandidate)
    if(minLot <= 0 || maxLot <= 0)
    {
       PrintFormat("NormalizeLot: invalid lot range minLot=%.2f maxLot=%.2f err=%d %s",
-                  minLot, maxLot, marketErr, ErrorDescription(marketErr));
+                  minLot, maxLot, marketErr, ErrorDescriptionWrap(marketErr));
       if(minLot <= 0)
          minLot = 0.01;
       if(maxLot <= 0)
@@ -614,7 +620,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       int err = 0;
       bool ok = SaveDMCState(system, *state, err);
       if(!ok && err != 0)
-         PrintFormat("SaveDMCState(%s) err=%d %s", system, err, ErrorDescription(err));
+         PrintFormat("SaveDMCState(%s) err=%d %s", system, err, ErrorDescriptionWrap(err));
 
       LogRecord lr;
       lr.Time       = TimeCurrent();
@@ -640,7 +646,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       if(err == 0)
          lr.ErrorInfo  = "";
       else
-         lr.ErrorInfo  = ErrorDescription(err);
+         lr.ErrorInfo  = ErrorDescriptionWrap(err);
       WriteLog(lr);
 
       return(0.0);
@@ -653,7 +659,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       int err = 0;
       bool ok = SaveDMCState(system, *state, err);
       if(!ok && err != 0)
-         PrintFormat("SaveDMCState(%s) err=%d %s", system, err, ErrorDescription(err));
+         PrintFormat("SaveDMCState(%s) err=%d %s", system, err, ErrorDescriptionWrap(err));
 
       if(!state.Seq(seqCore, seqMaxLen))
       {
@@ -689,7 +695,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
          if(err == 0)
             lr.ErrorInfo  = "";
          else
-            lr.ErrorInfo  = ErrorDescription(err);
+            lr.ErrorInfo  = ErrorDescriptionWrap(err);
          WriteLog(lr);
          return(0.0);
       }
@@ -721,7 +727,7 @@ double CalcLot(const string system,string &seq,double &lotFactor)
       if(err == 0)
          lr.ErrorInfo  = "";
       else
-         lr.ErrorInfo  = ErrorDescription(err);
+         lr.ErrorInfo  = ErrorDescriptionWrap(err);
       WriteLog(lr);
 
       return(lotActual);
@@ -1004,7 +1010,7 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
          bool saved = SaveDMCState(system, (system == "A") ? stateA : stateB, err);
          if(!saved)
          {
-            string info = ErrorDescription(err);
+            string info = ErrorDescriptionWrap(err);
             if(err != 0)
                PrintFormat("SaveDMCState(%s) err=%d %s", system, err, info);
             lr.ErrorCode = err;
@@ -3014,7 +3020,7 @@ void HandleOCODetectionFor(const string system)
          lrFail.SL         = slInit;
          lrFail.TP         = tpInit;
          lrFail.ErrorCode  = errCode;
-         lrFail.ErrorInfo  = ErrorDescription(errCode);
+         lrFail.ErrorInfo  = ErrorDescriptionWrap(errCode);
          WriteLog(lrFail);
          if(system == "A")
          {
@@ -3354,7 +3360,7 @@ void HandleOCODetectionFor(const string system)
          lrFail.SL         = slInit;
          lrFail.TP         = tpInit;
          lrFail.ErrorCode  = errCode;
-         lrFail.ErrorInfo  = ErrorDescription(errCode);
+         lrFail.ErrorInfo  = ErrorDescriptionWrap(errCode);
          WriteLog(lrFail);
          PrintFormat("HandleOCODetectionFor: failed to reopen %s position err=%d", system, errCode);
          if(system == "A")
@@ -3516,7 +3522,7 @@ void HandleOCODetectionFor(const string system)
       lrFail.SL         = sl;
       lrFail.TP         = tp;
       lrFail.ErrorCode  = err;
-      lrFail.ErrorInfo  = ErrorDescription(err);
+      lrFail.ErrorInfo  = ErrorDescriptionWrap(err);
       WriteLog(lrFail);
 
       if(system == "A")
@@ -3924,7 +3930,7 @@ void OnDeinit(const int reason)
    if(!GlobalVariableSet(gvA, state_A))
    {
       int err = GetLastError();
-      PrintFormat("GlobalVariableSet(%s) err=%d %s", gvA, err, ErrorDescription(err));
+      PrintFormat("GlobalVariableSet(%s) err=%d %s", gvA, err, ErrorDescriptionWrap(err));
       LogRecord lr;
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
@@ -3946,7 +3952,7 @@ void OnDeinit(const int reason)
       lr.SL         = 0;
       lr.TP         = 0;
       lr.ErrorCode  = err;
-      lr.ErrorInfo  = ErrorDescription(err);
+      lr.ErrorInfo  = ErrorDescriptionWrap(err);
       WriteLog(lr);
    }
 
@@ -3954,7 +3960,7 @@ void OnDeinit(const int reason)
    if(!GlobalVariableSet(gvB, state_B))
    {
       int err = GetLastError();
-      PrintFormat("GlobalVariableSet(%s) err=%d %s", gvB, err, ErrorDescription(err));
+      PrintFormat("GlobalVariableSet(%s) err=%d %s", gvB, err, ErrorDescriptionWrap(err));
       LogRecord lr;
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
@@ -3976,7 +3982,7 @@ void OnDeinit(const int reason)
       lr.SL         = 0;
       lr.TP         = 0;
       lr.ErrorCode  = err;
-      lr.ErrorInfo  = ErrorDescription(err);
+      lr.ErrorInfo  = ErrorDescriptionWrap(err);
       WriteLog(lr);
    }
 
@@ -3986,7 +3992,7 @@ void OnDeinit(const int reason)
    bool savedA = SaveDMCState("A", stateA, err);
    if(!savedA)
    {
-      PrintFormat("SaveDMCState(%s) err=%d %s", "A", err, ErrorDescription(err));
+      PrintFormat("SaveDMCState(%s) err=%d %s", "A", err, ErrorDescriptionWrap(err));
       LogRecord lr;
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
@@ -4008,7 +4014,7 @@ void OnDeinit(const int reason)
       lr.SL         = 0;
       lr.TP         = 0;
       lr.ErrorCode  = err;
-      lr.ErrorInfo  = ErrorDescription(err);
+      lr.ErrorInfo  = ErrorDescriptionWrap(err);
       WriteLog(lr);
    }
 
@@ -4016,7 +4022,7 @@ void OnDeinit(const int reason)
    bool savedB = SaveDMCState("B", stateB, err);
    if(!savedB)
    {
-      PrintFormat("SaveDMCState(%s) err=%d %s", "B", err, ErrorDescription(err));
+      PrintFormat("SaveDMCState(%s) err=%d %s", "B", err, ErrorDescriptionWrap(err));
       LogRecord lr;
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
@@ -4038,7 +4044,7 @@ void OnDeinit(const int reason)
       lr.SL         = 0;
       lr.TP         = 0;
       lr.ErrorCode  = err;
-      lr.ErrorInfo  = ErrorDescription(err);
+      lr.ErrorInfo  = ErrorDescriptionWrap(err);
       WriteLog(lr);
    }
 }
