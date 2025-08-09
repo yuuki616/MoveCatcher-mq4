@@ -3110,6 +3110,8 @@ void HandleOCODetectionFor(const string system)
          retryTicketB = newTicket;
       if(!OrderSelect(posTicket, SELECT_BY_TICKET))
       {
+         int err = GetLastError();
+         PrintFormat("HandleOCODetectionFor: failed to select ticket %d err=%d", posTicket, err);
          if(system == "A")
             state_A = None;
          else
@@ -3134,6 +3136,8 @@ void HandleOCODetectionFor(const string system)
 
    if(!OrderSelect(posTicket, SELECT_BY_TICKET))
    {
+      int err = GetLastError();
+      PrintFormat("HandleOCODetectionFor: failed to select ticket %d err=%d", posTicket, err);
       if(system == "A")
          retryTicketA = -1;
       else
@@ -3447,6 +3451,8 @@ void HandleOCODetectionFor(const string system)
       posTicket = newTicket;
       if(!OrderSelect(posTicket, SELECT_BY_TICKET))
       {
+         int err = GetLastError();
+         PrintFormat("HandleOCODetectionFor: failed to select ticket %d err=%d", posTicket, err);
          if(system == "A")
          {
             retryTicketA = 0;
@@ -3617,7 +3623,12 @@ void HandleOCODetectionFor(const string system)
       state_B = Alive;
 
    string sys2, seq2;
-   OrderSelect(posTicket, SELECT_BY_TICKET);
+   if(!OrderSelect(posTicket, SELECT_BY_TICKET))
+   {
+      int err = GetLastError();
+      PrintFormat("HandleOCODetectionFor: failed to select ticket %d err=%d", posTicket, err);
+      return;
+   }
    ParseComment(OrderComment(), sys2, seq2);
    double entryActual = OrderOpenPrice();
    LogRecord lr;
