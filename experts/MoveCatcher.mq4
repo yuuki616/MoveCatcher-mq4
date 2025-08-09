@@ -1,7 +1,6 @@
 #property strict
 
 #include <DecompositionMonteCarloMM.mqh>
-#include <stderror.mqh>
 
 #define ERR_SPREAD_EXCEEDED  10001  // Spread above MaxSpreadPips
 #define ERR_DISTANCE_BAND    10002  // Distance band violation
@@ -86,7 +85,29 @@ string OrderTypeToStr(const int type)
 
 string ErrorDescriptionWrap(const int code)
 {
-   return(ErrorDescription(code));
+   switch(code)
+   {
+      case 0:                    return("ERR_NO_ERROR");
+      case 1:                    return("ERR_NO_RESULT");
+      case 2:                    return("ERR_COMMON_ERROR");
+      case 3:                    return("ERR_INVALID_TRADE_PARAMETERS");
+      case 4:                    return("ERR_SERVER_BUSY");
+      case 5:                    return("ERR_OLD_VERSION");
+      case 6:                    return("ERR_NO_CONNECTION");
+      case 129:                  return("ERR_INVALID_PRICE");
+      case 130:                  return("ERR_INVALID_STOPS");
+      case 131:                  return("ERR_INVALID_TRADE_VOLUME");
+      case 132:                  return("ERR_MARKET_CLOSED");
+      case 133:                  return("ERR_TRADE_DISABLED");
+      case 134:                  return("ERR_NOT_ENOUGH_MONEY");
+      case 135:                  return("ERR_PRICE_CHANGED");
+      case 136:                  return("ERR_OFF_QUOTES");
+      case 146:                  return("ERR_TRADE_CONTEXT_BUSY");
+      case 4108:                 return("ERR_INVALID_TICKET");
+      case ERR_SPREAD_EXCEEDED:  return("Spread above MaxSpreadPips");
+      case ERR_DISTANCE_BAND:    return("Distance band violation");
+      default:                   return(IntegerToString(code));
+   }
 }
 
 void MigrateLogIfNeeded()
