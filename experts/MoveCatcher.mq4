@@ -1544,7 +1544,10 @@ void CloseAllOrders(const string reason)
 {
    bool updateDMC = (reason != "RESET_ALIVE" && reason != "RESET_SNAP");
    if(!RefreshRatesChecked(__FUNCTION__))
+   {
       Print("CloseAllOrders: RefreshRatesChecked failed at start");
+      return;
+   }
    int slippage = UseProtectedLimit
                   ? (int)MathRound(SlippagePips * Pip() / _Point)
                   : 0;
