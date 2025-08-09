@@ -2734,13 +2734,14 @@ bool InitStrategy()
          lrB.TP         = 0;
          lrB.ErrorCode  = (ticketBuy < 0) ? GetLastError() : 0;
          WriteLog(lrB);
-         if(ticketBuy < 0)
-         {
-            PrintFormat("InitStrategy: failed to place BuyLimit, err=%d", lrB.ErrorCode);
-            okBuy = false;
-         }
-      }
+        if(ticketBuy < 0)
+        {
+           PrintFormat("InitStrategy: failed to place BuyLimit, err=%d", lrB.ErrorCode);
+           okBuy = false;
+        }
+     }
    }
+  }
 
    if(okSell && !okBuy && ticketSell >= 0)
    {
