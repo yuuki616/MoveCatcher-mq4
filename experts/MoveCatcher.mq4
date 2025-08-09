@@ -979,7 +979,7 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
          else
          {
            string cmt = OrderComment();
-           cmt = StringToUpper(cmt);
+            StringToUpper(cmt);
             if(StringFind(cmt, "TP") >= 0)
                rsn = "TP";
             else if(StringFind(cmt, "SL") >= 0)
