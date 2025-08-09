@@ -121,7 +121,7 @@ void MigrateLogIfNeeded()
       string src = TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL4\\Files\\" + filename;
       string dst = TerminalInfoString(TERMINAL_COMMONDATA_PATH) + "\\Files\\" + filename;
       ResetLastError();
-      bool moved = FileMove(src, dst);
+      bool moved = FileMove(src, dst, FILE_COMMON);
       if(!moved)
       {
          int err = GetLastError();
@@ -2822,6 +2822,7 @@ bool InitStrategy()
    bool result = okBuy && okSell;
    state_B = result ? Missing : None;
    return(result);
+}
 }
 
 //+------------------------------------------------------------------+
