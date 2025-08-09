@@ -121,7 +121,8 @@ void MigrateLogIfNeeded()
       string src = TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL4\\Files\\" + filename;
       string dst = TerminalInfoString(TERMINAL_COMMONDATA_PATH) + "\\Files\\" + filename;
       ResetLastError();
-      if(!FileMove(src, dst, FILE_COMMON))
+      bool moved = FileMove(src, dst);
+      if(!moved)
       {
          int err = GetLastError();
          PrintFormat("MigrateLog: FileMove err=%d %s", err, ErrorDescriptionWrap(err));
