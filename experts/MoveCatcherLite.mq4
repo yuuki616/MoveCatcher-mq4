@@ -489,13 +489,13 @@ void CheckRefill()
             int orderType;
             if(priceNow >= entry)
             {
-               price = entry - s * Pip;
-               orderType = OP_BUYLIMIT;
+               price = entry + s * Pip;
+               orderType = OP_SELLLIMIT;
             }
             else
             {
-               price = entry + s * Pip;
-               orderType = OP_SELLLIMIT;
+               price = entry - s * Pip;
+               orderType = OP_BUYLIMIT;
             }
             AdjustPendingPrice(orderType, price);
             refillTicket[SYSTEM_B] = OrderSend(Symbol(), orderType, actualLot, price, 0, 0, 0, COMMENT_B, MagicNumber, 0, clrNONE);
@@ -518,13 +518,13 @@ void CheckRefill()
             int orderType;
             if(priceNow >= entry)
             {
-               price = entry - s * Pip;
-               orderType = OP_BUYLIMIT;
+               price = entry + s * Pip;
+               orderType = OP_SELLLIMIT;
             }
             else
             {
-               price = entry + s * Pip;
-               orderType = OP_SELLLIMIT;
+               price = entry - s * Pip;
+               orderType = OP_BUYLIMIT;
             }
             AdjustPendingPrice(orderType, price);
             refillTicket[SYSTEM_A] = OrderSend(Symbol(), orderType, actualLot, price, 0, 0, 0, COMMENT_A, MagicNumber, 0, clrNONE);
