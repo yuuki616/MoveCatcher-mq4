@@ -209,9 +209,27 @@ bool RefreshRatesChecked(const string func)
 
 double NormalizeLot(const double lotCandidate)
 {
+   ResetLastError();
    double minLot  = MarketInfo(Symbol(), MODE_MINLOT);
    double maxLot  = MarketInfo(Symbol(), MODE_MAXLOT);
    double lotStep = MarketInfo(Symbol(), MODE_LOTSTEP);
+   int marketErr  = GetLastError();
+
+   if(minLot <= 0 || maxLot <= 0)
+   {
+      PrintFormat("NormalizeLot: invalid lot range minLot=%.2f maxLot=%.2f err=%d %s",
+                  minLot, maxLot, marketErr, ErrorDescription(marketErr));
+      if(minLot <= 0)
+         minLot = 0.01;
+      if(maxLot <= 0)
+         maxLot = 100.0;
+   }
+
+   if(minLot > maxLot)
+   {
+      PrintFormat("NormalizeLot: minLot %.2f greater than maxLot %.2f, adjusting maxLot", minLot, maxLot);
+      maxLot = minLot;
+   }
 
    double lot = lotCandidate;
    int    lotDigits = 0;
