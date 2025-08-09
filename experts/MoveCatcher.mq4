@@ -2798,7 +2798,9 @@ bool InitStrategy()
    bool result = okBuy && okSell;
    state_B = result ? Missing : None;
    return(result);
-  }
+ }
+
+}
 
 //+------------------------------------------------------------------+
 //| Detect filled OCO for specified system                            |
