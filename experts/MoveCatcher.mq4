@@ -2855,9 +2855,17 @@ void HandleOCODetectionFor(const string system)
          lrFail.ErrorInfo  = ErrorDescription(errCode);
          WriteLog(lrFail);
          if(system == "A")
-            state_A = None;
+         {
+            state_A      = Missing;
+            retryTicketA = 0;
+            retryTypeA   = retryType;
+         }
          else
-            state_B = None;
+         {
+            state_B      = Missing;
+            retryTicketB = 0;
+            retryTypeB   = retryType;
+         }
          return;
       }
       posTicket = newTicket;
