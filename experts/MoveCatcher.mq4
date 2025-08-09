@@ -1289,7 +1289,11 @@ void DeletePendings(const string system,const string reason)
       if(type != OP_BUYLIMIT && type != OP_SELLLIMIT && type != OP_BUYSTOP && type != OP_SELLSTOP)
          continue;
       if(!RefreshRatesChecked(__FUNCTION__))
-         return;
+      {
+         int tkWarn = OrderTicket();
+         PrintFormat("DeletePendings: RefreshRatesChecked failed, skip ticket %d", tkWarn);
+         continue;
+      }
       string sys, seq;
       if(!ParseComment(OrderComment(), sys, seq))
          continue;
