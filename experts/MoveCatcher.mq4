@@ -321,7 +321,7 @@ bool SaveDMCState(const string system,const CDecompMC &state,int &err)
       int streak=(int)StringToInteger(parts[1]);
       string seqParts[]; int n=StringSplit(parts[2],",",seqParts);
 
-      string prefix="MoveCatcher_"+system+"_";
+      string prefix=StringFormat("MoveCatcher_%s_%d_%s_",Symbol(),MagicNumber,system);
 
       int prevN=0;
       ResetLastError(); double prevSize=GlobalVariableGet(prefix+"seq_size"); int e=GetLastError();
@@ -344,7 +344,7 @@ bool SaveDMCState(const string system,const CDecompMC &state,int &err)
    }
    else ok=false;
 
-   string filename="MoveCatcher_state_"+system+".dat";
+   string filename=StringFormat("MoveCatcher_state_%s_%d_%s.dat",Symbol(),MagicNumber,system);
    int handle=FileOpen(filename,FILE_COMMON|FILE_WRITE|FILE_TXT);
    if(handle==INVALID_HANDLE){int e=GetLastError(); if(err==0)err=e; ok=false;}
    else
@@ -357,7 +357,7 @@ bool SaveDMCState(const string system,const CDecompMC &state,int &err)
 
 bool LoadDMCState(const string system,CDecompMC &state)
 {
-   string prefix="MoveCatcher_"+system+"_";
+   string prefix=StringFormat("MoveCatcher_%s_%d_%s_",Symbol(),MagicNumber,system);
    if(GlobalVariableCheck(prefix+"seq_size") && GlobalVariableCheck(prefix+"stock") && GlobalVariableCheck(prefix+"streak"))
    {
       int n=(int)MathRound(GlobalVariableGet(prefix+"seq_size"));
@@ -378,7 +378,39 @@ bool LoadDMCState(const string system,CDecompMC &state)
       }
    }
 
-   string filename="MoveCatcher_state_"+system+".dat";
+   // Legacy global variables and file without symbol and magic number
+   string legacyPrefix="MoveCatcher_"+system+"_";
+   string legacyFile="MoveCatcher_state_"+system+".dat";
+   if(GlobalVariableCheck(legacyPrefix+"seq_size") && GlobalVariableCheck(legacyPrefix+"stock") && GlobalVariableCheck(legacyPrefix+"streak"))
+   {
+      int n=(int)MathRound(GlobalVariableGet(legacyPrefix+"seq_size"));
+      int stock=(int)MathRound(GlobalVariableGet(legacyPrefix+"stock"));
+      int streak=(int)MathRound(GlobalVariableGet(legacyPrefix+"streak"));
+      string seqStr=""; bool ok=true;
+      for(int i=0;i<n;i++)
+      {
+         string name=legacyPrefix+"seq_"+IntegerToString(i);
+         if(!GlobalVariableCheck(name)){ok=false; break;}
+         int v=(int)MathRound(GlobalVariableGet(name));
+         if(i) seqStr+=","; seqStr+=IntegerToString(v);
+      }
+      if(ok)
+      {
+         string data=IntegerToString(stock)+"|"+IntegerToString(streak)+"|"+seqStr;
+         if(state.Deserialize(data))
+         {
+            int dummyErr; SaveDMCState(system,state,dummyErr);
+            GlobalVariableDel(legacyPrefix+"stock");
+            GlobalVariableDel(legacyPrefix+"streak");
+            GlobalVariableDel(legacyPrefix+"seq_size");
+            for(int j=0;j<n;j++) GlobalVariableDel(legacyPrefix+"seq_"+IntegerToString(j));
+            if(FileIsExist(legacyFile,FILE_COMMON)) FileDelete(legacyFile,FILE_COMMON);
+            return(true);
+         }
+      }
+   }
+
+   string filename=StringFormat("MoveCatcher_state_%s_%d_%s.dat",Symbol(),MagicNumber,system);
    if(FileIsExist(filename,FILE_COMMON))
    {
       int handle=FileOpen(filename,FILE_COMMON|FILE_READ|FILE_TXT);
@@ -387,6 +419,22 @@ bool LoadDMCState(const string system,CDecompMC &state)
          string data=FileReadString(handle);
          FileClose(handle);
          if(state.Deserialize(data)) return(true);
+      }
+   }
+
+   if(FileIsExist(legacyFile,FILE_COMMON))
+   {
+      int handle=FileOpen(legacyFile,FILE_COMMON|FILE_READ|FILE_TXT);
+      if(handle!=INVALID_HANDLE)
+      {
+         string data=FileReadString(handle);
+         FileClose(handle);
+         if(state.Deserialize(data))
+         {
+            int dummyErr; SaveDMCState(system,state,dummyErr);
+            FileDelete(legacyFile,FILE_COMMON);
+            return(true);
+         }
       }
    }
 
