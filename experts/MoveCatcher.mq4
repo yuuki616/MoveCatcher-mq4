@@ -3098,9 +3098,17 @@ void HandleOCODetectionFor(const string system)
          PrintFormat("HandleOCODetectionFor: SL/TP within freeze level %.1f pips, retry next tick",
                      PriceToPips(freezeLevel));
          if(system == "A")
-            retryTicketA = -1;
+         {
+            retryTicketA = 0;
+            retryTypeA   = type;
+            state_A      = None;
+         }
          else
-            retryTicketB = -1;
+         {
+            retryTicketB = 0;
+            retryTypeB   = type;
+            state_B      = None;
+         }
          return;
       }
       slInit = NormalizeDouble(slInit, _Digits);
@@ -3133,9 +3141,17 @@ void HandleOCODetectionFor(const string system)
          WriteLog(lrFail);
          Print("HandleOCODetectionFor: SL/TP on wrong side after adjustment, retry next tick");
          if(system == "A")
-            retryTicketA = -1;
+         {
+            retryTicketA = 0;
+            retryTypeA   = type;
+            state_A      = None;
+         }
          else
-            retryTicketB = -1;
+         {
+            retryTicketB = 0;
+            retryTypeB   = type;
+            state_B      = None;
+         }
          return;
       }
       if(!RefreshRatesChecked(__FUNCTION__))
@@ -3167,9 +3183,17 @@ void HandleOCODetectionFor(const string system)
          lrFail.ErrorInfo  = "Spread exceeded";
          WriteLog(lrFail);
          if(system == "A")
-            retryTicketA = -1;
+         {
+            retryTicketA = 0;
+            retryTypeA   = type;
+            state_A      = None;
+         }
          else
-            retryTicketB = -1;
+         {
+            retryTicketB = 0;
+            retryTypeB   = type;
+            state_B      = None;
+         }
          return;
       }
       ResetLastError();
