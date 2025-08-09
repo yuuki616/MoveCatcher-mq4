@@ -28,8 +28,92 @@ string CommentIdentifier(MoveCatcherSystem sys)
 }
 
 // DMCMM 状態
-CDecompMC stateA;
-CDecompMC stateB;
+CDecompMC state_A;
+CDecompMC state_B;
+
+// 勝敗検出用
+datetime lastCloseTime[2] = {0, 0};
+int      lastTicketsA[];
+int      lastTicketsB[];
+
+bool ContainsTicket(const int &arr[], int tk)
+{
+   for(int i=0;i<ArraySize(arr);i++)
+      if(arr[i]==tk) return(true);
+   return(false);
+}
+
+void AddTicket(int &arr[], int tk)
+{
+   int n=ArraySize(arr);
+   ArrayResize(arr,n+1);
+   arr[n]=tk;
+}
+
+double CalcLot(MoveCatcherSystem sys)
+{
+   double lotFactor = (sys==SYSTEM_A) ? state_A.NextLot() : state_B.NextLot();
+   double lotCandidate = BaseLot * lotFactor;
+   double lotStep = MarketInfo(Symbol(), MODE_LOTSTEP);
+   double minLot = MarketInfo(Symbol(), MODE_MINLOT);
+   double maxLot = MarketInfo(Symbol(), MODE_MAXLOT);
+   double lot = lotCandidate;
+   int lotDigits = 0;
+   if(lotStep > 0)
+   {
+      lot = MathRound(lot/lotStep)*lotStep;
+      lotDigits = (int)MathRound(-MathLog(lotStep)/MathLog(10.0));
+      lot = NormalizeDouble(lot, lotDigits);
+   }
+   if(lot < minLot) lot = minLot;
+   if(lot > maxLot) lot = maxLot;
+   if(lotStep > 0) lot = NormalizeDouble(lot, lotDigits);
+   return(lot);
+}
+
+void ProcessClosedTrades(MoveCatcherSystem sys)
+{
+   int idx = (int)sys;
+   datetime lastTime = lastCloseTime[idx];
+   int tickets[]; datetime times[];
+   int newTickets[];
+   if(sys==SYSTEM_A) ArrayCopy(newTickets,lastTicketsA); else ArrayCopy(newTickets,lastTicketsB);
+   datetime newLastTime = lastTime;
+   for(int i=0;i<OrdersHistoryTotal();i++)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)) continue;
+      if(OrderMagicNumber()!=MagicNumber || OrderSymbol()!=Symbol()) continue;
+      int type=OrderType(); if(type!=OP_BUY && type!=OP_SELL) continue;
+      if(OrderComment()!=CommentIdentifier(sys)) continue;
+      datetime ct=OrderCloseTime();
+      if(ct<lastTime) continue;
+      if(ct==lastTime)
+      {
+         if(sys==SYSTEM_A){ if(ContainsTicket(lastTicketsA,OrderTicket())) continue; }
+         else{ if(ContainsTicket(lastTicketsB,OrderTicket())) continue; }
+      }
+      int n=ArraySize(tickets); ArrayResize(tickets,n+1); ArrayResize(times,n+1);
+      tickets[n]=OrderTicket(); times[n]=ct;
+      if(ct>newLastTime){ newLastTime=ct; ArrayResize(newTickets,0); AddTicket(newTickets,OrderTicket()); }
+      else if(ct==newLastTime && !ContainsTicket(newTickets,OrderTicket())) AddTicket(newTickets,OrderTicket());
+   }
+   for(int i=0;i<ArraySize(tickets);i++)
+   {
+      if(!OrderSelect(tickets[i], SELECT_BY_TICKET, MODE_HISTORY)) continue;
+      double closePrice = OrderClosePrice();
+      double tp = OrderTakeProfit();
+      double sl = OrderStopLoss();
+      double tol = Point*0.5;
+      bool isTP = (tp>0 && MathAbs(closePrice - tp) <= tol);
+      bool isSL = (sl>0 && MathAbs(closePrice - sl) <= tol);
+      if(isTP || isSL)
+      {
+         if(sys==SYSTEM_A) state_A.OnTrade(isTP); else state_B.OnTrade(isTP);
+      }
+   }
+   lastCloseTime[idx] = newLastTime;
+   if(sys==SYSTEM_A) ArrayCopy(lastTicketsA,newTickets); else ArrayCopy(lastTicketsB,newTickets);
+}
 
 // チケット保持
 int positionTicket[2] = { -1, -1 };
@@ -50,11 +134,10 @@ void CheckRefill();
 // 初期化
 int OnInit()
 {
-   stateA.Init();
-   stateB.Init();
+   state_A.Init();
+   state_B.Init();
 
-   double lotFactorA = stateA.NextLot();
-   double actualLot_A = NormalizeDouble(BaseLot * lotFactorA, 2);
+   double actualLot_A = CalcLot(SYSTEM_A);
 
    double entryA = Ask;
    double slA = entryA - GridPips * Pip;
@@ -70,8 +153,7 @@ int OnInit()
    double spread = (Ask - Bid) / Pip;
    if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
    {
-      double lotFactorB = stateB.NextLot();
-      double actualLot_B = NormalizeDouble(BaseLot * lotFactorB, 2);
+      double actualLot_B = CalcLot(SYSTEM_B);
       double buyPrice  = entryA - s * Pip;
       double sellPrice = entryA + s * Pip;
       ticketBuyLim  = OrderSend(Symbol(), OP_BUYLIMIT,  actualLot_B, buyPrice,  0, 0, 0, COMMENT_B, MagicNumber, 0, clrNONE);
@@ -84,6 +166,9 @@ int OnInit()
 // ティック処理
 void OnTick()
 {
+   ProcessClosedTrades(SYSTEM_A);
+   ProcessClosedTrades(SYSTEM_B);
+
    if(ticketBuyLim > 0)
    {
       if(OrderSelect(ticketBuyLim, SELECT_BY_TICKET))
@@ -135,10 +220,9 @@ void PlaceShadowOrder(MoveCatcherSystem sys)
    if(positionTicket[idx] < 0 || !OrderSelect(positionTicket[idx], SELECT_BY_TICKET))
       return;
 
-   int type = OrderType();
-   double entry = OrderOpenPrice();
-   double lotFactor = (sys==SYSTEM_A) ? stateA.NextLot() : stateB.NextLot();
-   double actualLot = NormalizeDouble(BaseLot * lotFactor, 2);
+    int type = OrderType();
+    double entry = OrderOpenPrice();
+    double actualLot = CalcLot(sys);
    double price = (type == OP_BUY) ? entry + GridPips * Pip : entry - GridPips * Pip;
    int orderType = (type == OP_BUY) ? OP_SELLLIMIT : OP_BUYLIMIT;
 
@@ -151,10 +235,9 @@ void PlaceShadowOrder(MoveCatcherSystem sys)
 // 同方向に成行再エントリ
 void ReEnterSameDirection(MoveCatcherSystem sys)
 {
-   int idx = (int)sys;
-   int type = lastType[idx];
-   double lotFactor = (sys==SYSTEM_A) ? stateA.NextLot() : stateB.NextLot();
-   double actualLot = NormalizeDouble(BaseLot * lotFactor, 2);
+    int idx = (int)sys;
+    int type = lastType[idx];
+    double actualLot = CalcLot(sys);
    double price = (type == OP_BUY) ? Ask : Bid;
    double sl = (type == OP_BUY) ? price - GridPips * Pip : price + GridPips * Pip;
    double tp = (type == OP_BUY) ? price + GridPips * Pip : price - GridPips * Pip;
@@ -232,11 +315,10 @@ void CheckRefill()
       {
          double entry = OrderOpenPrice();
          double spread = (Ask - Bid) / Pip;
-         if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
-         {
-            double lotFactor = stateB.NextLot();
-            double actualLot = NormalizeDouble(BaseLot * lotFactor, 2);
-            double priceNow = (Bid + Ask) / 2.0;
+           if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
+           {
+              double actualLot = CalcLot(SYSTEM_B);
+              double priceNow = (Bid + Ask) / 2.0;
             double price;
             int orderType;
             if(priceNow >= entry)
@@ -259,11 +341,10 @@ void CheckRefill()
       {
          double entry = OrderOpenPrice();
          double spread = (Ask - Bid) / Pip;
-         if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
-         {
-            double lotFactor = stateA.NextLot();
-            double actualLot = NormalizeDouble(BaseLot * lotFactor, 2);
-            double priceNow = (Bid + Ask) / 2.0;
+           if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
+           {
+              double actualLot = CalcLot(SYSTEM_A);
+              double priceNow = (Bid + Ask) / 2.0;
             double price;
             int orderType;
             if(priceNow >= entry)
