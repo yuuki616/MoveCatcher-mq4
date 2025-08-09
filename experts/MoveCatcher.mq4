@@ -967,45 +967,30 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       string sysTmp, seq;
       if(!ParseComment(OrderComment(), sysTmp, seq))
          seq = "";
+      double closePrice = OrderClosePrice();
+      double tol        = Pip() * 0.5;
+      bool hasTP = (OrderTakeProfit() > 0);
+      bool hasSL = (OrderStopLoss()  > 0);
+      bool isTP  = hasTP && (MathAbs(closePrice - OrderTakeProfit()) <= tol);
+      bool isSL  = hasSL && (MathAbs(closePrice - OrderStopLoss())  <= tol);
+
       string rsn = reason;
       if(rsn == "")
       {
-         double closePrice = OrderClosePrice();
-        double tol        = Pip() * 0.5;
-         bool isTP = (MathAbs(closePrice - OrderTakeProfit()) <= tol);
-         bool isSL = (MathAbs(closePrice - OrderStopLoss())  <= tol);
-         bool hasTP = (OrderTakeProfit() > 0);
-         bool hasSL = (OrderStopLoss()  > 0);
-         if((hasTP && isTP) || (hasSL && isSL))
-            rsn = (hasTP && isTP) ? "TP" : "SL";
+         if(isTP)
+            rsn = "TP";
+         else if(isSL)
+            rsn = "SL";
          else
-         {
-           string cmt = OrderComment();
-            StringToUpper(cmt);
-            if(StringFind(cmt, "TP") >= 0)
-               rsn = "TP";
-            else if(StringFind(cmt, "SL") >= 0)
-               rsn = "SL";
-            else
-            {
-               double openPrice = OrderOpenPrice();
-               if(OrderType() == OP_BUY)
-                  rsn = (closePrice >= openPrice) ? "TP" : "SL";
-               else
-                  rsn = (closePrice <= openPrice) ? "TP" : "SL";
-            }
-         }
+            rsn = "CLOSE";
       }
 
-      bool win = (rsn == "TP");
-      if(system == "A")
+      if(updateDMC && (isTP || isSL))
       {
-         if(updateDMC)
+         bool win = isTP;
+         if(system == "A")
             stateA.OnTrade(win);
-      }
-      else
-      {
-         if(updateDMC)
+         else
             stateB.OnTrade(win);
       }
       double dist = DistanceToExistingPositions(OrderOpenPrice(), OrderTicket());
