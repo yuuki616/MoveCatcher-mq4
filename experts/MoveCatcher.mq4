@@ -885,15 +885,18 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       lr.SL         = OrderStopLoss();
       lr.TP         = OrderTakeProfit();
       lr.ErrorCode  = 0;
+      lr.ErrorInfo  = "";
       if(updateDMC)
       {
          int err = 0;
          bool saved = SaveDMCState(system, (system == "A") ? stateA : stateB, err);
          if(!saved)
          {
+            string info = ErrorDescription(err);
             if(err != 0)
-               PrintFormat("SaveDMCState(%s) err=%d", system, err);
+               PrintFormat("SaveDMCState(%s) err=%d %s", system, err, info);
             lr.ErrorCode = err;
+            lr.ErrorInfo = info;
          }
       }
       WriteLog(lr);
