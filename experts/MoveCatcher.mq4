@@ -1870,8 +1870,15 @@ bool PlaceRefillOrders(const string system,const double refPrice)
          codeSell = ERR_INVALID_PRICE;
       else if(errSell == "DistanceBandViolation")
          codeSell = ERR_DISTANCE_BAND;
+      else if(errSell == "SpreadExceeded")
+         codeSell = ERR_SPREAD_EXCEEDED;
       lr.ErrorCode  = codeSell;
-      lr.ErrorInfo  = (errSell == "DistanceBandViolation") ? "Distance band violation" : errSell;
+      string infoSell = errSell;
+      if(errSell == "DistanceBandViolation")
+         infoSell = "Distance band violation";
+      else if(errSell == "SpreadExceeded")
+         infoSell = "Spread exceeded";
+      lr.ErrorInfo  = infoSell;
       WriteLog(lr);
       okSell = false;
    }
@@ -1941,8 +1948,15 @@ bool PlaceRefillOrders(const string system,const double refPrice)
          codeBuy = ERR_INVALID_PRICE;
       else if(errBuy == "DistanceBandViolation")
          codeBuy = ERR_DISTANCE_BAND;
+      else if(errBuy == "SpreadExceeded")
+         codeBuy = ERR_SPREAD_EXCEEDED;
       lrb.ErrorCode  = codeBuy;
-      lrb.ErrorInfo  = (errBuy == "DistanceBandViolation") ? "Distance band violation" : errBuy;
+      string infoBuy = errBuy;
+      if(errBuy == "DistanceBandViolation")
+         infoBuy = "Distance band violation";
+      else if(errBuy == "SpreadExceeded")
+         infoBuy = "Spread exceeded";
+      lrb.ErrorInfo  = infoBuy;
       WriteLog(lrb);
       okBuy = false;
    }
@@ -2364,9 +2378,18 @@ bool InitStrategy()
             lrS.EntryPrice = priceSell;
             lrS.SL         = 0;
             lrS.TP         = 0;
-            int codeS = (errS == "DistanceBandViolation") ? ERR_DISTANCE_BAND : 0;
+            int codeS = 0;
+            if(errS == "DistanceBandViolation")
+               codeS = ERR_DISTANCE_BAND;
+            else if(errS == "SpreadExceeded")
+               codeS = ERR_SPREAD_EXCEEDED;
             lrS.ErrorCode  = codeS;
-            lrS.ErrorInfo  = (errS == "DistanceBandViolation") ? "Distance band violation" : errS;
+            string infoS = errS;
+            if(errS == "DistanceBandViolation")
+               infoS = "Distance band violation";
+            else if(errS == "SpreadExceeded")
+               infoS = "Spread exceeded";
+            lrS.ErrorInfo  = infoS;
             WriteLog(lrS);
             okSell = false;
          }
@@ -2504,9 +2527,18 @@ bool InitStrategy()
             lrB.EntryPrice = priceBuy;
             lrB.SL         = 0;
             lrB.TP         = 0;
-            int codeB = (errB == "DistanceBandViolation") ? ERR_DISTANCE_BAND : 0;
+            int codeB = 0;
+            if(errB == "DistanceBandViolation")
+               codeB = ERR_DISTANCE_BAND;
+            else if(errB == "SpreadExceeded")
+               codeB = ERR_SPREAD_EXCEEDED;
             lrB.ErrorCode  = codeB;
-            lrB.ErrorInfo  = (errB == "DistanceBandViolation") ? "Distance band violation" : errB;
+            string infoB = errB;
+            if(errB == "DistanceBandViolation")
+               infoB = "Distance band violation";
+            else if(errB == "SpreadExceeded")
+               infoB = "Spread exceeded";
+            lrB.ErrorInfo  = infoB;
             WriteLog(lrB);
             okBuy = false;
          }
