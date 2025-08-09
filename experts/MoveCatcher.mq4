@@ -2892,6 +2892,47 @@ void HandleOCODetectionFor(const string system)
          return;
       double price = (retryType == OP_BUY) ? Ask : Bid;
       double dist = DistanceToExistingPositions(price);
+      if(UseDistanceBand && dist >= 0 && (dist < MinDistancePips || dist > MaxDistancePips))
+      {
+         LogRecord lrSkip;
+         lrSkip.Time       = TimeCurrent();
+         lrSkip.Symbol     = Symbol();
+         lrSkip.System     = system;
+         lrSkip.Reason     = "REFILL";
+         lrSkip.Spread     = PriceToPips(MathAbs(Ask - Bid));
+         lrSkip.Dist       = MathMax(dist, 0);
+         lrSkip.GridPips   = GridPips;
+         lrSkip.s          = s;
+         lrSkip.lotFactor  = lotFactorAdj;
+         lrSkip.BaseLot    = BaseLot;
+         lrSkip.MaxLot     = MaxLot;
+         lrSkip.actualLot  = expectedLot;
+         lrSkip.seqStr     = seqAdj;
+         lrSkip.CommentTag = expectedComment;
+         lrSkip.Magic      = MagicNumber;
+         lrSkip.OrderType  = OrderTypeToStr(retryType);
+         lrSkip.EntryPrice = price;
+         lrSkip.SL         = 0;
+         lrSkip.TP         = 0;
+         lrSkip.ErrorCode  = ERR_DISTANCE_BAND;
+         lrSkip.ErrorInfo  = "Distance band violation";
+         WriteLog(lrSkip);
+         PrintFormat("HandleOCODetectionFor: distance %.1f outside band [%.1f, %.1f], retry next tick",
+                     dist, MinDistancePips, MaxDistancePips);
+         if(system == "A")
+         {
+            state_A      = Missing;
+            retryTicketA = 0;
+            retryTypeA   = retryType;
+         }
+         else
+         {
+            state_B      = Missing;
+            retryTicketB = 0;
+            retryTypeB   = retryType;
+         }
+         return;
+      }
       int slippage = Slippage();
       double slInit = (retryType == OP_BUY) ? price - PipsToPrice(GridPips) : price + PipsToPrice(GridPips);
       double tpInit = (retryType == OP_BUY) ? price + PipsToPrice(GridPips) : price - PipsToPrice(GridPips);
