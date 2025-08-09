@@ -1,7 +1,7 @@
 import pathlib
 
 
-def test_init_strategy_logs_spread_without_check():
+def test_init_strategy_spread_check_present():
     mc_path = pathlib.Path(__file__).resolve().parents[1] / "experts" / "MoveCatcher.mq4"
     content = mc_path.read_text(encoding="utf-8")
     lines = content.splitlines()
@@ -17,4 +17,4 @@ def test_init_strategy_logs_spread_without_check():
     assert end_line is not None, "HandleOCODetectionForが見つからない"
     init_body = "\n".join(lines[start_line:end_line])
     assert "PriceToPips(MathAbs(Ask - Bid))" in init_body, "スプレッド取得がない"
-    assert "SpreadExceeded" not in init_body, "成行注文のスプレッド判定が残っている"
+    assert "Spread exceeded" in init_body, "InitStrategyにスプレッド判定が必要"
