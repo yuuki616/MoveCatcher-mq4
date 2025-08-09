@@ -34,6 +34,7 @@ CDecompMC stateB;
 // チケット保持
 int positionTicket[2] = { -1, -1 };
 int shadowTicket[2]   = { -1, -1 };
+int refillTicket[2]   = { -1, -1 };
 int ticketBuyLim      = -1;
 int ticketSellLim     = -1;
 int lastType[2];
@@ -44,6 +45,7 @@ int  FindPosition(MoveCatcherSystem sys);
 void PlaceShadowOrder(MoveCatcherSystem sys);
 void ReEnterSameDirection(MoveCatcherSystem sys);
 void ManageSystem(MoveCatcherSystem sys);
+void CheckRefill();
 
 // 初期化
 int OnInit()
@@ -82,20 +84,31 @@ int OnInit()
 // ティック処理
 void OnTick()
 {
-   if(ticketBuyLim > 0 && OrderSelect(ticketBuyLim, SELECT_BY_TICKET))
+   if(ticketBuyLim > 0)
    {
-      if(OrderType() == OP_BUY)
-         HandleBExecution(ticketBuyLim);
+      if(OrderSelect(ticketBuyLim, SELECT_BY_TICKET))
+      {
+         if(OrderType() == OP_BUY)
+            HandleBExecution(ticketBuyLim);
+      }
+      else
+         ticketBuyLim = -1;
    }
 
-   if(ticketSellLim > 0 && OrderSelect(ticketSellLim, SELECT_BY_TICKET))
+   if(ticketSellLim > 0)
    {
-      if(OrderType() == OP_SELL)
-         HandleBExecution(ticketSellLim);
+      if(OrderSelect(ticketSellLim, SELECT_BY_TICKET))
+      {
+         if(OrderType() == OP_SELL)
+            HandleBExecution(ticketSellLim);
+      }
+      else
+         ticketSellLim = -1;
    }
 
    ManageSystem(SYSTEM_A);
    ManageSystem(SYSTEM_B);
+   CheckRefill();
 }
 
 // ポジション検索
@@ -185,7 +198,87 @@ void ManageSystem(MoveCatcherSystem sys)
       if(shadowTicket[idx] > 0 && OrderSelect(shadowTicket[idx], SELECT_BY_TICKET))
          OrderDelete(shadowTicket[idx]);
       shadowTicket[idx] = -1;
-      ReEnterSameDirection(sys);
+      if(sys == SYSTEM_A)
+         ReEnterSameDirection(sys);
+   }
+}
+
+// 補充指値をチェック
+void CheckRefill()
+{
+   int posA = FindPosition(SYSTEM_A);
+   int posB = FindPosition(SYSTEM_B);
+   bool hasA = (posA > 0);
+   bool hasB = (posB > 0);
+
+   for(int i=0; i<2; i++)
+   {
+      if(refillTicket[i] > 0)
+      {
+         if(OrderSelect(refillTicket[i], SELECT_BY_TICKET))
+         {
+            int type = OrderType();
+            if(type == OP_BUY || type == OP_SELL)
+               refillTicket[i] = -1;
+         }
+         else
+            refillTicket[i] = -1;
+      }
+   }
+
+   if(hasA && !hasB && ticketBuyLim < 0 && ticketSellLim < 0 && refillTicket[SYSTEM_B] < 0)
+   {
+      if(OrderSelect(posA, SELECT_BY_TICKET))
+      {
+         double entry = OrderOpenPrice();
+         double spread = (Ask - Bid) / Pip;
+         if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
+         {
+            double lotFactor = stateB.NextLot();
+            double actualLot = NormalizeDouble(BaseLot * lotFactor, 2);
+            double priceNow = (Bid + Ask) / 2.0;
+            double price;
+            int orderType;
+            if(priceNow >= entry)
+            {
+               price = entry - s * Pip;
+               orderType = OP_BUYLIMIT;
+            }
+            else
+            {
+               price = entry + s * Pip;
+               orderType = OP_SELLLIMIT;
+            }
+            refillTicket[SYSTEM_B] = OrderSend(Symbol(), orderType, actualLot, price, 0, 0, 0, COMMENT_B, MagicNumber, 0, clrNONE);
+         }
+      }
+   }
+   else if(!hasA && hasB && refillTicket[SYSTEM_A] < 0)
+   {
+      if(OrderSelect(posB, SELECT_BY_TICKET))
+      {
+         double entry = OrderOpenPrice();
+         double spread = (Ask - Bid) / Pip;
+         if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
+         {
+            double lotFactor = stateA.NextLot();
+            double actualLot = NormalizeDouble(BaseLot * lotFactor, 2);
+            double priceNow = (Bid + Ask) / 2.0;
+            double price;
+            int orderType;
+            if(priceNow >= entry)
+            {
+               price = entry - s * Pip;
+               orderType = OP_BUYLIMIT;
+            }
+            else
+            {
+               price = entry + s * Pip;
+               orderType = OP_SELLLIMIT;
+            }
+            refillTicket[SYSTEM_A] = OrderSend(Symbol(), orderType, actualLot, price, 0, 0, 0, COMMENT_A, MagicNumber, 0, clrNONE);
+         }
+      }
    }
 }
 
