@@ -118,10 +118,8 @@ void MigrateLogIfNeeded()
    string filename = "MoveCatcher.log";
    if(FileIsExist(filename) && !FileIsExist(filename, FILE_COMMON))
    {
-      string src = TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL4\\Files\\" + filename;
-      string dst = TerminalInfoString(TERMINAL_COMMONDATA_PATH) + "\\Files\\" + filename;
       ResetLastError();
-      bool moved = FileMove(src, dst);
+      bool moved = FileMove(filename, 0, filename, FILE_COMMON|FILE_REWRITE);
       if(!moved)
       {
          int err = GetLastError();
