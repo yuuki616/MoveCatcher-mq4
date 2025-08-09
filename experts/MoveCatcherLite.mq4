@@ -121,7 +121,7 @@ int shadowTicket[2]   = { -1, -1 };
 int refillTicket[2]   = { -1, -1 };
 int ticketBuyLim      = -1;
 int ticketSellLim     = -1;
-int lastType[2];
+int lastType[2]       = { OP_BUY, OP_BUY };
 
 // 関数プロトタイプ
 void HandleBExecution(int filledTicket);
@@ -281,8 +281,7 @@ void ManageSystem(MoveCatcherSystem sys)
       if(shadowTicket[idx] > 0 && OrderSelect(shadowTicket[idx], SELECT_BY_TICKET))
          OrderDelete(shadowTicket[idx]);
       shadowTicket[idx] = -1;
-      if(sys == SYSTEM_A)
-         ReEnterSameDirection(sys);
+      ReEnterSameDirection(sys);
    }
 }
 
