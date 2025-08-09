@@ -71,6 +71,143 @@ double CalcLot(MoveCatcherSystem sys)
    return(lot);
 }
 
+double GetSpread()
+{
+   return (Ask - Bid) / Pip;
+}
+
+void LogEvent(string reason, MoveCatcherSystem sys, double entry, double sl, double tp, double spread, double actualLot)
+{
+   string sysStr = (sys == SYSTEM_A) ? "A" : "B";
+   PrintFormat("Reason=%s Entry=%.*f SL=%.*f TP=%.*f Spread=%.1f System=%s actualLot=%.2f",
+               reason,
+               _Digits, entry,
+               _Digits, sl,
+               _Digits, tp,
+               spread,
+               sysStr,
+               actualLot);
+}
+
+double MinStopDist()
+{
+   double stop   = MarketInfo(Symbol(), MODE_STOPLEVEL);
+   double freeze = MarketInfo(Symbol(), MODE_FREEZELEVEL);
+   return MathMax(stop, freeze) * Point;
+}
+
+void AdjustStops(bool isBuy, double &sl, double &tp)
+{
+   double minLevel = MinStopDist();
+   double bid = Bid;
+   double ask = Ask;
+   if(minLevel > 0)
+   {
+      if(isBuy)
+      {
+         if(bid - sl < minLevel) sl = bid - minLevel;
+         if(tp - ask < minLevel) tp = ask + minLevel;
+      }
+      else
+      {
+         if(sl - bid < minLevel) sl = bid + minLevel;
+         if(ask - tp < minLevel) tp = ask - minLevel;
+      }
+   }
+   sl = NormalizeDouble(sl, _Digits);
+   tp = NormalizeDouble(tp, _Digits);
+}
+
+void AdjustPendingPrice(int orderType, double &price)
+{
+   double minLevel = MinStopDist();
+   double ref = (orderType == OP_BUYLIMIT || orderType == OP_BUYSTOP) ? Ask : Bid;
+   if(minLevel > 0)
+   {
+      double diff = MathAbs(price - ref);
+      if(diff < minLevel)
+      {
+         if(price > ref) price = ref + minLevel; else price = ref - minLevel;
+      }
+   }
+   price = NormalizeDouble(price, _Digits);
+}
+
+void CloseTicket(int ticket, MoveCatcherSystem sys)
+{
+   if(OrderSelect(ticket, SELECT_BY_TICKET))
+   {
+      double lots = OrderLots();
+      double price = (OrderType()==OP_BUY) ? Bid : Ask;
+      LogEvent("DUPLICATE_CLOSE", sys, OrderOpenPrice(), OrderStopLoss(), OrderTakeProfit(), GetSpread(), lots);
+      OrderClose(ticket, lots, price, 0, clrNONE);
+   }
+}
+
+void CorrectDuplicatePositions()
+{
+   int ticketsA[]; datetime timesA[];
+   int ticketsB[]; datetime timesB[];
+   for(int i=0;i<OrdersTotal();i++)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber()!=MagicNumber || OrderSymbol()!=Symbol()) continue;
+      int type=OrderType(); if(type!=OP_BUY && type!=OP_SELL) continue;
+      datetime ot = OrderOpenTime();
+      int tk = OrderTicket();
+      if(OrderComment()==COMMENT_A)
+      {
+         int n=ArraySize(ticketsA); ArrayResize(ticketsA,n+1); ArrayResize(timesA,n+1);
+         ticketsA[n]=tk; timesA[n]=ot;
+      }
+      else if(OrderComment()==COMMENT_B)
+      {
+         int n=ArraySize(ticketsB); ArrayResize(ticketsB,n+1); ArrayResize(timesB,n+1);
+         ticketsB[n]=tk; timesB[n]=ot;
+      }
+   }
+
+   if(ArraySize(ticketsA)>1)
+   {
+      int oldest=0; datetime oldTime=timesA[0];
+      for(int i=1;i<ArraySize(ticketsA);i++) if(timesA[i]<oldTime){oldTime=timesA[i];oldest=i;}
+      for(int i=0;i<ArraySize(ticketsA);i++) if(i!=oldest) CloseTicket(ticketsA[i], SYSTEM_A);
+   }
+
+   if(ArraySize(ticketsB)>1)
+   {
+      int oldest=0; datetime oldTime=timesB[0];
+      for(int i=1;i<ArraySize(ticketsB);i++) if(timesB[i]<oldTime){oldTime=timesB[i];oldest=i;}
+      for(int i=0;i<ArraySize(ticketsB);i++) if(i!=oldest) CloseTicket(ticketsB[i], SYSTEM_B);
+   }
+
+   int allTks[]; datetime allTimes[]; int allSys[];
+   for(int i=0;i<OrdersTotal();i++)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber()!=MagicNumber || OrderSymbol()!=Symbol()) continue;
+      int type=OrderType(); if(type!=OP_BUY && type!=OP_SELL) continue;
+      int tk=OrderTicket(); datetime ot=OrderOpenTime();
+      MoveCatcherSystem sys = (OrderComment()==COMMENT_A)?SYSTEM_A:SYSTEM_B;
+      int n=ArraySize(allTks); ArrayResize(allTks,n+1); ArrayResize(allTimes,n+1); ArrayResize(allSys,n+1);
+      allTks[n]=tk; allTimes[n]=ot; allSys[n]=(int)sys;
+   }
+   int total = ArraySize(allTks);
+   while(total>2)
+   {
+      int latest=0; datetime lt=allTimes[0];
+      for(int i=1;i<total;i++) if(allTimes[i]>lt){lt=allTimes[i]; latest=i;}
+      CloseTicket(allTks[latest], (MoveCatcherSystem)allSys[latest]);
+      for(int j=latest;j<total-1;j++)
+      {
+         allTks[j]=allTks[j+1];
+         allTimes[j]=allTimes[j+1];
+         allSys[j]=allSys[j+1];
+      }
+      total--; ArrayResize(allTks,total); ArrayResize(allTimes,total); ArrayResize(allSys,total);
+   }
+}
+
 void ProcessClosedTrades(MoveCatcherSystem sys)
 {
    int idx = (int)sys;
@@ -130,6 +267,12 @@ void PlaceShadowOrder(MoveCatcherSystem sys);
 void ReEnterSameDirection(MoveCatcherSystem sys);
 void ManageSystem(MoveCatcherSystem sys);
 void CheckRefill();
+void CorrectDuplicatePositions();
+void CloseTicket(int ticket, MoveCatcherSystem sys);
+void LogEvent(string reason, MoveCatcherSystem sys, double entry, double sl, double tp, double spread, double actualLot);
+void AdjustStops(bool isBuy, double &sl, double &tp);
+void AdjustPendingPrice(int orderType, double &price);
+double GetSpread();
 
 // 初期化
 int OnInit()
@@ -142,22 +285,27 @@ int OnInit()
    double entryA = Ask;
    double slA = entryA - GridPips * Pip;
    double tpA = entryA + GridPips * Pip;
-
+   AdjustStops(true, slA, tpA);
    positionTicket[SYSTEM_A] = OrderSend(Symbol(), OP_BUY, actualLot_A, Ask, 0, slA, tpA, COMMENT_A, MagicNumber, 0, clrNONE);
    if(positionTicket[SYSTEM_A] > 0)
    {
       lastType[SYSTEM_A] = OP_BUY;
       PlaceShadowOrder(SYSTEM_A);
+      LogEvent("INIT", SYSTEM_A, entryA, slA, tpA, GetSpread(), actualLot_A);
    }
 
-   double spread = (Ask - Bid) / Pip;
+   double spread = GetSpread();
    if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
    {
       double actualLot_B = CalcLot(SYSTEM_B);
       double buyPrice  = entryA - s * Pip;
       double sellPrice = entryA + s * Pip;
+      AdjustPendingPrice(OP_BUYLIMIT, buyPrice);
+      AdjustPendingPrice(OP_SELLLIMIT, sellPrice);
       ticketBuyLim  = OrderSend(Symbol(), OP_BUYLIMIT,  actualLot_B, buyPrice,  0, 0, 0, COMMENT_B, MagicNumber, 0, clrNONE);
+      if(ticketBuyLim > 0) LogEvent("INIT", SYSTEM_B, buyPrice, 0, 0, spread, actualLot_B);
       ticketSellLim = OrderSend(Symbol(), OP_SELLLIMIT, actualLot_B, sellPrice, 0, 0, 0, COMMENT_B, MagicNumber, 0, clrNONE);
+      if(ticketSellLim > 0) LogEvent("INIT", SYSTEM_B, sellPrice, 0, 0, spread, actualLot_B);
    }
 
    return(INIT_SUCCEEDED);
@@ -168,6 +316,8 @@ void OnTick()
 {
    ProcessClosedTrades(SYSTEM_A);
    ProcessClosedTrades(SYSTEM_B);
+
+   CorrectDuplicatePositions();
 
    if(ticketBuyLim > 0)
    {
@@ -221,30 +371,34 @@ void PlaceShadowOrder(MoveCatcherSystem sys)
       return;
 
     int type = OrderType();
-    double entry = OrderOpenPrice();
-    double actualLot = CalcLot(sys);
+   double entry = OrderOpenPrice();
+   double actualLot = CalcLot(sys);
    double price = (type == OP_BUY) ? entry + GridPips * Pip : entry - GridPips * Pip;
    int orderType = (type == OP_BUY) ? OP_SELLLIMIT : OP_BUYLIMIT;
 
    if(shadowTicket[idx] > 0 && OrderSelect(shadowTicket[idx], SELECT_BY_TICKET))
       OrderDelete(shadowTicket[idx]);
 
+   AdjustPendingPrice(orderType, price);
    shadowTicket[idx] = OrderSend(Symbol(), orderType, actualLot, price, 0, 0, 0, CommentIdentifier(sys), MagicNumber, 0, clrNONE);
 }
 
 // 同方向に成行再エントリ
 void ReEnterSameDirection(MoveCatcherSystem sys)
 {
-    int idx = (int)sys;
-    int type = lastType[idx];
-    double actualLot = CalcLot(sys);
+   int idx = (int)sys;
+   int type = lastType[idx];
+   double actualLot = CalcLot(sys);
    double price = (type == OP_BUY) ? Ask : Bid;
    double sl = (type == OP_BUY) ? price - GridPips * Pip : price + GridPips * Pip;
    double tp = (type == OP_BUY) ? price + GridPips * Pip : price - GridPips * Pip;
-
+   AdjustStops(type==OP_BUY, sl, tp);
    positionTicket[idx] = OrderSend(Symbol(), type, actualLot, price, 0, sl, tp, CommentIdentifier(sys), MagicNumber, 0, clrNONE);
    if(positionTicket[idx] > 0)
+   {
+      LogEvent("SL_REENTRY", sys, price, sl, tp, GetSpread(), actualLot);
       PlaceShadowOrder(sys);
+   }
 }
 
 // システム管理
@@ -258,11 +412,24 @@ void ManageSystem(MoveCatcherSystem sys)
       positionTicket[idx] = current;
       if(OrderSelect(current, SELECT_BY_TICKET))
       {
+         int prevType = lastType[idx];
          lastType[idx] = OrderType();
          double entry = OrderOpenPrice();
          double sl = (lastType[idx]==OP_BUY) ? entry - GridPips * Pip : entry + GridPips * Pip;
          double tp = (lastType[idx]==OP_BUY) ? entry + GridPips * Pip : entry - GridPips * Pip;
+         AdjustStops(lastType[idx]==OP_BUY, sl, tp);
          OrderModify(current, entry, sl, tp, 0, clrNONE);
+         string reason;
+         if(current == refillTicket[idx])
+         {
+            reason = "REFILL";
+            refillTicket[idx] = -1;
+         }
+         else if(prevType != lastType[idx])
+            reason = "TP_REV";
+         else
+            reason = "SL_REENTRY";
+         LogEvent(reason, sys, entry, sl, tp, GetSpread(), OrderLots());
       }
       PlaceShadowOrder(sys);
       return;
@@ -314,11 +481,11 @@ void CheckRefill()
       if(OrderSelect(posA, SELECT_BY_TICKET))
       {
          double entry = OrderOpenPrice();
-         double spread = (Ask - Bid) / Pip;
-           if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
-           {
-              double actualLot = CalcLot(SYSTEM_B);
-              double priceNow = (Bid + Ask) / 2.0;
+         double spread = GetSpread();
+         if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
+         {
+            double actualLot = CalcLot(SYSTEM_B);
+            double priceNow = (Bid + Ask) / 2.0;
             double price;
             int orderType;
             if(priceNow >= entry)
@@ -331,7 +498,10 @@ void CheckRefill()
                price = entry + s * Pip;
                orderType = OP_SELLLIMIT;
             }
+            AdjustPendingPrice(orderType, price);
             refillTicket[SYSTEM_B] = OrderSend(Symbol(), orderType, actualLot, price, 0, 0, 0, COMMENT_B, MagicNumber, 0, clrNONE);
+            if(refillTicket[SYSTEM_B] > 0)
+               LogEvent("REFILL", SYSTEM_B, price, 0, 0, spread, actualLot);
          }
       }
    }
@@ -340,11 +510,11 @@ void CheckRefill()
       if(OrderSelect(posB, SELECT_BY_TICKET))
       {
          double entry = OrderOpenPrice();
-         double spread = (Ask - Bid) / Pip;
-           if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
-           {
-              double actualLot = CalcLot(SYSTEM_A);
-              double priceNow = (Bid + Ask) / 2.0;
+         double spread = GetSpread();
+         if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
+         {
+            double actualLot = CalcLot(SYSTEM_A);
+            double priceNow = (Bid + Ask) / 2.0;
             double price;
             int orderType;
             if(priceNow >= entry)
@@ -357,7 +527,10 @@ void CheckRefill()
                price = entry + s * Pip;
                orderType = OP_SELLLIMIT;
             }
+            AdjustPendingPrice(orderType, price);
             refillTicket[SYSTEM_A] = OrderSend(Symbol(), orderType, actualLot, price, 0, 0, 0, COMMENT_A, MagicNumber, 0, clrNONE);
+            if(refillTicket[SYSTEM_A] > 0)
+               LogEvent("REFILL", SYSTEM_A, price, 0, 0, spread, actualLot);
          }
       }
    }
@@ -369,13 +542,19 @@ void HandleBExecution(int filledTicket)
    if(filledTicket == ticketBuyLim)
    {
       if(ticketSellLim > 0 && OrderSelect(ticketSellLim, SELECT_BY_TICKET) && OrderType() == OP_SELLLIMIT)
+      {
+         LogEvent("OCO_CANCEL", SYSTEM_B, OrderOpenPrice(), 0, 0, GetSpread(), OrderLots());
          OrderDelete(ticketSellLim);
+      }
       ticketSellLim = -1;
    }
    else if(filledTicket == ticketSellLim)
    {
       if(ticketBuyLim > 0 && OrderSelect(ticketBuyLim, SELECT_BY_TICKET) && OrderType() == OP_BUYLIMIT)
+      {
+         LogEvent("OCO_CANCEL", SYSTEM_B, OrderOpenPrice(), 0, 0, GetSpread(), OrderLots());
          OrderDelete(ticketBuyLim);
+      }
       ticketBuyLim = -1;
    }
 
@@ -393,10 +572,12 @@ void HandleBExecution(int filledTicket)
          sl = entry + GridPips * Pip;
          tp = entry - GridPips * Pip;
       }
+      AdjustStops(OrderType()==OP_BUY, sl, tp);
       OrderModify(filledTicket, entry, sl, tp, 0, clrNONE);
 
       positionTicket[SYSTEM_B] = filledTicket;
       lastType[SYSTEM_B] = OrderType();
+      LogEvent("OCO_HIT", SYSTEM_B, entry, sl, tp, GetSpread(), OrderLots());
       PlaceShadowOrder(SYSTEM_B);
    }
 }
