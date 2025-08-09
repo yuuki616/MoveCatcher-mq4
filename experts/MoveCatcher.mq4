@@ -229,14 +229,18 @@ int Slippage()
 
 bool RefreshRatesChecked(const string func)
 {
-   ResetLastError();
-   if(!RefreshRates())
+   int err = 0;
+   for(int i = 0; i < 3; i++)
    {
-      int err = GetLastError();
-      PrintFormat("%s: RefreshRates failed err=%d %s", func, err, ErrorDescriptionWrap(err));
-      return(false);
+      ResetLastError();
+      if(RefreshRates())
+         return(true);
+      err = GetLastError();
+      if(err == 0)
+         return(true);
    }
-   return(true);
+   PrintFormat("%s: RefreshRates failed err=%d %s", func, err, ErrorDescriptionWrap(err));
+   return(false);
 }
 
 double NormalizeLot(const double lotCandidate)
@@ -1811,7 +1815,7 @@ void CloseAllOrders(const string reason)
 void CorrectDuplicatePositions()
 {
    if(!RefreshRatesChecked(__FUNCTION__))
-      return;
+      Print("CorrectDuplicatePositions: RefreshRates failed, continuing");
 
    int slippage = Slippage();
 
@@ -2233,7 +2237,7 @@ bool PlaceRefillOrders(const string system,const double refPrice)
 bool InitStrategy()
 {
    if(!RefreshRatesChecked(__FUNCTION__))
-      return(false);
+      Print("InitStrategy: RefreshRates failed, continuing");
 
    //---- system A market order
    string seqA; double lotFactorA; double lotA = CalcLot("A", seqA, lotFactorA);
@@ -2830,7 +2834,7 @@ void HandleOCODetectionFor(const string system)
 {
    ProcessClosedTrades(system, true);
    if(!RefreshRatesChecked(__FUNCTION__))
-      return;
+      Print("HandleOCODetectionFor: RefreshRates failed, continuing");
    int posTicket = -1;
    int retryType = -1;
    if(system == "A")
