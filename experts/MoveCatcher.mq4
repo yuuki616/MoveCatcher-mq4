@@ -271,6 +271,45 @@ bool ContainsTicket(const int &arr[],const int ticket)
    return(false);
 }
 
+// チケットごとの lotFactor を保持するための配列
+int    lotFactorTickets[];
+double lotFactorValues[];
+
+// 注文発行時の lotFactor を保存
+void StoreLotFactor(const int ticket,const double lotFactor)
+{
+   int idx = ArraySize(lotFactorTickets);
+   ArrayResize(lotFactorTickets, idx + 1);
+   ArrayResize(lotFactorValues, idx + 1);
+   lotFactorTickets[idx] = ticket;
+   lotFactorValues[idx] = lotFactor;
+}
+
+// コメントまたは保存情報から lotFactor を取得
+bool ExtractLotFactor(const int ticket,const string comment,double &lotFactor)
+{
+   int pos = StringFind(comment, "|LF=");
+   if(pos >= 0)
+   {
+      lotFactor = StringToDouble(StringSubstr(comment, pos + 4));
+      return(true);
+   }
+   for(int i = ArraySize(lotFactorTickets)-1; i >= 0; i--)
+   {
+      if(lotFactorTickets[i] == ticket)
+      {
+         lotFactor = lotFactorValues[i];
+         int last = ArraySize(lotFactorTickets) - 1;
+         lotFactorTickets[i] = lotFactorTickets[last];
+         lotFactorValues[i] = lotFactorValues[last];
+         ArrayResize(lotFactorTickets, last);
+         ArrayResize(lotFactorValues, last);
+         return(true);
+      }
+   }
+   return(false);
+}
+
 bool SaveDMCState(const string system,const CDecompMC &state,int &err)
 {
    err=0; bool ok=true;
@@ -877,7 +916,10 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       lr.Dist       = dist;
       lr.GridPips   = GridPips;
       lr.s          = s;
-      lr.lotFactor  = 0;
+      double lfTmp;
+      if(!ExtractLotFactor(OrderTicket(), OrderComment(), lfTmp))
+         lfTmp = OrderLots() / BaseLot;
+      lr.lotFactor  = lfTmp;
       lr.BaseLot    = BaseLot;
       lr.MaxLot     = MaxLot;
       lr.actualLot  = OrderLots();
@@ -1238,6 +1280,8 @@ void EnsureShadowOrder(const int ticket,const string system)
       return;
    ResetLastError();
    int tk = OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrNONE);
+   if(tk >= 0)
+      StoreLotFactor(tk, lotFactor);
    LogRecord lr;
    lr.Time       = TimeCurrent();
    lr.Symbol     = Symbol();
@@ -1420,6 +1464,8 @@ void RecoverAfterSL(const string system)
    ResetLastError();
    int ticket      = OrderSend(Symbol(), type, lot, price,
                                slippage, sl, tp, comment, MagicNumber, 0, clrNONE);
+   if(ticket >= 0)
+      StoreLotFactor(ticket, lotFactor);
    string errInfo  = flagInfo;
    if(violateSend)
       errInfo = flagInfo + " TP/SL pending";
@@ -1900,6 +1946,8 @@ bool PlaceRefillOrders(const string system,const double refPrice)
       ResetLastError();
       ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lot, priceSell,
                              0, 0, 0, comment, MagicNumber, 0, clrNONE);
+      if(ticketSell >= 0)
+         StoreLotFactor(ticketSell, lotFactor);
       LogRecord lr;
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
@@ -1978,6 +2026,8 @@ bool PlaceRefillOrders(const string system,const double refPrice)
       ResetLastError();
       ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lot, priceBuy,
                             0, 0, 0, comment, MagicNumber, 0, clrNONE);
+      if(ticketBuy >= 0)
+         StoreLotFactor(ticketBuy, lotFactor);
       LogRecord lr2;
       lr2.Time       = TimeCurrent();
       lr2.Symbol     = Symbol();
@@ -2239,6 +2289,8 @@ bool InitStrategy()
    ResetLastError();
    int ticketA = OrderSend(Symbol(), typeA, lotA, price,
                            slippage, entrySL, entryTP, commentA, MagicNumber, 0, clrNONE);
+   if(ticketA >= 0)
+      StoreLotFactor(ticketA, lotFactorA);
    LogRecord lrA;
    lrA.Time       = TimeCurrent();
    lrA.Symbol     = Symbol();
@@ -2411,6 +2463,8 @@ bool InitStrategy()
          ResetLastError();
          ticketSell = OrderSend(Symbol(), OP_SELLLIMIT, lotB, priceSell,
                                 0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+         if(ticketSell >= 0)
+            StoreLotFactor(ticketSell, lotFactorB);
          LogRecord lrS;
          lrS.Time       = TimeCurrent();
          lrS.Symbol     = Symbol();
@@ -2560,6 +2614,8 @@ bool InitStrategy()
          ResetLastError();
          ticketBuy = OrderSend(Symbol(), OP_BUYLIMIT, lotB, priceBuy,
                                0, 0, 0, commentB, MagicNumber, 0, clrNONE);
+         if(ticketBuy >= 0)
+            StoreLotFactor(ticketBuy, lotFactorB);
          LogRecord lrB;
          lrB.Time       = TimeCurrent();
          lrB.Symbol     = Symbol();
@@ -2866,6 +2922,8 @@ void HandleOCODetectionFor(const string system)
       int newTicket = OrderSend(Symbol(), retryType, expectedLot, price,
                                 slippage, slInit, tpInit,
                                 expectedComment, MagicNumber, 0, clrNONE);
+      if(newTicket >= 0)
+         StoreLotFactor(newTicket, lotFactorAdj);
       if(newTicket < 0)
       {
          int errCode = GetLastError();
@@ -3204,6 +3262,8 @@ void HandleOCODetectionFor(const string system)
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
                                 slippage, slInit, tpInit,
                                 expectedComment, MagicNumber, 0, clrNONE);
+      if(newTicket >= 0)
+         StoreLotFactor(newTicket, lotFactorAdj);
       if(newTicket < 0)
       {
          int errCode = GetLastError();
