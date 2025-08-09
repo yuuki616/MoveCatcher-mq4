@@ -546,6 +546,7 @@ void HandleBExecution(int filledTicket)
          OrderDelete(ticketSellLim);
       }
       ticketSellLim = -1;
+      ticketBuyLim  = -1; // 約定済みチケットをリセット
    }
    else if(filledTicket == ticketSellLim)
    {
@@ -554,7 +555,8 @@ void HandleBExecution(int filledTicket)
          LogEvent("OCO_CANCEL", SYSTEM_B, OrderOpenPrice(), 0, 0, GetSpread(), OrderLots());
          OrderDelete(ticketBuyLim);
       }
-      ticketBuyLim = -1;
+      ticketBuyLim  = -1;
+      ticketSellLim = -1; // 約定済みチケットをリセット
    }
 
    if(OrderSelect(filledTicket, SELECT_BY_TICKET))
