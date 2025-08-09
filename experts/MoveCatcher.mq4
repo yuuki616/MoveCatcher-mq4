@@ -3805,7 +3805,7 @@ void OnDeinit(const int reason)
    bool savedA = SaveDMCState("A", stateA, err);
    if(!savedA)
    {
-      PrintFormat("SaveDMCState(%s) err=%d", "A", err);
+      PrintFormat("SaveDMCState(%s) err=%d %s", "A", err, ErrorDescription(err));
       LogRecord lr;
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
@@ -3827,7 +3827,7 @@ void OnDeinit(const int reason)
       lr.SL         = 0;
       lr.TP         = 0;
       lr.ErrorCode  = err;
-      lr.ErrorInfo  = "";
+      lr.ErrorInfo  = ErrorDescription(err);
       WriteLog(lr);
    }
 
@@ -3835,7 +3835,7 @@ void OnDeinit(const int reason)
    bool savedB = SaveDMCState("B", stateB, err);
    if(!savedB)
    {
-      PrintFormat("SaveDMCState(%s) err=%d", "B", err);
+      PrintFormat("SaveDMCState(%s) err=%d %s", "B", err, ErrorDescription(err));
       LogRecord lr;
       lr.Time       = TimeCurrent();
       lr.Symbol     = Symbol();
@@ -3857,7 +3857,7 @@ void OnDeinit(const int reason)
       lr.SL         = 0;
       lr.TP         = 0;
       lr.ErrorCode  = err;
-      lr.ErrorInfo  = "";
+      lr.ErrorInfo  = ErrorDescription(err);
       WriteLog(lr);
    }
 }
