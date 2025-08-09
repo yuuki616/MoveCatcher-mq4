@@ -451,7 +451,7 @@ bool CanPlaceOrder(double &price,const bool isBuy,string &errorInfo,
    }
 
    double spread = PriceToPips(MathAbs(Ask - Bid));
-   if(checkSpread && spread > MaxSpreadPips)
+   if(checkSpread && MaxSpreadPips > 0 && spread > MaxSpreadPips)
    {
       PrintFormat("Spread %.1f exceeds MaxSpreadPips %.1f", spread, MaxSpreadPips);
       errorInfo = "SpreadExceeded";
