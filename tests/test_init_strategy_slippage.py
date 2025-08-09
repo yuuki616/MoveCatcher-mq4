@@ -8,6 +8,6 @@ def test_init_strategy_slippage_always_used():
     m = re.search(r"bool InitStrategy\(\)[\s\S]*?int    slippage = ([^;]+);", code)
     assert m is not None
     expr = m.group(1)
-    assert "SlippagePips" in expr
+    assert "Slippage()" in expr
     assert "UseProtectedLimit" not in expr
 
