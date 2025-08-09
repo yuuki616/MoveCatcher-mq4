@@ -6,4 +6,4 @@ def test_handle_oco_spread_check_present():
     content = mc_path.read_text(encoding="utf-8")
     idx = content.find("void HandleOCODetectionFor")
     assert idx != -1, "HandleOCODetectionForが見つからない"
-    assert "SpreadExceeded" in content[idx:], "HandleOCODetectionForにスプレッド判定が必要"
+    assert "Spread exceeded" in content[idx:], "HandleOCODetectionForにスプレッド判定が必要"

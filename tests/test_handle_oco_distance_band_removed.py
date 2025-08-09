@@ -1,7 +1,7 @@
 import pathlib
 
 
-def test_handle_oco_distance_band_violation_logging():
+def test_handle_oco_distance_band_violation_removed():
     mc_path = pathlib.Path(__file__).resolve().parents[1] / "experts" / "MoveCatcher.mq4"
     content = mc_path.read_text(encoding="utf-8")
     idx = content.find("void HandleOCODetectionFor")
@@ -10,4 +10,4 @@ def test_handle_oco_distance_band_violation_logging():
     if end_idx == -1:
         end_idx = len(content)
     fragment = content[idx:end_idx]
-    assert "DistanceBandViolation" in fragment, "距離帯判定エラーのハンドリングが必要"
+    assert "DistanceBandViolation" not in fragment, "距離帯判定ロジックは削除されるべき"
