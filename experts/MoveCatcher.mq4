@@ -3626,7 +3626,7 @@ void HandleOCODetectionFor(const string system)
    string sys2, seq2;
    if(!OrderSelect(posTicket, SELECT_BY_TICKET))
    {
-      int err = GetLastError();
+      err = GetLastError();
       PrintFormat("HandleOCODetectionFor: failed to select ticket %d err=%d", posTicket, err);
       return;
    }
