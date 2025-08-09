@@ -125,7 +125,7 @@ void WriteLog(const LogRecord &rec)
    else
    {
       FileSeek(handle, 0, SEEK_END);
-      int written = FileWrite(handle,
+      int written = (int)FileWrite(handle,
          timeStr,
          rec.Symbol,
          rec.System,
