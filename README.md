@@ -1,235 +1,156 @@
-# MoveCatcher for MT4 — README.md
+# MoveCatcher Lite for MT4 — README.md
 
-**方式B＋2系統（A/B）・独立運用 EA**
-**ロット = BaseLot × DMCMM 係数**／**MaxLot 超過時：当該系統ロット計算を初期化**
-**TP 影指値で同ティック反転**／**SL 復帰は価格保護つき成行（推奨）**
-
----
-
-## 1. 概要
-
-MoveCatcher は、**常時最大2本（系統A/B 別々に 0〜1 本）**を保ち、2本同時保有時の**建値間隔 `s = d/2`**（d は TP/SL 距離）を可能な限り維持する MT4 用 EA です。
-**TP 到達時は影指値で即座に逆方向へ反転**し、**SL 到達時は順方向に即復帰**します。
-\*\*ロットは DecompositionMonteCarloMM.mqh（DMCMM）\*\*の係数に **BaseLot** を掛けて決定し、**MaxLot 超過時は該当系統のロット計算のみ初期化**して再評価します。
+**最小構成の2ポジ・グリッドEA（方式B）**
+**ロット = BaseLot × DMCMM係数（A/B 完全独立）**
+**TPは影指値で同ティック反転 / SLは成行で順方向リエントリ**
+**ギャップ補正・リセット・距離帯：不使用（超シンプル版）**
 
 ---
 
-## 2. 主な特長
+## 1. なにができる？
 
-* **等間隔ペア**：2本の建値間隔を目標 `s = d/2`（±ε）で維持
-* **TP 同ティック反転**：Long→SellLimit\@Entry+d／Short→BuyLimit\@Entry−d を常時先置き
-* **SL 即復帰**：成行＋Slippage で順方向へ復帰（指値待ちの遅延を回避）
-* **2系統の独立運用**：A/B でロットと統計を完全分離
-* **MaxLot セーフティ**：`BaseLot × 係数` が MaxLot 超なら **その系統の DMCMM 状態を初期化**
-* **生存同期リセット**：片系統欠落中に生存系統が決済されるまでに復帰できなければ再初期化
-* **スプレッド・距離帯・Tickスナップ**：置く前の品質管理／任意の即時リセット機能
+* 常時 **最大2本（A/Bで各0〜1本）** を維持しやすい超シンプル運用。
+* 2本そろったときの建値間隔を **s = d/2**（d=TP/SL距離）に寄せる。
+* **TPで逆方向に即反転**（影指値先置き）、**SLで順方向に即再エントリ**（成行）。
+* ロットは **DecompositionMonteCarloMM.mqh（DMCMM）** の係数に **BaseLot** を掛け算（A/Bは完全独立）。
+
+> 本版は検証用の**最小ロジック**です。ギャップ補正や各種リセット・距離帯フィルタは入れていません。
 
 ---
 
-## 3. ファイル構成
+## 2. ファイル構成
 
 ```
-/experts/MoveCatcher.mq4                 ← EA 本体
-/include/DecompositionMonteCarloMM.mqh    ← DMCMM（外部／同梱 or 既存）
-AGENTS.md                                 ← 実装指示書（仕様）
-README.md                                  ← 本ドキュメント
+/MQL4/Experts/MoveCatcherLite.mq4      ← EA本体
+/MQL4/Include/DecompositionMonteCarloMM.mqh  ← DMCMM（外部 or 同梱）
+README.md
 ```
-
-> **必須**：`DecompositionMonteCarloMM.mqh` を `include` パスに配置してください（API は本 README 末尾の「依存ライブラリ」参照）。
 
 ---
 
-## 4. 動作要件
+## 3. 動作環境
 
 * MetaTrader 4（最新ビルド推奨）
-* ヘッジ口座（**FIFO/ノーヘッジ**口座の場合は機能制限あり）
-* 5桁（3桁）ブローカー対応
-* 安定した接続とティック供給（反転と SL 復帰の機会損失を避けるため）
+* ヘッジ口座を想定（FIFO/ノーヘッジは制約あり）
+* 5桁/3桁ブローカー対応（Pip=10\*Point を考慮）
 
 ---
 
-## 5. インストールと使用方法
+## 4. パラメータ（最小）
 
-1. `MoveCatcher.mq4` を **MQL4/Experts** へ配置
-2. `DecompositionMonteCarloMM.mqh` を **MQL4/Include** へ配置（フォルダが無い場合は作成）
-3. MT4 を再起動 → ナビゲータの「エキスパートアドバイザ」に表示されることを確認
-4. 任意のチャート（推奨：**M1〜M15**）に EA をドラッグ & ドロップ
-5. 入力パラメータを設定し「自動売買」をオン
-6. 起動直後に **系統A** の成行と **系統B** の `±s` OCO 指値が自動で発注されます（仕様 §7）
-7. 停止したい場合は「自動売買」をオフにするか、EA をチャートから外してください
+| パラメータ           |      型 |      例 | 説明                                     |
+| --------------- | -----: | -----: | -------------------------------------- |
+| `GridPips`      | double |    100 | d。各ポジのTP/SL距離（pips）                    |
+| `BaseLot`       | double |   0.10 | **実ロット = BaseLot × DMCMM係数**（0.01刻み推奨） |
+| `MaxSpreadPips` | double |    2.0 | **置く前だけ**チェック（初期OCO・補充）。0で無効           |
+| `MagicNumber`   |    int | 246810 | EA識別用                                  |
 
----
-
-## 6. 入力パラメータ
-
-> **精度**：BaseLot/MaxLot は **0.01 刻み**で入力。距離は pips 単位。
-
-| パラメータ               |      型 | 精度 / 例                 | 説明                                                         |
-| ------------------- | -----: | ---------------------- | ------------------------------------------------------------ |
-| `GridPips`          | double | 例: 100                 | **d**。各ポジの TP/SL 距離（pips）                                  |
-| `EpsilonPips`       | double | 例: 1.0                 | 等間隔 s に対する許容幅 ε                                         |
-| `MaxSpreadPips`     | double | 例: 2.0                 | **置く前だけ**判定（初期OCO／補充／SL後の Pending 再建て）                 |
-| `UseProtectedLimit` |   bool | true/false              | **SL 復帰＝成行＋Slippage**（MT4 標準の価格保護）                           |
-| `SlippagePips`      | double | 例: 1.0                 | 成行の最大許容スリッページ（pips）                                      |
-| `UseDistanceBand`   |   bool | true/false              | true で発注前に距離帯 `[Min, Max]` をチェック                             |
-| `MinDistancePips`   | double | 例: 50                  | 距離帯下限（`UseDistanceBand=true` のとき有効）                            |
-| `MaxDistancePips`   | double | 例: 55                  | 距離帯上限（`UseDistanceBand=true` のとき有効）                            |
-| `UseTickSnap`       |   bool | true/false              | 2本揃い時に距離逸脱で即初期化（任意）                                      |
-| `SnapCooldownBars`  |    int | 例: 2                   | Tickスナップ再発火のクールダウン（バー数）                                 |
-| `BaseLot`           | double | 0.01 刻み（例: 0.10）     | **基準ロット**。実ロット = `BaseLot × DMCMM 係数`                         |
-| `MaxLot`            | double | 0.01 刻み（例: 1.50）     | **ユーザー上限**。超過時は当該系統のロット計算を初期化して再評価                     |
-| `MagicNumber`       |    int | 例: 246810              | EA 識別用マジック                                                   |
 **内部派生値**
 
-* `s = GridPips / 2`（ユーザー設定不要）
-* `Pip = (_Digits==3 || _Digits==5 ? 10*_Point : _Point)`（価格⇄pips 換算）
+* `s = GridPips / 2`
+* `Pip = (_Digits==3 || _Digits==5) ? 10*_Point : _Point`
 
 ---
 
-## 7. 取引ロジック（要点）
+## 5. ロット算出（DMCMM 準拠）
 
-### 初期化（方式B）
+* DMCMMは **A/B 系統ごとに独立**評価：
+  `actualLot_sys = BaseLot × lotFactor_sys` → ブローカーの `LotStep/Min/Max` で丸め・クリップ。
+* 本Lite版では **MaxLot やロット計算のリセット機構は使いません**（純粋に掛け算のみ）。
 
-* **系統A**：任意方向で **Market** 建玉（直後に `±d` を設定）。
-* **系統B**：A の建値から **±s** に **OCO 指値**を即時設置。どちらかが成立したら片割れをキャンセル。
-* すべての注文／ポジションに **コメント**：`MoveCatcher_{System}_{Seq}`（例 `MoveCatcher_A_(0,1)`）。
-
-### TP／SL
-
-* **TP**：影指値（Long→SellLimit\@Entry+d／Short→BuyLimit\@Entry−d）により**同ティック反転**。
-* **SL**：**UseProtectedLimit=true** なら **成行＋Slippage** で順方向に即復帰（その後 `±d` を付与）。
-
-### 片系統欠落 → 補充
-
-* 2本→1本になったら、欠落系統を **相手建値 ± s** で補充（Spread/距離帯 OK のとき）。
-* **生存同期リセット**：欠落側が**生存系統の決済までに復帰できなければ**全初期化（ただし DMCMM 状態は保持）。
-
-### ロット算出（MaxLot セーフティ）
-
-* 毎発注直前：DMCMM → `lotFactor × BaseLot = lotCandidate`
-* `lotCandidate > MaxLot` ⇒ **当該系統の DMCMM 状態のみ初期化** → 再評価 → 上限クリップ
-* ブローカーの `MinLot/MaxLot/LotStep` で最終丸め・制限
-
-### 勝敗判定
-
-* `TP` または `SL` で決済された注文のみを勝敗として DMCMM に記録する。
-* 手動クローズやリセットなどその他の決済は統計から除外される。
+> 期待I/F（概要）：`(lotFactor_sys) = DMCMM(state_sys)`
+> `state_A` と `state_B` は混ぜないでください（勝敗系列などは各系統で独立管理）。
 
 ---
 
-## 8. スプレッド／距離帯／Tickスナップ
+## 6. 価格ルール（MT4準拠）
 
-* **スプレッド**：**置く前だけ** `Spread ≤ MaxSpreadPips` を要求。Cancel/Close/影の維持には適用しない。
-* **距離帯（任意）**：`MinDistancePips ≤ |Pcand − Pother| ≤ MaxDistancePips` を満たすときだけ置く。
-* **Tickスナップ（任意）**：2本揃い時、建値差が `[s−ε, s+ε]` を外れ、クールダウン満了で即初期化（DMCMM 状態は保持）。
+* 指値の基準：**Buy系=Ask基準 / Sell系=Bid基準**。
+* TP/SL（エントリ基準・Ask/Bidは足さない）：
 
----
+  * **Long**：TP=Entry+ d（判定：Bid ≥）、SL=Entry − d（Bid ≤）
+  * **Short**：TP=Entry − d（判定：Ask ≤）、SL=Entry + d（Ask ≥）
+* **TP反転の影指値（常時先置き）**
 
-## 9. コメントタグと集計
-
-* フォーマット：`MoveCatcher_{System}_{Seq}`
-
-  * `{System}` = `A` or `B`
-  * `{Seq}` = DMCMM の数列（例 `"(0,1)"`）
-* **系統判定はコメントで実施**。ログや統計のフィルタキーとして利用してください。
+  * Long → SellLimit @ Entry + d
+  * Short → BuyLimit  @ Entry − d
+    → 到達ティックで**同ティック反転**。
 
 ---
 
-## 10. ログ出力（推奨）
+## 7. エントリーと運用フロー（Lite）
 
-各発注・約定・取消・初期化で以下を記録（ファイル or `Print`）：
+### 初期化（方式Bの簡易版）
 
-* `Time, Symbol, System{A|B}, Reason`
-  * Reason ∈ `{INIT, REFILL, TP, SL, RESET_ALIVE, RESET_SNAP, LOT_RESET}`
-  * `REFILL` = 補充指値・影指値の設置
-* `Spread(pips), Dist(pips), GridPips, s, EpsilonPips`
-* `lotFactor, BaseLot, MaxLot, actualLot`
-* `seqStr, CommentTag, Magic`
-* `OrderType, EntryPrice, SL, TP, ErrorCode(if any)`
+1. **系統A：Marketで1本**（デフォルトはBuyでもSellでも可）
 
-> **必須**：`LOT_RESET`（MaxLot 超過によるロット計算初期化）発生時は必ずログを残すこと。
+   * DMCMM(A)でロット決定 → **TP/SL=±d** を付与 → コメント：`MoveCatcher_A`
+2. **系統B：A建値±sでOCO**
 
----
+   * 上側 SellLimit / 下側 BuyLimit を同時設置（**置く前に Spread チェック**）
+   * どちらか成立で B 確定、**片割れは即キャンセル** → **TP/SL=±d** 付与 → コメント：`MoveCatcher_B`
 
-## 11. バックテスト／最適化のヒント
+### 運用中の挙動
 
-* **モデル**：Every tick（全ティック）推奨。影指値の同ティック反転と SL 復帰の再現性に影響します。
-* **時間足**：M1〜M15（ティック密度の高い環境ほど反応が自然）。
-* **スプレッド**：固定値テストよりも「可変スプレッド」のデータが望ましい。
-* **パラメータ探索**：`GridPips`、`EpsilonPips`、`MaxSpreadPips`、`BaseLot/MaxLot`、`UseDistanceBand(帯幅)` を中心に。
-* **レポート**：`|Entry_A−Entry_B|−s` の分布、リセット発生率、`LOT_RESET` 率、PnL by System(A/B)。
+* **TP**：影指値が同ティック約定→**逆方向に即反転**→新ポジに**TP/SL=±d**再付与。
+* **SL**：**成行**で**順方向に即リエントリ**→新ポジに**TP/SL=±d**再付与。
+* **片系統のみ**になったら：**相手建値±s** に**1本だけ補充指値**（Spread OK のとき）。
+  リセットやタイムアウトは**しません**（未約定ならそのまま放置でOK）。
 
 ---
 
-## 12. 既知の制約・注意事項
+## 8. コメント（系統識別）
 
-* **MT4 はトレードトランザクションイベント非対応**：OnTick 内で状態差分を監視して処理します。
-* **FIFO/ノーヘッジ口座**：同ティック反転や同時 2 ポジが規制される場合あり。**部分決済＋反対新規**等での近似が必要です。
-* **StopLevel/FreezeLevel**：サーバ距離制約で SL/TP や指値が拒否される場合は、**距離の丸め**や**次ティック再試行**が必要です。
-* **ギャップ／急変**：保護つき成行（Slippage）でもスリップは残ります。ログで観測・調整してください。
+* 簡略フォーマット：`MoveCatcher_A` / `MoveCatcher_B`
+  ※Lite版は数列タグなどの追加情報は付けません（必要になったら拡張）。
 
 ---
 
-## 13. 推奨初期設定（例）
+## 9. スプレッド方針（最小）
 
-* `GridPips=100`, `EpsilonPips=1.0`, `MaxSpreadPips=2.0`
-* `UseProtectedLimit=true`, `SlippagePips=1.0`
-* `UseDistanceBand=false`（運用で必要なら `Min=50, Max=55` など）
-* `UseTickSnap=false`（必要なら `true`, `SnapCooldownBars=2`）
-* `BaseLot=0.10`, `MaxLot=1.50`, `MagicNumber=246810`
+* **判定する**：\*\*新規で“置く”\*\*ときのみ（初期OCO・補充）。
+* **判定しない**：Cancel / Close / 影指値の維持 / 成行リエントリ。
 
 ---
 
-## 14. よくある質問（FAQ）
+## 10. 既知の割り切り
 
-**Q1. なぜ指値は Buy=Ask 基準／Sell=Bid 基準なの？**
-A. 半スプレッドを構造的に吸収し、指定距離（pips）が表示価格の片側に正しく写像されるためです。
-
-**Q2. MaxLot を超えたらどうなる？**
-A. **その系統のみ** DMCMM のロット計算状態を**初期化**し、再評価します。最終ロットは `≤ MaxLot` にクリップします（`LOT_RESET` を記録）。
-
-**Q3. 片系統が長く復帰しない場合は？**
-A. **生存系統が決済されるまで**復帰を試みます。未復帰なら**全初期化**（DMCMM 状態は保持）。
-
-**Q4. 5桁ブローカーでの pips 計算は？**
-A. `Pip = 10*_Point` として価格⇄pips を相互変換します（3桁も同様）。4桁/2桁は `Pip = _Point`。
+* **ギャップ補正なし**（スリッページ・ギャップ時はズレが起こり得ます）
+* **各種リセット（生存同期・距離帯・Tickスナップ）なし**
+* **保護付きリミット/細かいslippage制御なし**（SL復帰は単純に成行）
+* **勝敗カウント**をするなら：**TP=Win / SL=Loss / その他=Neutral** の単純ルールでOK（ε判定は実装任せ）
 
 ---
 
-## 15. 依存ライブラリ（DMCMM）
+## 11. インストール & 使い方
 
-* 配置手順
-  1. `DecompositionMonteCarloMM.mqh` を MT4 の **MQL4/Include** へコピー
-  2. EA 冒頭で `#include <DecompositionMonteCarloMM.mqh>` を宣言
-* 期待インターフェース（概要）
-  * 入力：系統ごとの内部状態 `state_sys`（勝敗系列・連敗・PnL・分散推定・信頼区間など）
-  * 出力：`lotFactor_sys`（無次元係数）, `seq_sys`（コメント用数列文字列）
-  * **状態初期化 API**：MaxLot 超過時に**当該系統の状態のみ**初期化できること
-  * **永続化**：`state_sys` を保存／復元できること（EA 初期化や再起動でも継続）
+1. `MoveCatcherLite.mq4` を **MQL4/Experts** に、`DecompositionMonteCarloMM.mqh` を **MQL4/Include** に配置
+2. MT4を再起動 → 任意チャート（M1〜M15推奨）へEAを適用
+3. `GridPips / BaseLot / MaxSpreadPips / MagicNumber` を設定
+4. 自動売買をON → 稼働
 
-> 具体的な関数名・構造体はプロジェクト版 DMCMM に合わせてください（本 EA は抽象 I/F に従って呼び出します）。
+**推奨初期値**：
+`GridPips=100`, `BaseLot=0.10`, `MaxSpreadPips=2.0`, `MagicNumber=246810`
 
 ---
 
-## 16. ライセンス・免責
+## 12. ログ（簡易）
 
-* 本 EA は教育・研究目的の参考実装です。実運用は自己責任で行ってください。
-* マーケット状況／約定仕様／サーバ制約により、意図した動作を確実に保証するものではありません。
-* 重大な変更（ブローカー変更・サーバ移行・口座種別変更）前後は必ずデモ検証を行ってください。
-
----
-
-## 17. 変更履歴（Changelog）
-
-* **v1.0.0** 初版
-
-  * 方式B／2系統独立／TP影反転／SL保護つき成行復帰
-  * ロット = BaseLot × DMCMM 係数、**MaxLot 超過で当該系統ロット計算初期化**
-  * 生存同期リセット／距離帯／Tickスナップ（任意）
+`Print`等で以下の最低限を出してください：
+`Reason{INIT,OCO_HIT,OCO_CANCEL,TP_REV,SL_REENTRY,REFILL}, Entry, SL, TP, Spread, System(A/B), actualLot`
 
 ---
 
-## 18. サポート
+## 13. 受け入れチェック
 
-* 仕様質問・不具合報告・改善提案は Issues へ。
-* ログ（`Reason, Spread, Dist, lotFactor, actualLot, seq, System`）の添付があると解析が早まります。
+* [ ] A 初期 Market＋TP/SL → B の **±s OCO** が置かれる
+* [ ] OCO 片側成立で**片割れキャンセル**が必ず起こる
+* [ ] **TP 反転**が影指値で同ティックに切り替わり、**新ポジに±d**が付く
+* [ ] **SL リエントリ**が成行で即時行われ、**新ポジに±d**が付く
+* [ ] **1本状態**で相手建値±sに**補充指値**が出る（Spread OK時）
+* [ ] Spread 判定は**置くときだけ**
+* [ ] **実ロット = BaseLot ×（DMCMM係数）** が **A/B独立**で反映される
+
+---
+
+---
