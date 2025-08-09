@@ -815,7 +815,11 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
 
       // 現在のスプレッドを取得（履歴からは取得不可のため近似値）
       if(!RefreshRatesChecked(__FUNCTION__))
-         return;
+      {
+         int tkWarn = OrderTicket();
+         PrintFormat("ProcessClosedTrades: RefreshRatesChecked failed, skip ticket %d", tkWarn);
+         continue;
+      }
       double spreadNow = PriceToPips(MathAbs(Ask - Bid));
       int type  = OrderType();
 
