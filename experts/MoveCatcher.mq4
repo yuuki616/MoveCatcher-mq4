@@ -2791,15 +2791,17 @@ void HandleOCODetectionFor(const string system)
          WriteLog(lrFail);
          return;
       }
-      string errcp;
-      if(!CanPlaceOrder(price, (retryType == OP_BUY), errcp))
+      if(!RefreshRatesChecked(__FUNCTION__))
+         return;
+      double spread = PriceToPips(MathAbs(Ask - Bid));
+      if(MaxSpreadPips > 0 && spread > MaxSpreadPips)
       {
          LogRecord lrFail;
          lrFail.Time       = TimeCurrent();
          lrFail.Symbol     = Symbol();
          lrFail.System     = system;
          lrFail.Reason     = "REFILL";
-         lrFail.Spread     = PriceToPips(MathAbs(Ask - Bid));
+         lrFail.Spread     = spread;
          lrFail.Dist       = MathMax(dist, 0);
          lrFail.GridPips   = GridPips;
          lrFail.s          = s;
@@ -2814,20 +2816,11 @@ void HandleOCODetectionFor(const string system)
          lrFail.EntryPrice = price;
          lrFail.SL         = slInit;
          lrFail.TP         = tpInit;
-         int errCode = 0;
-         if(errcp == "SpreadExceeded")
-            errCode = ERR_SPREAD_EXCEEDED;
-         else if(errcp == "DistanceBandViolation")
-            errCode = ERR_DISTANCE_BAND;
-         lrFail.ErrorCode  = errCode;
-         lrFail.ErrorInfo  = (errcp == "DistanceBandViolation") ? "Distance band violation" :
-                             (errcp == "SpreadExceeded") ? "Spread exceeded" : errcp;
+         lrFail.ErrorCode  = ERR_SPREAD_EXCEEDED;
+         lrFail.ErrorInfo  = "Spread exceeded";
          WriteLog(lrFail);
          return;
       }
-      if(!RefreshRatesChecked(__FUNCTION__))
-         return;
-      double spread = PriceToPips(MathAbs(Ask - Bid));
       ResetLastError();
       int newTicket = OrderSend(Symbol(), retryType, expectedLot, price,
                                 slippage, slInit, tpInit,
@@ -3103,15 +3096,17 @@ void HandleOCODetectionFor(const string system)
             retryTicketB = -1;
          return;
       }
-      string errcp;
-      if(!CanPlaceOrder(price, (type == OP_BUY), errcp))
+      if(!RefreshRatesChecked(__FUNCTION__))
+         return;
+      double spread = PriceToPips(MathAbs(Ask - Bid));
+      if(MaxSpreadPips > 0 && spread > MaxSpreadPips)
       {
          LogRecord lrFail;
          lrFail.Time       = TimeCurrent();
          lrFail.Symbol     = Symbol();
          lrFail.System     = system;
          lrFail.Reason     = "REFILL";
-         lrFail.Spread     = PriceToPips(MathAbs(Ask - Bid));
+         lrFail.Spread     = spread;
          lrFail.Dist       = MathMax(dist, 0);
          lrFail.GridPips   = GridPips;
          lrFail.s          = s;
@@ -3126,25 +3121,15 @@ void HandleOCODetectionFor(const string system)
          lrFail.EntryPrice = price;
          lrFail.SL         = slInit;
          lrFail.TP         = tpInit;
-         int errCode = 0;
-         if(errcp == "SpreadExceeded")
-            errCode = ERR_SPREAD_EXCEEDED;
-         else if(errcp == "DistanceBandViolation")
-            errCode = ERR_DISTANCE_BAND;
-         lrFail.ErrorCode  = errCode;
-         lrFail.ErrorInfo  = (errcp == "DistanceBandViolation") ? "Distance band violation" :
-                             (errcp == "SpreadExceeded") ? "Spread exceeded" : errcp;
+         lrFail.ErrorCode  = ERR_SPREAD_EXCEEDED;
+         lrFail.ErrorInfo  = "Spread exceeded";
          WriteLog(lrFail);
-         PrintFormat("HandleOCODetectionFor: %s - %s, retry next tick", system, lrFail.ErrorInfo);
          if(system == "A")
             retryTicketA = -1;
          else
             retryTicketB = -1;
          return;
       }
-      if(!RefreshRatesChecked(__FUNCTION__))
-         return;
-      double spread = PriceToPips(MathAbs(Ask - Bid));
       ResetLastError();
       int newTicket = OrderSend(Symbol(), type, expectedLot, price,
                                 slippage, slInit, tpInit,

@@ -1,9 +1,13 @@
 import pathlib
-import re
 
 
-def test_handle_oco_uses_can_place_order():
+def test_handle_oco_does_not_use_can_place_order():
     mc_path = pathlib.Path(__file__).resolve().parents[1] / "experts" / "MoveCatcher.mq4"
     content = mc_path.read_text(encoding="utf-8")
-    pattern = r"CanPlaceOrder\s*\(\s*price\s*,\s*\(type == OP_BUY\)\s*,\s*errcp\s*\)"
-    assert re.search(pattern, content), "HandleOCODetectionFor で CanPlaceOrder 呼び出しが必要"
+    idx = content.find("void HandleOCODetectionFor")
+    assert idx != -1, "HandleOCODetectionForが見つからない"
+    end_idx = content.find("\nvoid ", idx + 1)
+    if end_idx == -1:
+        end_idx = len(content)
+    fragment = content[idx:end_idx]
+    assert "CanPlaceOrder" not in fragment, "HandleOCODetectionForでCanPlaceOrderを呼び出さないこと"
