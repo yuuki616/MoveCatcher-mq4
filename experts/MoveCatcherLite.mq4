@@ -146,7 +146,10 @@ bool RetryOrder(bool isModify, int &ticket, int orderType, double lot, double &p
       }
       else
       {
-         ticket = OrderSend(Symbol(), orderType, lot, price, SlippagePips / Pip, sl, tp, comment, MagicNumber, 0, clrNONE);
+         ticket = OrderSend(
+            Symbol(), orderType, lot, price,
+            SlippagePips * Pip / _Point, // SlippagePips(pips) をポイントに換算
+            sl, tp, comment, MagicNumber, 0, clrNONE);
          success = (ticket > 0);
          if(success && (orderType == OP_BUY || orderType == OP_SELL))
          {
