@@ -76,17 +76,19 @@ double GetSpread()
    return (Ask - Bid) / Pip;
 }
 
-void LogEvent(string reason, MoveCatcherSystem sys, double entry, double sl, double tp, double spread, double actualLot)
+void LogEvent(string reason, MoveCatcherSystem sys, double entry, double sl, double tp, double spread, double actualLot, int ticket)
 {
    string sysStr = (sys == SYSTEM_A) ? "A" : "B";
-   PrintFormat("Reason=%s Entry=%.*f SL=%.*f TP=%.*f Spread=%.1f System=%s actualLot=%.2f",
+   PrintFormat("Reason=%s Entry=%.*f SL=%.*f TP=%.*f Spread=%.1f System=%s actualLot=%.2f Magic=%d Ticket=%d",
                reason,
                _Digits, entry,
                _Digits, sl,
                _Digits, tp,
                spread,
                sysStr,
-               actualLot);
+               actualLot,
+               MagicNumber,
+               ticket);
 }
 
 double MinStopDist()
@@ -201,7 +203,7 @@ void CloseTicket(int ticket, MoveCatcherSystem sys)
    {
       double lots = OrderLots();
       double price = (OrderType()==OP_BUY) ? Bid : Ask;
-      LogEvent("DUPLICATE_CLOSE", sys, OrderOpenPrice(), OrderStopLoss(), OrderTakeProfit(), GetSpread(), lots);
+      LogEvent("DUPLICATE_CLOSE", sys, OrderOpenPrice(), OrderStopLoss(), OrderTakeProfit(), GetSpread(), lots, ticket);
       OrderClose(ticket, lots, price, 0, clrNONE);
    }
 }
@@ -329,7 +331,7 @@ void ManageSystem(MoveCatcherSystem sys);
 void CheckRefill();
 void CorrectDuplicatePositions();
 void CloseTicket(int ticket, MoveCatcherSystem sys);
-void LogEvent(string reason, MoveCatcherSystem sys, double entry, double sl, double tp, double spread, double actualLot);
+void LogEvent(string reason, MoveCatcherSystem sys, double entry, double sl, double tp, double spread, double actualLot, int ticket);
 void EnsureTPSL(double entry, bool isBuy, double &sl, double &tp);
 void AdjustPendingPrice(int orderType, double &price);
 double GetSpread();
@@ -348,7 +350,7 @@ int OnInit()
    if(!RetryOrder(false, positionTicket[SYSTEM_A], OP_BUY, actualLot_A, entryA, slA, tpA, COMMENT_A))
       return(INIT_FAILED);
    lastType[SYSTEM_A] = OP_BUY;
-   LogEvent("INIT", SYSTEM_A, entryA, slA, tpA, GetSpread(), actualLot_A);
+   LogEvent("INIT", SYSTEM_A, entryA, slA, tpA, GetSpread(), actualLot_A, positionTicket[SYSTEM_A]);
 
    double spread = GetSpread();
    if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
@@ -360,9 +362,9 @@ int OnInit()
       AdjustPendingPrice(OP_SELLLIMIT, sellPrice);
       double sl=0, tp=0;
       if(RetryOrder(false, ticketBuyLim, OP_BUYLIMIT, actualLot_B, buyPrice, sl, tp, COMMENT_B))
-         LogEvent("INIT", SYSTEM_B, buyPrice, 0, 0, spread, actualLot_B);
+         LogEvent("INIT", SYSTEM_B, buyPrice, 0, 0, spread, actualLot_B, ticketBuyLim);
       if(RetryOrder(false, ticketSellLim, OP_SELLLIMIT, actualLot_B, sellPrice, sl, tp, COMMENT_B))
-         LogEvent("INIT", SYSTEM_B, sellPrice, 0, 0, spread, actualLot_B);
+         LogEvent("INIT", SYSTEM_B, sellPrice, 0, 0, spread, actualLot_B, ticketSellLim);
    }
 
    if(ticketBuyLim < 0 || ticketSellLim < 0)
@@ -423,14 +425,14 @@ void OnTick()
                   AdjustPendingPrice(OP_BUYLIMIT, buyPrice);
                   double sl=0, tp=0;
                   if(RetryOrder(false, ticketBuyLim, OP_BUYLIMIT, actualLot_B, buyPrice, sl, tp, COMMENT_B))
-                     LogEvent("INIT", SYSTEM_B, buyPrice, 0, 0, spread, actualLot_B);
+                     LogEvent("INIT", SYSTEM_B, buyPrice, 0, 0, spread, actualLot_B, ticketBuyLim);
                }
                if(ticketSellLim < 0)
                {
                   AdjustPendingPrice(OP_SELLLIMIT, sellPrice);
                   double sl=0, tp=0;
                   if(RetryOrder(false, ticketSellLim, OP_SELLLIMIT, actualLot_B, sellPrice, sl, tp, COMMENT_B))
-                     LogEvent("INIT", SYSTEM_B, sellPrice, 0, 0, spread, actualLot_B);
+                     LogEvent("INIT", SYSTEM_B, sellPrice, 0, 0, spread, actualLot_B, ticketSellLim);
                }
                if(ticketBuyLim > 0 && ticketSellLim > 0)
                   needResendOCO = false;
@@ -463,7 +465,7 @@ bool ReEnterSameDirection(MoveCatcherSystem sys)
    if(RetryOrder(false, positionTicket[idx], type, actualLot, price, sl, tp, CommentIdentifier(sys)))
    {
       lastType[idx] = type;
-      LogEvent("SL_REENTRY", sys, price, sl, tp, GetSpread(), actualLot);
+      LogEvent("SL_REENTRY", sys, price, sl, tp, GetSpread(), actualLot, positionTicket[idx]);
       return(true);
    }
    return(false);
@@ -481,7 +483,7 @@ bool EnterOppositeDirection(MoveCatcherSystem sys)
    if(RetryOrder(false, positionTicket[idx], type, actualLot, price, sl, tp, CommentIdentifier(sys)))
    {
       lastType[idx] = type;
-      LogEvent("TP_REVERSE", sys, price, sl, tp, GetSpread(), actualLot);
+      LogEvent("TP_REVERSE", sys, price, sl, tp, GetSpread(), actualLot, positionTicket[idx]);
       return(true);
    }
    return(false);
@@ -515,7 +517,7 @@ void ManageSystem(MoveCatcherSystem sys)
                reason = "TP_REVERSE";
             else
                reason = "SL_REENTRY";
-            LogEvent(reason, sys, entry, sl, tp, GetSpread(), OrderLots());
+            LogEvent(reason, sys, entry, sl, tp, GetSpread(), OrderLots(), current);
          }
          else
          {
@@ -601,7 +603,7 @@ void CheckRefill()
            AdjustPendingPrice(orderType, price);
            double sl=0, tp=0;
            if(RetryOrder(false, refillTicket[SYSTEM_B], orderType, actualLot, price, sl, tp, COMMENT_B))
-              LogEvent("REFILL", SYSTEM_B, price, 0, 0, spread, actualLot);
+              LogEvent("REFILL", SYSTEM_B, price, 0, 0, spread, actualLot, refillTicket[SYSTEM_B]);
          }
       }
    }
@@ -630,7 +632,7 @@ void CheckRefill()
            AdjustPendingPrice(orderType, price);
            double sl=0, tp=0;
            if(RetryOrder(false, refillTicket[SYSTEM_A], orderType, actualLot, price, sl, tp, COMMENT_A))
-              LogEvent("REFILL", SYSTEM_A, price, 0, 0, spread, actualLot);
+              LogEvent("REFILL", SYSTEM_A, price, 0, 0, spread, actualLot, refillTicket[SYSTEM_A]);
          }
       }
    }
@@ -643,7 +645,7 @@ void HandleBExecution(int filledTicket)
    {
       if(ticketSellLim > 0 && OrderSelect(ticketSellLim, SELECT_BY_TICKET) && OrderType() == OP_SELLLIMIT)
       {
-         LogEvent("OCO_CANCEL", SYSTEM_B, OrderOpenPrice(), 0, 0, GetSpread(), OrderLots());
+         LogEvent("OCO_CANCEL", SYSTEM_B, OrderOpenPrice(), 0, 0, GetSpread(), OrderLots(), ticketSellLim);
          OrderDelete(ticketSellLim);
       }
       ticketSellLim = -1;
@@ -653,7 +655,7 @@ void HandleBExecution(int filledTicket)
    {
       if(ticketBuyLim > 0 && OrderSelect(ticketBuyLim, SELECT_BY_TICKET) && OrderType() == OP_BUYLIMIT)
       {
-         LogEvent("OCO_CANCEL", SYSTEM_B, OrderOpenPrice(), 0, 0, GetSpread(), OrderLots());
+         LogEvent("OCO_CANCEL", SYSTEM_B, OrderOpenPrice(), 0, 0, GetSpread(), OrderLots(), ticketBuyLim);
          OrderDelete(ticketBuyLim);
       }
       ticketBuyLim  = -1;
@@ -669,7 +671,7 @@ void HandleBExecution(int filledTicket)
       {
          positionTicket[SYSTEM_B] = filledTicket;
          lastType[SYSTEM_B] = OrderType();
-         LogEvent("OCO_HIT", SYSTEM_B, entry, sl, tp, GetSpread(), OrderLots());
+         LogEvent("OCO_HIT", SYSTEM_B, entry, sl, tp, GetSpread(), OrderLots(), filledTicket);
       }
    }
 }
