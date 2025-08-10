@@ -142,6 +142,20 @@ bool RetryOrder(bool isModify, int &ticket, int orderType, double lot, double &p
       {
          ticket = OrderSend(Symbol(), orderType, lot, price, 0, sl, tp, comment, MagicNumber, 0, clrNONE);
          success = (ticket > 0);
+         if(success && (orderType == OP_BUY || orderType == OP_SELL))
+         {
+            if(OrderSelect(ticket, SELECT_BY_TICKET))
+            {
+               double entry = OrderOpenPrice();
+               double slNew, tpNew;
+               EnsureTPSL(entry, orderType == OP_BUY, slNew, tpNew);
+               if(sl != slNew || tp != tpNew)
+                  OrderModify(ticket, entry, slNew, tpNew, 0, clrNONE);
+               price = entry;
+               sl    = slNew;
+               tp    = tpNew;
+            }
+         }
       }
       if(success)
          return(true);
