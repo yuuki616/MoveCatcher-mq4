@@ -140,9 +140,15 @@ bool RetryOrder(bool isModify, int &ticket, int orderType, double lot, double &p
       if(!isModify && (orderType == OP_BUY || orderType == OP_SELL))
          price = (orderType == OP_BUY ? Ask : Bid);
       bool success = false;
+      int err = 0;
       if(isModify)
       {
          success = OrderModify(ticket, price, sl, tp, 0, clrNONE);
+         if(!success)
+         {
+            err = GetLastError();
+            PrintFormat("OrderModify failed: %d", err);
+         }
       }
       else
       {
@@ -156,17 +162,30 @@ bool RetryOrder(bool isModify, int &ticket, int orderType, double lot, double &p
                double slNew, tpNew;
                EnsureTPSL(entry, orderType == OP_BUY, slNew, tpNew);
                if(sl != slNew || tp != tpNew)
-                  OrderModify(ticket, entry, slNew, tpNew, 0, clrNONE);
-               price = entry;
-               sl    = slNew;
-               tp    = tpNew;
+               {
+                  if(!OrderModify(ticket, entry, slNew, tpNew, 0, clrNONE))
+                  {
+                     err = GetLastError();
+                     PrintFormat("OrderModify failed: %d", err);
+                     if(err == ERR_SERVER_BUSY || err == ERR_TRADE_CONTEXT_BUSY || err == ERR_OFF_QUOTES || err == ERR_REQUOTE)
+                     {
+                        Sleep(500);
+                        continue;
+                     }
+                     return(false);
+                  }
+                  price = entry;
+                  sl    = slNew;
+                  tp    = tpNew;
+               }
             }
          }
       }
       if(success)
          return(true);
 
-      int err = GetLastError();
+      if(err == 0)
+         err = GetLastError();
       if(err == ERR_INVALID_STOPS)
       {
          break;
