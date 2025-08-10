@@ -47,6 +47,11 @@ int retryTypeB   = -1; // order type to retry opening after failure for system B
 bool shadowRetryA = false; // flag to retry shadow order for system A
 bool shadowRetryB = false; // flag to retry shadow order for system B
 
+bool needReverseA = false; // flag to reverse after TP for system A
+bool needReverseB = false; // flag to reverse after TP for system B
+bool needReEnterA = false; // flag to re-enter after SL for system A
+bool needReEnterB = false; // flag to re-enter after SL for system B
+
 struct LogRecord
 {
    datetime Time;
@@ -968,11 +973,17 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       if(!ParseComment(OrderComment(), sysTmp, seq))
          seq = "";
       double closePrice = OrderClosePrice();
-      double tol        = Pip() * 0.5;
+      double tol        = Pip() * SlippagePips;
       bool hasTP = (OrderTakeProfit() > 0);
       bool hasSL = (OrderStopLoss()  > 0);
-      bool isTP  = hasTP && (MathAbs(closePrice - OrderTakeProfit()) <= tol);
-      bool isSL  = hasSL && (MathAbs(closePrice - OrderStopLoss())  <= tol);
+      double expectedTP = (type == OP_BUY) ? OrderOpenPrice() + PipsToPrice(GridPips)
+                                          : OrderOpenPrice() - PipsToPrice(GridPips);
+      double expectedSL = (type == OP_BUY) ? OrderOpenPrice() - PipsToPrice(GridPips)
+                                          : OrderOpenPrice() + PipsToPrice(GridPips);
+      bool isTP  = (hasTP && (MathAbs(closePrice - OrderTakeProfit()) <= tol)) ||
+                   (MathAbs(closePrice - expectedTP) <= tol);
+      bool isSL  = (hasSL && (MathAbs(closePrice - OrderStopLoss())  <= tol)) ||
+                   (MathAbs(closePrice - expectedSL) <= tol);
 
       string rsn = reason;
       if(rsn == "")
@@ -989,9 +1000,21 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
       {
          bool win = isTP;
          if(system == "A")
+         {
             stateA.OnTrade(win);
+            if(isTP)
+               needReverseA = true;
+            else
+               needReEnterA = true;
+         }
          else
+         {
             stateB.OnTrade(win);
+            if(isTP)
+               needReverseB = true;
+            else
+               needReEnterB = true;
+         }
       }
       double dist = DistanceToExistingPositions(OrderOpenPrice(), OrderTicket());
       dist = MathMax(dist, 0);
