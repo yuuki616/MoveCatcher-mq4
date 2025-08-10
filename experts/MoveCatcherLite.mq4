@@ -380,7 +380,9 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
       PrintFormat("ProcessClosedTrades: history ticket=%d close=%s magic=%d comment=%s type=%d", histTk, TimeToString(ct), OrderMagicNumber(), OrderComment(), OrderType());
       if(OrderMagicNumber()!=MagicNumber || OrderSymbol()!=Symbol()) continue;
       int type=OrderType(); if(type!=OP_BUY && type!=OP_SELL) continue;
-      if(OrderComment()!=CommentIdentifier(sys)) continue;
+      string comment = OrderComment();
+      string prefix = CommentIdentifier(sys);
+      if(StringSubstr(comment,0,StringLen(prefix))!=prefix) continue;
       if(ct<lastTime) continue;
       if(ct==lastTime)
       {
