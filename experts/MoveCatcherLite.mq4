@@ -383,14 +383,15 @@ double GetSpread();
 int OnInit()
 {
    Pip = (_Digits==3 || _Digits==5) ? 10*_Point : _Point;
+   double grid = GridPips;
    double minLevel = MinStopDist();
-   if(GridPips * Pip < minLevel)
+   if(grid * Pip < minLevel)
    {
       double minPips = minLevel / Pip;
-      PrintFormat("GridPips %.1f is below minimum stop distance %.1f pips, adjusting to %.1f", GridPips, minPips, minPips);
-      GridPips = minPips;
+      PrintFormat("GridPips %.1f is below minimum stop distance %.1f pips, adjusting to %.1f", grid, minPips, minPips);
+      grid = minPips;
    }
-   s = GridPips / 2.0;
+   s = grid / 2.0;
 
    state_A.Init();
    state_B.Init();
