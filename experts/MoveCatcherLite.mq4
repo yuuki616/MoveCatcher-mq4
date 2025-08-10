@@ -367,6 +367,22 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
          if(tp > 0 && closePrice <= tp + tol) isTP = true;
          if(sl > 0 && closePrice >= sl - tol) isSL = true;
       }
+      double entry = OrderOpenPrice();
+      double d = GridPips * Pip;
+      if(type == OP_BUY)
+      {
+         double tpFallback = entry + d;
+         double slFallback = entry - d;
+         if(!isTP && closePrice >= tpFallback - tol) isTP = true;
+         if(!isSL && closePrice <= slFallback + tol) isSL = true;
+      }
+      else if(type == OP_SELL)
+      {
+         double tpFallback = entry - d;
+         double slFallback = entry + d;
+         if(!isTP && closePrice <= tpFallback + tol) isTP = true;
+         if(!isSL && closePrice >= slFallback - tol) isSL = true;
+      }
       if(isTP || isSL)
       {
          if(sys==SYSTEM_A) state_A.OnTrade(isTP); else state_B.OnTrade(isTP);
