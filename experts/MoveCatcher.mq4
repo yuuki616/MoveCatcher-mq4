@@ -46,11 +46,10 @@ int retryTypeB   = -1; // order type to retry opening after failure for system B
 
 bool shadowRetryA = false; // flag to retry shadow order for system A
 bool shadowRetryB = false; // flag to retry shadow order for system B
-
-bool needReverseA = false; // flag to reverse after TP for system A
-bool needReverseB = false; // flag to reverse after TP for system B
-bool needReEnterA = false; // flag to re-enter after SL for system A
-bool needReEnterB = false; // flag to re-enter after SL for system B
+bool needRecoverA = false; // flag to recover after close for system A
+bool needRecoverB = false; // flag to recover after close for system B
+bool lastWasTPA   = false; // last close result for system A (true=TP)
+bool lastWasTPB   = false; // last close result for system B (true=TP)
 
 struct LogRecord
 {
@@ -1002,18 +1001,14 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
          if(system == "A")
          {
             stateA.OnTrade(win);
-            if(isTP)
-               needReverseA = true;
-            else
-               needReEnterA = true;
+            needRecoverA = true;
+            lastWasTPA   = isTP;
          }
          else
          {
             stateB.OnTrade(win);
-            if(isTP)
-               needReverseB = true;
-            else
-               needReEnterB = true;
+            needRecoverB = true;
+            lastWasTPB   = isTP;
          }
       }
       double dist = DistanceToExistingPositions(OrderOpenPrice(), OrderTicket());
@@ -1497,15 +1492,16 @@ void DeletePendings(const string system,const string reason)
 }
 
 //+------------------------------------------------------------------+
-//| Re-enter or reverse position after close. UseProtectedLimit controls |
-//| slippage only here; when false, price protection is disabled.        |
+//| Recover position after close. wasTP=true  -> reverse direction      |
+//| wasTP=false -> re-enter same direction. UseProtectedLimit controls |
+//| slippage only here; when false, price protection is disabled.      |
 //+------------------------------------------------------------------+
-void RecoverAfterSL(const string system,const bool reverse=false)
+void RecoverAfterSL(const string system,const bool wasTP=false)
 {
    ProcessClosedTrades(system, true);
    if(!RefreshRatesChecked(__FUNCTION__))
       return;
-   DeletePendings(system, reverse ? "TP" : "SL");
+   DeletePendings(system, wasTP ? "TP" : "SL");
 
    int lastType = -1;
    for(int i = OrdersHistoryTotal()-1; i >= 0; i--)
@@ -1528,7 +1524,7 @@ void RecoverAfterSL(const string system,const bool reverse=false)
    }
    if(lastType == -1)
       return;
-   if(reverse)
+   if(wasTP)
       lastType = (lastType == OP_BUY) ? OP_SELL : OP_BUY;
 
    string seq;
@@ -1583,7 +1579,7 @@ void RecoverAfterSL(const string system,const bool reverse=false)
    lr.Time       = TimeCurrent();
    lr.Symbol     = Symbol();
    lr.System     = system;
-   lr.Reason     = reverse ? "TP" : "SL";
+   lr.Reason     = wasTP ? "TP" : "SL";
    lr.ErrorInfo  = errInfo;
    lr.Spread     = spread;
    lr.Dist       = MathMax(dist, 0);
@@ -4007,23 +4003,15 @@ void OnTick()
    if(hasB && shadowRetryB)
       EnsureShadowOrder(ticketB, "B");
 
-   if(state_A == Missing && !pendA)
+   if(state_A == Missing && !pendA && needRecoverA)
    {
-      if(needReverseA)
-         RecoverAfterSL("A", true);
-      else if(needReEnterA)
-         RecoverAfterSL("A");
-      needReverseA = false;
-      needReEnterA = false;
+      RecoverAfterSL("A", lastWasTPA);
+      needRecoverA = false;
    }
-   if(state_B == Missing && !pendB)
+   if(state_B == Missing && !pendB && needRecoverB)
    {
-      if(needReverseB)
-         RecoverAfterSL("B", true);
-      else if(needReEnterB)
-         RecoverAfterSL("B");
-      needReverseB = false;
-      needReEnterB = false;
+      RecoverAfterSL("B", lastWasTPB);
+      needRecoverB = false;
    }
 }
 
