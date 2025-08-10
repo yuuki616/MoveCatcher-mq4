@@ -133,6 +133,8 @@ bool RetryOrder(bool isModify, int &ticket, int orderType, double lot, double &p
    for(int i=0; i<3; i++)
    {
       RefreshRates();
+      if(!isModify && (orderType == OP_BUY || orderType == OP_SELL))
+         price = (orderType == OP_BUY ? Ask : Bid);
       bool success = false;
       if(isModify)
       {
