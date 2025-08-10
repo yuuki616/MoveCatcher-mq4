@@ -323,6 +323,7 @@ int refillTicket[2]   = { -1, -1 };
 int ticketBuyLim      = -1;
 int ticketSellLim     = -1;
 int lastType[2]       = { OP_BUY, OP_BUY };
+bool needResendOCO    = false; // 初期OCO再送フラグ
 
 // 関数プロトタイプ
 void HandleBExecution(int filledTicket);
@@ -373,6 +374,9 @@ int OnInit()
          LogEvent("INIT", SYSTEM_B, sellPrice, 0, 0, spread, actualLot_B);
    }
 
+   if(ticketBuyLim < 0 || ticketSellLim < 0)
+      needResendOCO = true;
+
    return(INIT_SUCCEEDED);
 }
 
@@ -408,7 +412,43 @@ void OnTick()
 
    ManageSystem(SYSTEM_A);
    ManageSystem(SYSTEM_B);
-   CheckRefill();
+   if(needResendOCO)
+   {
+      if(positionTicket[SYSTEM_B] > 0)
+         needResendOCO = false;
+      else if(positionTicket[SYSTEM_A] > 0 && (ticketBuyLim < 0 || ticketSellLim < 0))
+      {
+         if(OrderSelect(positionTicket[SYSTEM_A], SELECT_BY_TICKET))
+         {
+            double entryA = OrderOpenPrice();
+            double spread = GetSpread();
+            if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
+            {
+               double actualLot_B = CalcLot(SYSTEM_B);
+               double buyPrice  = entryA - s * Pip;
+               double sellPrice = entryA + s * Pip;
+               if(ticketBuyLim < 0)
+               {
+                  AdjustPendingPrice(OP_BUYLIMIT, buyPrice);
+                  double sl=0, tp=0;
+                  if(RetryOrder(false, ticketBuyLim, OP_BUYLIMIT, actualLot_B, buyPrice, sl, tp, COMMENT_B))
+                     LogEvent("INIT", SYSTEM_B, buyPrice, 0, 0, spread, actualLot_B);
+               }
+               if(ticketSellLim < 0)
+               {
+                  AdjustPendingPrice(OP_SELLLIMIT, sellPrice);
+                  double sl=0, tp=0;
+                  if(RetryOrder(false, ticketSellLim, OP_SELLLIMIT, actualLot_B, sellPrice, sl, tp, COMMENT_B))
+                     LogEvent("INIT", SYSTEM_B, sellPrice, 0, 0, spread, actualLot_B);
+               }
+               if(ticketBuyLim > 0 && ticketSellLim > 0)
+                  needResendOCO = false;
+            }
+         }
+      }
+   }
+   else
+      CheckRefill();
 }
 
 // ポジション検索
