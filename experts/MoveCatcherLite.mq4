@@ -133,6 +133,51 @@ void AdjustPendingPrice(int orderType, double &price)
    price = NormalizeDouble(price, _Digits);
 }
 
+bool RetryOrder(bool isModify, int &ticket, int orderType, double lot, double &price, double &sl, double &tp, string comment)
+{
+   for(int i=0; i<3; i++)
+   {
+      RefreshRates();
+      bool success = false;
+      if(isModify)
+      {
+         success = OrderModify(ticket, price, sl, tp, 0, clrNONE);
+      }
+      else
+      {
+         ticket = OrderSend(Symbol(), orderType, lot, price, 0, sl, tp, comment, MagicNumber, 0, clrNONE);
+         success = (ticket > 0);
+      }
+      if(success)
+         return(true);
+
+      int err = GetLastError();
+      if(err == ERR_INVALID_STOPS || err == ERR_INVALID_TRADE_PARAMETERS)
+      {
+         if(isModify)
+         {
+            if(OrderSelect(ticket, SELECT_BY_TICKET))
+               AdjustStops(OrderType() == OP_BUY, sl, tp);
+         }
+         else
+         {
+            if(orderType == OP_BUY || orderType == OP_SELL)
+               AdjustStops(orderType == OP_BUY, sl, tp);
+            else
+               AdjustPendingPrice(orderType, price);
+         }
+         continue;
+      }
+      if(err == ERR_SERVER_BUSY || err == ERR_TRADE_CONTEXT_BUSY || err == ERR_OFF_QUOTES || err == ERR_REQUOTE)
+      {
+         Sleep(500);
+         continue;
+      }
+      break;
+   }
+   return(false);
+}
+
 // 同系統ポジションをすべて収集
 int FindPositions(MoveCatcherSystem sys, int &tickets[], datetime &times[])
 {
@@ -306,8 +351,7 @@ int OnInit()
    double slA = entryA - GridPips * Pip;
    double tpA = entryA + GridPips * Pip;
    AdjustStops(true, slA, tpA);
-   positionTicket[SYSTEM_A] = OrderSend(Symbol(), OP_BUY, actualLot_A, Ask, 0, slA, tpA, COMMENT_A, MagicNumber, 0, clrNONE);
-   if(positionTicket[SYSTEM_A] > 0)
+   if(RetryOrder(false, positionTicket[SYSTEM_A], OP_BUY, actualLot_A, entryA, slA, tpA, COMMENT_A))
    {
       lastType[SYSTEM_A] = OP_BUY;
       PlaceShadowOrder(SYSTEM_A);
@@ -322,10 +366,11 @@ int OnInit()
       double sellPrice = entryA + s * Pip;
       AdjustPendingPrice(OP_BUYLIMIT, buyPrice);
       AdjustPendingPrice(OP_SELLLIMIT, sellPrice);
-      ticketBuyLim  = OrderSend(Symbol(), OP_BUYLIMIT,  actualLot_B, buyPrice,  0, 0, 0, COMMENT_B, MagicNumber, 0, clrNONE);
-      if(ticketBuyLim > 0) LogEvent("INIT", SYSTEM_B, buyPrice, 0, 0, spread, actualLot_B);
-      ticketSellLim = OrderSend(Symbol(), OP_SELLLIMIT, actualLot_B, sellPrice, 0, 0, 0, COMMENT_B, MagicNumber, 0, clrNONE);
-      if(ticketSellLim > 0) LogEvent("INIT", SYSTEM_B, sellPrice, 0, 0, spread, actualLot_B);
+      double sl=0, tp=0;
+      if(RetryOrder(false, ticketBuyLim, OP_BUYLIMIT, actualLot_B, buyPrice, sl, tp, COMMENT_B))
+         LogEvent("INIT", SYSTEM_B, buyPrice, 0, 0, spread, actualLot_B);
+      if(RetryOrder(false, ticketSellLim, OP_SELLLIMIT, actualLot_B, sellPrice, sl, tp, COMMENT_B))
+         LogEvent("INIT", SYSTEM_B, sellPrice, 0, 0, spread, actualLot_B);
    }
 
    return(INIT_SUCCEEDED);
@@ -392,7 +437,8 @@ void PlaceShadowOrder(MoveCatcherSystem sys)
       OrderDelete(shadowTicket[idx]);
 
    AdjustPendingPrice(orderType, price);
-   shadowTicket[idx] = OrderSend(Symbol(), orderType, actualLot, price, 0, 0, 0, CommentIdentifier(sys), MagicNumber, 0, clrNONE);
+   double sl=0, tp=0;
+   RetryOrder(false, shadowTicket[idx], orderType, actualLot, price, sl, tp, CommentIdentifier(sys));
 }
 
 // 同方向に成行再エントリ
@@ -405,8 +451,7 @@ void ReEnterSameDirection(MoveCatcherSystem sys)
    double sl = (type == OP_BUY) ? price - GridPips * Pip : price + GridPips * Pip;
    double tp = (type == OP_BUY) ? price + GridPips * Pip : price - GridPips * Pip;
    AdjustStops(type==OP_BUY, sl, tp);
-   positionTicket[idx] = OrderSend(Symbol(), type, actualLot, price, 0, sl, tp, CommentIdentifier(sys), MagicNumber, 0, clrNONE);
-   if(positionTicket[idx] > 0)
+   if(RetryOrder(false, positionTicket[idx], type, actualLot, price, sl, tp, CommentIdentifier(sys)))
    {
       LogEvent("SL_REENTRY", sys, price, sl, tp, GetSpread(), actualLot);
       PlaceShadowOrder(sys);
@@ -430,18 +475,20 @@ void ManageSystem(MoveCatcherSystem sys)
          double sl = (lastType[idx]==OP_BUY) ? entry - GridPips * Pip : entry + GridPips * Pip;
          double tp = (lastType[idx]==OP_BUY) ? entry + GridPips * Pip : entry - GridPips * Pip;
          AdjustStops(lastType[idx]==OP_BUY, sl, tp);
-         OrderModify(current, entry, sl, tp, 0, clrNONE);
-         string reason;
-         if(current == refillTicket[idx])
+         if(RetryOrder(true, current, 0, 0, entry, sl, tp, ""))
          {
-            reason = "REFILL";
-            refillTicket[idx] = -1;
+            string reason;
+            if(current == refillTicket[idx])
+            {
+               reason = "REFILL";
+               refillTicket[idx] = -1;
+            }
+            else if(prevType != lastType[idx])
+               reason = "TP_REV";
+            else
+               reason = "SL_REENTRY";
+            LogEvent(reason, sys, entry, sl, tp, GetSpread(), OrderLots());
          }
-         else if(prevType != lastType[idx])
-            reason = "TP_REV";
-         else
-            reason = "SL_REENTRY";
-         LogEvent(reason, sys, entry, sl, tp, GetSpread(), OrderLots());
       }
       PlaceShadowOrder(sys);
       return;
@@ -504,15 +551,15 @@ void CheckRefill()
                price = entry + s * Pip;
                orderType = OP_SELLLIMIT;
             }
-            else
-            {
-               price = entry - s * Pip;
-               orderType = OP_BUYLIMIT;
-            }
-            AdjustPendingPrice(orderType, price);
-            refillTicket[SYSTEM_B] = OrderSend(Symbol(), orderType, actualLot, price, 0, 0, 0, COMMENT_B, MagicNumber, 0, clrNONE);
-            if(refillTicket[SYSTEM_B] > 0)
-               LogEvent("REFILL", SYSTEM_B, price, 0, 0, spread, actualLot);
+           else
+           {
+              price = entry - s * Pip;
+              orderType = OP_BUYLIMIT;
+           }
+           AdjustPendingPrice(orderType, price);
+           double sl=0, tp=0;
+           if(RetryOrder(false, refillTicket[SYSTEM_B], orderType, actualLot, price, sl, tp, COMMENT_B))
+              LogEvent("REFILL", SYSTEM_B, price, 0, 0, spread, actualLot);
          }
       }
    }
@@ -533,15 +580,15 @@ void CheckRefill()
                price = entry + s * Pip;
                orderType = OP_SELLLIMIT;
             }
-            else
-            {
-               price = entry - s * Pip;
-               orderType = OP_BUYLIMIT;
-            }
-            AdjustPendingPrice(orderType, price);
-            refillTicket[SYSTEM_A] = OrderSend(Symbol(), orderType, actualLot, price, 0, 0, 0, COMMENT_A, MagicNumber, 0, clrNONE);
-            if(refillTicket[SYSTEM_A] > 0)
-               LogEvent("REFILL", SYSTEM_A, price, 0, 0, spread, actualLot);
+           else
+           {
+              price = entry - s * Pip;
+              orderType = OP_BUYLIMIT;
+           }
+           AdjustPendingPrice(orderType, price);
+           double sl=0, tp=0;
+           if(RetryOrder(false, refillTicket[SYSTEM_A], orderType, actualLot, price, sl, tp, COMMENT_A))
+              LogEvent("REFILL", SYSTEM_A, price, 0, 0, spread, actualLot);
          }
       }
    }
@@ -586,12 +633,13 @@ void HandleBExecution(int filledTicket)
          tp = entry - GridPips * Pip;
       }
       AdjustStops(OrderType()==OP_BUY, sl, tp);
-      OrderModify(filledTicket, entry, sl, tp, 0, clrNONE);
-
-      positionTicket[SYSTEM_B] = filledTicket;
-      lastType[SYSTEM_B] = OrderType();
-      LogEvent("OCO_HIT", SYSTEM_B, entry, sl, tp, GetSpread(), OrderLots());
-      PlaceShadowOrder(SYSTEM_B);
+      if(RetryOrder(true, filledTicket, 0, 0, entry, sl, tp, ""))
+      {
+         positionTicket[SYSTEM_B] = filledTicket;
+         lastType[SYSTEM_B] = OrderType();
+         LogEvent("OCO_HIT", SYSTEM_B, entry, sl, tp, GetSpread(), OrderLots());
+         PlaceShadowOrder(SYSTEM_B);
+      }
    }
 }
 
