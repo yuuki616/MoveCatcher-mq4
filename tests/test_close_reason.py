@@ -3,12 +3,23 @@ import pytest
 
 def estimate_reason(order):
     point = order.get("point", 0.00001)
-    tol = point * 0.5
+    tol = point * 1.0
     close_price = order["close"]
     tp = order.get("tp", 0)
     sl = order.get("sl", 0)
-    is_tp = abs(close_price - tp) <= tol and tp > 0
-    is_sl = abs(close_price - sl) <= tol and sl > 0
+    typ = order.get("type", "buy")
+    is_tp = False
+    is_sl = False
+    if typ == "buy":
+        if tp > 0 and close_price >= tp - tol:
+            is_tp = True
+        if sl > 0 and close_price <= sl + tol:
+            is_sl = True
+    else:
+        if tp > 0 and close_price <= tp + tol:
+            is_tp = True
+        if sl > 0 and close_price >= sl - tol:
+            is_sl = True
     if is_tp:
         return "TP"
     if is_sl:

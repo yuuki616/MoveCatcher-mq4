@@ -353,9 +353,20 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
       double closePrice = OrderClosePrice();
       double tp = OrderTakeProfit();
       double sl = OrderStopLoss();
-      double tol = Pip*0.5;
-      bool isTP = (tp>0 && MathAbs(closePrice - tp) <= tol);
-      bool isSL = (sl>0 && MathAbs(closePrice - sl) <= tol);
+      double tol = Pip * SlippagePips;
+      int type = OrderType();
+      bool isTP = false;
+      bool isSL = false;
+      if(type == OP_BUY)
+      {
+         if(tp > 0 && closePrice >= tp - tol) isTP = true;
+         if(sl > 0 && closePrice <= sl + tol) isSL = true;
+      }
+      else if(type == OP_SELL)
+      {
+         if(tp > 0 && closePrice <= tp + tol) isTP = true;
+         if(sl > 0 && closePrice >= sl - tol) isSL = true;
+      }
       if(isTP || isSL)
       {
          if(sys==SYSTEM_A) state_A.OnTrade(isTP); else state_B.OnTrade(isTP);

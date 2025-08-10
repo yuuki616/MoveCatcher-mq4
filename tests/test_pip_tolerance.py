@@ -8,7 +8,7 @@ def pip_value(digits):
 
 
 def tol(digits):
-    return pip_value(digits) * 0.5
+    return pip_value(digits) * 1.0
 
 
 @pytest.mark.parametrize("digits", [5, 3])
@@ -17,12 +17,12 @@ def test_process_closed_trades_tolerance(digits):
     pip = pip_value(digits)
     tolerance = tol(digits)
     close_price = base
-    take_profit = base + 0.4 * pip
-    stop_loss = base - 0.4 * pip
+    take_profit = base + 0.9 * pip
+    stop_loss = base - 0.9 * pip
     assert abs(close_price - take_profit) <= tolerance
     assert abs(close_price - stop_loss) <= tolerance
-    take_profit_far = base + 0.6 * pip
-    stop_loss_far = base - 0.6 * pip
+    take_profit_far = base + 1.1 * pip
+    stop_loss_far = base - 1.1 * pip
     assert abs(close_price - take_profit_far) > tolerance
     assert abs(close_price - stop_loss_far) > tolerance
 
@@ -33,8 +33,8 @@ def test_find_shadow_pending_tolerance(digits):
     pip = pip_value(digits)
     tolerance = tol(digits)
     target = base
-    price_close = base + 0.4 * pip
-    price_far = base + 0.6 * pip
+    price_close = base + 0.9 * pip
+    price_far = base + 1.1 * pip
     assert abs(price_close - target) <= tolerance
     assert abs(price_far - target) > tolerance
 
@@ -45,7 +45,7 @@ def test_ensure_tpsl_tolerance(digits):
     pip = pip_value(digits)
     tolerance = tol(digits)
     desired = base
-    current_close = base + 0.4 * pip
-    current_far = base + 0.6 * pip
+    current_close = base + 0.9 * pip
+    current_far = base + 1.1 * pip
     assert abs(current_close - desired) <= tolerance
     assert abs(current_far - desired) > tolerance
