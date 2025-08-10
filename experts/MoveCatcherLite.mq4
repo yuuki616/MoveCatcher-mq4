@@ -133,6 +133,31 @@ void AdjustPendingPrice(int orderType, double &price)
    price = NormalizeDouble(price, _Digits);
 }
 
+// 同系統ポジションをすべて収集
+int FindPositions(MoveCatcherSystem sys, int &tickets[], datetime &times[])
+{
+   ArrayResize(tickets, 0);
+   ArrayResize(times, 0);
+   for(int i=0; i<OrdersTotal(); i++)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+         continue;
+      if(OrderMagicNumber() != MagicNumber || OrderSymbol() != Symbol())
+         continue;
+      if(OrderComment() != CommentIdentifier(sys))
+         continue;
+      int type = OrderType();
+      if(type != OP_BUY && type != OP_SELL)
+         continue;
+      int n = ArraySize(tickets);
+      ArrayResize(tickets, n+1);
+      ArrayResize(times, n+1);
+      tickets[n] = OrderTicket();
+      times[n]   = OrderOpenTime();
+   }
+   return ArraySize(tickets);
+}
+
 void CloseTicket(int ticket, MoveCatcherSystem sys)
 {
    if(OrderSelect(ticket, SELECT_BY_TICKET))
@@ -147,56 +172,49 @@ void CloseTicket(int ticket, MoveCatcherSystem sys)
 void CorrectDuplicatePositions()
 {
    int ticketsA[]; datetime timesA[];
-   int ticketsB[]; datetime timesB[];
-   for(int i=0;i<OrdersTotal();i++)
-   {
-      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-      if(OrderMagicNumber()!=MagicNumber || OrderSymbol()!=Symbol()) continue;
-      int type=OrderType(); if(type!=OP_BUY && type!=OP_SELL) continue;
-      datetime ot = OrderOpenTime();
-      int tk = OrderTicket();
-      if(OrderComment()==COMMENT_A)
-      {
-         int n=ArraySize(ticketsA); ArrayResize(ticketsA,n+1); ArrayResize(timesA,n+1);
-         ticketsA[n]=tk; timesA[n]=ot;
-      }
-      else if(OrderComment()==COMMENT_B)
-      {
-         int n=ArraySize(ticketsB); ArrayResize(ticketsB,n+1); ArrayResize(timesB,n+1);
-         ticketsB[n]=tk; timesB[n]=ot;
-      }
-   }
-
-   if(ArraySize(ticketsA)>1)
+   int countA = FindPositions(SYSTEM_A, ticketsA, timesA);
+   if(countA>1)
    {
       int oldest=0; datetime oldTime=timesA[0];
-      for(int i=1;i<ArraySize(ticketsA);i++) if(timesA[i]<oldTime){oldTime=timesA[i];oldest=i;}
-      for(int i=0;i<ArraySize(ticketsA);i++) if(i!=oldest) CloseTicket(ticketsA[i], SYSTEM_A);
+      for(int i=1;i<countA;i++)
+         if(timesA[i]<oldTime){ oldTime=timesA[i]; oldest=i; }
+      for(int i=0;i<countA;i++)
+         if(i!=oldest) CloseTicket(ticketsA[i], SYSTEM_A);
    }
 
-   if(ArraySize(ticketsB)>1)
+   int ticketsB[]; datetime timesB[];
+   int countB = FindPositions(SYSTEM_B, ticketsB, timesB);
+   if(countB>1)
    {
       int oldest=0; datetime oldTime=timesB[0];
-      for(int i=1;i<ArraySize(ticketsB);i++) if(timesB[i]<oldTime){oldTime=timesB[i];oldest=i;}
-      for(int i=0;i<ArraySize(ticketsB);i++) if(i!=oldest) CloseTicket(ticketsB[i], SYSTEM_B);
+      for(int i=1;i<countB;i++)
+         if(timesB[i]<oldTime){ oldTime=timesB[i]; oldest=i; }
+      for(int i=0;i<countB;i++)
+         if(i!=oldest) CloseTicket(ticketsB[i], SYSTEM_B);
    }
 
+   // 最新情報を再取得
+   countA = FindPositions(SYSTEM_A, ticketsA, timesA);
+   countB = FindPositions(SYSTEM_B, ticketsB, timesB);
+
    int allTks[]; datetime allTimes[]; int allSys[];
-   for(int i=0;i<OrdersTotal();i++)
+   for(int i=0;i<countA;i++)
    {
-      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-      if(OrderMagicNumber()!=MagicNumber || OrderSymbol()!=Symbol()) continue;
-      int type=OrderType(); if(type!=OP_BUY && type!=OP_SELL) continue;
-      int tk=OrderTicket(); datetime ot=OrderOpenTime();
-      MoveCatcherSystem sys = (OrderComment()==COMMENT_A)?SYSTEM_A:SYSTEM_B;
       int n=ArraySize(allTks); ArrayResize(allTks,n+1); ArrayResize(allTimes,n+1); ArrayResize(allSys,n+1);
-      allTks[n]=tk; allTimes[n]=ot; allSys[n]=(int)sys;
+      allTks[n]=ticketsA[i]; allTimes[n]=timesA[i]; allSys[n]=(int)SYSTEM_A;
    }
+   for(int i=0;i<countB;i++)
+   {
+      int n=ArraySize(allTks); ArrayResize(allTks,n+1); ArrayResize(allTimes,n+1); ArrayResize(allSys,n+1);
+      allTks[n]=ticketsB[i]; allTimes[n]=timesB[i]; allSys[n]=(int)SYSTEM_B;
+   }
+
    int total = ArraySize(allTks);
    while(total>2)
    {
       int latest=0; datetime lt=allTimes[0];
-      for(int i=1;i<total;i++) if(allTimes[i]>lt){lt=allTimes[i]; latest=i;}
+      for(int i=1;i<total;i++)
+         if(allTimes[i]>lt){ lt=allTimes[i]; latest=i; }
       CloseTicket(allTks[latest], (MoveCatcherSystem)allSys[latest]);
       for(int j=latest;j<total-1;j++)
       {
@@ -204,7 +222,8 @@ void CorrectDuplicatePositions()
          allTimes[j]=allTimes[j+1];
          allSys[j]=allSys[j+1];
       }
-      total--; ArrayResize(allTks,total); ArrayResize(allTimes,total); ArrayResize(allSys,total);
+      total--;
+      ArrayResize(allTks,total); ArrayResize(allTimes,total); ArrayResize(allSys,total);
    }
 }
 
@@ -262,6 +281,7 @@ int lastType[2]       = { OP_BUY, OP_BUY };
 
 // 関数プロトタイプ
 void HandleBExecution(int filledTicket);
+int  FindPositions(MoveCatcherSystem sys, int &tickets[], datetime &times[]);
 int  FindPosition(MoveCatcherSystem sys);
 void PlaceShadowOrder(MoveCatcherSystem sys);
 void ReEnterSameDirection(MoveCatcherSystem sys);
@@ -349,17 +369,9 @@ void OnTick()
 // ポジション検索
 int FindPosition(MoveCatcherSystem sys)
 {
-   for(int i=0; i<OrdersTotal(); i++)
-   {
-      if(OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
-      {
-         if(OrderMagicNumber() == MagicNumber && OrderSymbol() == Symbol() && OrderComment() == CommentIdentifier(sys))
-         {
-            if(OrderType() == OP_BUY || OrderType() == OP_SELL)
-               return OrderTicket();
-         }
-      }
-   }
+   int tickets[]; datetime times[];
+   if(FindPositions(sys, tickets, times) > 0)
+      return tickets[0];
    return -1;
 }
 
