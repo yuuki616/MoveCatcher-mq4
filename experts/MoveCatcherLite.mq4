@@ -5,6 +5,7 @@
 input double GridPips      = 100.0;
 input double BaseLot       = 0.10;
 input double MaxSpreadPips = 2.0;
+input double SlippagePips  = 1.0;
 input int    MagicNumber   = 246810;
 
 // 派生値
@@ -142,7 +143,7 @@ bool RetryOrder(bool isModify, int &ticket, int orderType, double lot, double &p
       }
       else
       {
-         ticket = OrderSend(Symbol(), orderType, lot, price, 0, sl, tp, comment, MagicNumber, 0, clrNONE);
+         ticket = OrderSend(Symbol(), orderType, lot, price, SlippagePips / Pip, sl, tp, comment, MagicNumber, 0, clrNONE);
          success = (ticket > 0);
          if(success && (orderType == OP_BUY || orderType == OP_SELL))
          {
