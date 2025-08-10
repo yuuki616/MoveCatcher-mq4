@@ -304,7 +304,7 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
       double closePrice = OrderClosePrice();
       double tp = OrderTakeProfit();
       double sl = OrderStopLoss();
-      double tol = Point*0.5;
+      double tol = Pip*0.5;
       bool isTP = (tp>0 && MathAbs(closePrice - tp) <= tol);
       bool isSL = (sl>0 && MathAbs(closePrice - sl) <= tol);
       if(isTP || isSL)
