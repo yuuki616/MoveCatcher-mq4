@@ -80,12 +80,16 @@ double GetSpread()
 
 void LogEvent(string reason, MoveCatcherSystem sys, double entry, double sl, double tp, double spread, double actualLot)
 {
-   string sysStr = (sys == SYSTEM_A) ? "A" : "B";
-   PrintFormat("Reason=%s Entry=%.*f SL=%.*f TP=%.*f Spread=%.1f System=%s actualLot=%.2f",
+   string sysStr   = (sys == SYSTEM_A) ? "A" : "B";
+   string entryStr = DoubleToString(entry, _Digits);
+   string slStr    = DoubleToString(sl, _Digits);
+   string tpStr    = DoubleToString(tp, _Digits);
+
+   PrintFormat("Reason=%s Entry=%s SL=%s TP=%s Spread=%.1f System=%s actualLot=%.2f",
                reason,
-               _Digits, entry,
-               _Digits, sl,
-               _Digits, tp,
+               entryStr,
+               slStr,
+               tpStr,
                spread,
                sysStr,
                actualLot);
