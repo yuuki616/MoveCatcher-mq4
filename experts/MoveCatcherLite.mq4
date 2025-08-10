@@ -642,7 +642,8 @@ void CheckRefill()
          }
       }
    }
-   else if(!hasA && hasB && refillTicket[SYSTEM_A] < 0)
+   // Buy/Sell の指値が残っている場合は補充注文を出さない（重複発注を防ぐ）
+   else if(!hasA && hasB && ticketBuyLim < 0 && ticketSellLim < 0 && refillTicket[SYSTEM_A] < 0)
    {
       if(OrderSelect(posB, SELECT_BY_TICKET))
       {
