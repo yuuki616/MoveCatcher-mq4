@@ -516,6 +516,7 @@ void OnTick()
 
    ManageSystem(SYSTEM_A);
    ManageSystem(SYSTEM_B);
+   bool hasPending = needReverse[SYSTEM_A] || needReverse[SYSTEM_B] || needReEnter[SYSTEM_A] || needReEnter[SYSTEM_B];
    if(needResendOCO)
    {
       if(positionTicket[SYSTEM_B] > 0)
@@ -552,7 +553,7 @@ void OnTick()
          }
       }
    }
-   else
+   else if(!hasPending)
       CheckRefill();
 }
 
@@ -656,14 +657,30 @@ void ManageSystem(MoveCatcherSystem sys)
    if(needReverse[idx])
    {
       if(EnterOppositeDirection(sys))
+      {
          needReverse[idx] = false;
+         if(refillTicket[idx] > 0)
+         {
+            if(OrderSelect(refillTicket[idx], SELECT_BY_TICKET))
+               OrderDelete(refillTicket[idx]);
+            refillTicket[idx] = -1;
+         }
+      }
       return;
    }
 
    if(needReEnter[idx])
    {
       if(ReEnterSameDirection(sys))
+      {
          needReEnter[idx] = false;
+         if(refillTicket[idx] > 0)
+         {
+            if(OrderSelect(refillTicket[idx], SELECT_BY_TICKET))
+               OrderDelete(refillTicket[idx]);
+            refillTicket[idx] = -1;
+         }
+      }
    }
 }
 
