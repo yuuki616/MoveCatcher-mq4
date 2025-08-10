@@ -329,7 +329,8 @@ bool needResendOCO    = false; // 初期OCO再送フラグ
 void HandleBExecution(int filledTicket);
 int  FindPositions(MoveCatcherSystem sys, int &tickets[], datetime &times[]);
 int  FindPosition(MoveCatcherSystem sys);
-void PlaceShadowOrder(MoveCatcherSystem sys);
+void PlaceShadowOrder(MoveCatcherSystem sys, double overrideLot = -1.0);
+void ReevaluateShadowOrder(MoveCatcherSystem sys);
 void ReEnterSameDirection(MoveCatcherSystem sys);
 void ManageSystem(MoveCatcherSystem sys);
 void CheckRefill();
@@ -385,6 +386,9 @@ void OnTick()
 {
    ProcessClosedTrades(SYSTEM_A);
    ProcessClosedTrades(SYSTEM_B);
+
+   ReevaluateShadowOrder(SYSTEM_A);
+   ReevaluateShadowOrder(SYSTEM_B);
 
    CorrectDuplicatePositions();
 
@@ -461,15 +465,15 @@ int FindPosition(MoveCatcherSystem sys)
 }
 
 // 影指値を配置
-void PlaceShadowOrder(MoveCatcherSystem sys)
+void PlaceShadowOrder(MoveCatcherSystem sys, double overrideLot)
 {
    int idx = (int)sys;
    if(positionTicket[idx] < 0 || !OrderSelect(positionTicket[idx], SELECT_BY_TICKET))
       return;
 
-    int type = OrderType();
+   int type = OrderType();
    double entry = OrderOpenPrice();
-   double actualLot = CalcLot(sys);
+   double actualLot = (overrideLot > 0) ? overrideLot : CalcLot(sys);
    double price = (type == OP_BUY) ? entry + GridPips * Pip : entry - GridPips * Pip;
    int orderType = (type == OP_BUY) ? OP_SELLLIMIT : OP_BUYLIMIT;
 
@@ -479,6 +483,24 @@ void PlaceShadowOrder(MoveCatcherSystem sys)
    AdjustPendingPrice(orderType, price);
    double sl=0, tp=0;
    RetryOrder(false, shadowTicket[idx], orderType, actualLot, price, sl, tp, CommentIdentifier(sys));
+}
+
+// 影指値のロットを再評価
+void ReevaluateShadowOrder(MoveCatcherSystem sys)
+{
+   int idx = (int)sys;
+   if(positionTicket[idx] < 0 || !OrderSelect(positionTicket[idx], SELECT_BY_TICKET))
+      return;
+
+   double expectedLot = CalcLot(sys);
+   if(shadowTicket[idx] > 0 && OrderSelect(shadowTicket[idx], SELECT_BY_TICKET))
+   {
+      double currentLot = OrderLots();
+      if(MathAbs(currentLot - expectedLot) <= 0.0000001)
+         return;
+   }
+
+   PlaceShadowOrder(sys, expectedLot);
 }
 
 // 同方向に成行再エントリ
