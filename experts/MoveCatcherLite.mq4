@@ -372,14 +372,16 @@ int OnInit()
    double spread = GetSpread();
    if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
    {
-      double actualLot_B = CalcLot(SYSTEM_B);
       double buyPrice  = entryA - s * Pip;
       double sellPrice = entryA + s * Pip;
       AdjustPendingPrice(OP_BUYLIMIT, buyPrice);
-      AdjustPendingPrice(OP_SELLLIMIT, sellPrice);
       double sl=0, tp=0;
+      double actualLot_B = CalcLot(SYSTEM_B);
       if(RetryOrder(false, ticketBuyLim, OP_BUYLIMIT, actualLot_B, buyPrice, sl, tp, COMMENT_B))
          LogEvent("INIT", SYSTEM_B, buyPrice, 0, 0, spread, actualLot_B);
+      AdjustPendingPrice(OP_SELLLIMIT, sellPrice);
+      sl=0; tp=0;
+      actualLot_B = CalcLot(SYSTEM_B);
       if(RetryOrder(false, ticketSellLim, OP_SELLLIMIT, actualLot_B, sellPrice, sl, tp, COMMENT_B))
          LogEvent("INIT", SYSTEM_B, sellPrice, 0, 0, spread, actualLot_B);
    }
@@ -434,13 +436,13 @@ void OnTick()
             double spread = GetSpread();
             if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
             {
-               double actualLot_B = CalcLot(SYSTEM_B);
                double buyPrice  = entryA - s * Pip;
                double sellPrice = entryA + s * Pip;
                if(ticketBuyLim < 0)
                {
                   AdjustPendingPrice(OP_BUYLIMIT, buyPrice);
                   double sl=0, tp=0;
+                  double actualLot_B = CalcLot(SYSTEM_B);
                   if(RetryOrder(false, ticketBuyLim, OP_BUYLIMIT, actualLot_B, buyPrice, sl, tp, COMMENT_B))
                      LogEvent("INIT", SYSTEM_B, buyPrice, 0, 0, spread, actualLot_B);
                }
@@ -448,6 +450,7 @@ void OnTick()
                {
                   AdjustPendingPrice(OP_SELLLIMIT, sellPrice);
                   double sl=0, tp=0;
+                  double actualLot_B = CalcLot(SYSTEM_B);
                   if(RetryOrder(false, ticketSellLim, OP_SELLLIMIT, actualLot_B, sellPrice, sl, tp, COMMENT_B))
                      LogEvent("INIT", SYSTEM_B, sellPrice, 0, 0, spread, actualLot_B);
                }
