@@ -7,6 +7,7 @@ input double BaseLot       = 0.10;
 input double MaxSpreadPips = 2.0;
 input double SlippagePips  = 1.0;
 input int    MagicNumber   = 246810;
+input bool   InitialBuy    = true;
 
 // 派生値
 double s;
@@ -334,7 +335,7 @@ int positionTicket[2] = { -1, -1 };
 int refillTicket[2]   = { -1, -1 };
 int ticketBuyLim      = -1;
 int ticketSellLim     = -1;
-int lastType[2]       = { OP_BUY, OP_BUY };
+int lastType[2]       = { 0, 0 };
 bool needResendOCO    = false; // 初期OCO再送フラグ
 bool needReEnter[2]   = { false, false }; // SL 後の同方向再エントリ
 bool needReverse[2]   = { false, false }; // TP 後の反対方向再エントリ
@@ -370,14 +371,17 @@ int OnInit()
    state_A.Init();
    state_B.Init();
 
+   int initialType = InitialBuy ? OP_BUY : OP_SELL;
+   lastType[SYSTEM_A] = initialType;
+   lastType[SYSTEM_B] = initialType;
+
    double actualLot_A = CalcLot(SYSTEM_A);
 
-   double entryA = Ask;
+   double entryA = (initialType == OP_BUY) ? Ask : Bid;
    double slA, tpA;
-   EnsureTPSL(entryA, true, slA, tpA);
-   if(!RetryOrder(false, positionTicket[SYSTEM_A], OP_BUY, actualLot_A, entryA, slA, tpA, COMMENT_A))
+   EnsureTPSL(entryA, initialType == OP_BUY, slA, tpA);
+   if(!RetryOrder(false, positionTicket[SYSTEM_A], initialType, actualLot_A, entryA, slA, tpA, COMMENT_A))
       return(INIT_FAILED);
-   lastType[SYSTEM_A] = OP_BUY;
    LogEvent("INIT", SYSTEM_A, entryA, slA, tpA, GetSpread(), actualLot_A);
 
    double spread = GetSpread();
