@@ -581,27 +581,27 @@ void CheckRefill()
       if(OrderSelect(posA, SELECT_BY_TICKET))
       {
          double entry = OrderOpenPrice();
+         int type = OrderType();
          double spread = GetSpread();
          if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
          {
             double actualLot = CalcLot(SYSTEM_B);
-            double priceNow = (Bid + Ask) / 2.0;
             double price;
             int orderType;
-            if(priceNow >= entry)
+            if(type == OP_BUY)
             {
                price = entry + s * Pip;
                orderType = OP_SELLLIMIT;
             }
-           else
-           {
-              price = entry - s * Pip;
-              orderType = OP_BUYLIMIT;
-           }
-           AdjustPendingPrice(orderType, price);
-           double sl=0, tp=0;
-           if(RetryOrder(false, refillTicket[SYSTEM_B], orderType, actualLot, price, sl, tp, COMMENT_B))
-              LogEvent("REFILL", SYSTEM_B, price, 0, 0, spread, actualLot);
+            else
+            {
+               price = entry - s * Pip;
+               orderType = OP_BUYLIMIT;
+            }
+            AdjustPendingPrice(orderType, price);
+            double sl=0, tp=0;
+            if(RetryOrder(false, refillTicket[SYSTEM_B], orderType, actualLot, price, sl, tp, COMMENT_B))
+               LogEvent("REFILL", SYSTEM_B, price, 0, 0, spread, actualLot);
          }
       }
    }
@@ -610,27 +610,27 @@ void CheckRefill()
       if(OrderSelect(posB, SELECT_BY_TICKET))
       {
          double entry = OrderOpenPrice();
+         int type = OrderType();
          double spread = GetSpread();
          if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
          {
             double actualLot = CalcLot(SYSTEM_A);
-            double priceNow = (Bid + Ask) / 2.0;
             double price;
             int orderType;
-            if(priceNow >= entry)
+            if(type == OP_BUY)
             {
                price = entry + s * Pip;
                orderType = OP_SELLLIMIT;
             }
-           else
-           {
-              price = entry - s * Pip;
-              orderType = OP_BUYLIMIT;
-           }
-           AdjustPendingPrice(orderType, price);
-           double sl=0, tp=0;
-           if(RetryOrder(false, refillTicket[SYSTEM_A], orderType, actualLot, price, sl, tp, COMMENT_A))
-              LogEvent("REFILL", SYSTEM_A, price, 0, 0, spread, actualLot);
+            else
+            {
+               price = entry - s * Pip;
+               orderType = OP_BUYLIMIT;
+            }
+            AdjustPendingPrice(orderType, price);
+            double sl=0, tp=0;
+            if(RetryOrder(false, refillTicket[SYSTEM_A], orderType, actualLot, price, sl, tp, COMMENT_A))
+               LogEvent("REFILL", SYSTEM_A, price, 0, 0, spread, actualLot);
          }
       }
    }
