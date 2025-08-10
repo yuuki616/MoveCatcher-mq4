@@ -94,7 +94,8 @@ double MinStopDist()
 {
    double stop   = MarketInfo(Symbol(), MODE_STOPLEVEL);
    double freeze = MarketInfo(Symbol(), MODE_FREEZELEVEL);
-   return MathMax(stop, freeze) * Point;
+   // stop と freeze はポイント数 → _Point で価格に換算
+   return MathMax(stop, freeze) * _Point;
 }
 
 void EnsureTPSL(double entry, bool isBuy, double &sl, double &tp)
