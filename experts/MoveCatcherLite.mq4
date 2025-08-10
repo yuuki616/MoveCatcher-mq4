@@ -37,6 +37,8 @@ CDecompMC state_B;
 datetime lastCloseTime[2] = {0, 0};
 int      lastTicketsA[];
 int      lastTicketsB[];
+int      historyTickets[];
+datetime historyTimes[];
 
 bool ContainsTicket(const int &arr[], int tk)
 {
@@ -50,6 +52,31 @@ void AddTicket(int &arr[], int tk)
    int n=ArraySize(arr);
    ArrayResize(arr,n+1);
    arr[n]=tk;
+}
+
+// 履歴の期間選択を模擬する
+bool SelectHistoryRange(datetime start, datetime end)
+{
+   ArrayResize(historyTickets, 0);
+   ArrayResize(historyTimes, 0);
+   if(start > end)
+      return(false);
+   int total = OrdersHistoryTotal();
+   for(int i=0; i<total; i++)
+   {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY))
+         return(false);
+      datetime ct = OrderCloseTime();
+      if(ct >= start && ct <= end)
+      {
+         int n = ArraySize(historyTickets);
+         ArrayResize(historyTickets, n+1);
+         ArrayResize(historyTimes, n+1);
+         historyTickets[n] = OrderTicket();
+         historyTimes[n]   = ct;
+      }
+   }
+   return(true);
 }
 
 double CalcLot(MoveCatcherSystem sys)
@@ -327,9 +354,9 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
    datetime lastTime = lastCloseTime[idx];
 
    // 最新の履歴のみを対象にする
-   if(!HistorySelect(lastTime, TimeCurrent()))
+   if(!SelectHistoryRange(lastTime, TimeCurrent()))
    {
-      PrintFormat("HistorySelect failed: %d", GetLastError());
+      PrintFormat("SelectHistoryRange failed: %d", GetLastError());
       return;
    }
 
@@ -337,13 +364,14 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
    int newTickets[];
    if(sys==SYSTEM_A) ArrayCopy(newTickets,lastTicketsA); else ArrayCopy(newTickets,lastTicketsB);
    datetime newLastTime = lastTime;
-   for(int i=0;i<OrdersHistoryTotal();i++)
+   for(int i=0;i<ArraySize(historyTickets);i++)
    {
-      if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)) continue;
+      int histTk = historyTickets[i];
+      datetime ct = historyTimes[i];
+      if(!OrderSelect(histTk, SELECT_BY_TICKET, MODE_HISTORY)) continue;
       if(OrderMagicNumber()!=MagicNumber || OrderSymbol()!=Symbol()) continue;
       int type=OrderType(); if(type!=OP_BUY && type!=OP_SELL) continue;
       if(OrderComment()!=CommentIdentifier(sys)) continue;
-      datetime ct=OrderCloseTime();
       if(ct<lastTime) continue;
       if(ct==lastTime)
       {
@@ -425,6 +453,7 @@ bool EnterOppositeDirection(MoveCatcherSystem sys);
 void ManageSystem(MoveCatcherSystem sys);
 void CheckRefill();
 void CorrectDuplicatePositions();
+bool SelectHistoryRange(datetime start, datetime end);
 bool CloseTicket(int ticket, MoveCatcherSystem sys);
 void LogEvent(string reason, MoveCatcherSystem sys, double entry, double sl, double tp, double spread, double actualLot);
 void EnsureTPSL(double entry, bool isBuy, double &sl, double &tp);
