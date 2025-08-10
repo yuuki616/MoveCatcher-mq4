@@ -324,6 +324,7 @@ int ticketBuyLim      = -1;
 int ticketSellLim     = -1;
 int lastType[2]       = { OP_BUY, OP_BUY };
 bool needResendOCO    = false; // 初期OCO再送フラグ
+bool needReEnter[2]   = { false, false }; // 再エントリ再試行フラグ
 
 // 関数プロトタイプ
 void HandleBExecution(int filledTicket);
@@ -331,7 +332,7 @@ int  FindPositions(MoveCatcherSystem sys, int &tickets[], datetime &times[]);
 int  FindPosition(MoveCatcherSystem sys);
 void PlaceShadowOrder(MoveCatcherSystem sys, double overrideLot = -1.0);
 void ReevaluateShadowOrder(MoveCatcherSystem sys);
-void ReEnterSameDirection(MoveCatcherSystem sys);
+bool ReEnterSameDirection(MoveCatcherSystem sys);
 void ManageSystem(MoveCatcherSystem sys);
 void CheckRefill();
 void CorrectDuplicatePositions();
@@ -503,7 +504,7 @@ void ReevaluateShadowOrder(MoveCatcherSystem sys)
 }
 
 // 同方向に成行再エントリ
-void ReEnterSameDirection(MoveCatcherSystem sys)
+bool ReEnterSameDirection(MoveCatcherSystem sys)
 {
    int idx = (int)sys;
    int type = lastType[idx];
@@ -516,7 +517,9 @@ void ReEnterSameDirection(MoveCatcherSystem sys)
    {
       LogEvent("SL_REENTRY", sys, price, sl, tp, GetSpread(), actualLot);
       PlaceShadowOrder(sys);
+      return(true);
    }
+   return(false);
 }
 
 // システム管理
@@ -568,7 +571,15 @@ void ManageSystem(MoveCatcherSystem sys)
       if(shadowTicket[idx] > 0 && OrderSelect(shadowTicket[idx], SELECT_BY_TICKET))
          OrderDelete(shadowTicket[idx]);
       shadowTicket[idx] = -1;
-      ReEnterSameDirection(sys);
+      if(!ReEnterSameDirection(sys))
+         needReEnter[idx] = true;
+      return;
+   }
+
+   if(needReEnter[idx])
+   {
+      if(ReEnterSameDirection(sys))
+         needReEnter[idx] = false;
    }
 }
 
