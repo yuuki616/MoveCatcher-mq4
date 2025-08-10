@@ -13,7 +13,8 @@ def test_slippage_pips_used_for_all_orders():
     assert "RetryOrder(false, positionTicket[SYSTEM_A]," in code
     assert "RetryOrder(false, ticketBuyLim, OP_BUYLIMIT" in code
 
-    # OrderSend が SlippagePips * Pip / _Point を使用している
+    # SlippagePips をポイントへ換算し整数化した値を OrderSend で使用している
+    assert "int slippage = (int)MathRound(SlippagePips * Pip / _Point)" in code
     m = re.search(r"OrderSend\([^;]*\);", code)
     assert m is not None
-    assert "SlippagePips * Pip / _Point" in m.group(0)
+    assert "slippage" in m.group(0)
