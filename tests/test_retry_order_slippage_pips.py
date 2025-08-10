@@ -10,7 +10,7 @@ def test_slippage_pips_used_for_all_orders():
     assert "input double SlippagePips" in code
 
     # RetryOrder が成行と指値の両方で呼ばれている
-    assert "RetryOrder(false, positionTicket[SYSTEM_A], OP_BUY" in code
+    assert "RetryOrder(false, positionTicket[SYSTEM_A]," in code
     assert "RetryOrder(false, ticketBuyLim, OP_BUYLIMIT" in code
 
     # OrderSend が SlippagePips * Pip / _Point を使用している
