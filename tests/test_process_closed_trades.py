@@ -2,12 +2,13 @@ import pytest
 
 
 def process_closed_trades_py(history, system, last_time, last_tickets):
+    identifier = f"MoveCatcher_{system}"
     tickets = []
     times = []
     new_last_time = last_time
     new_last_tickets = list(last_tickets)
     for order in history:
-        if order["system"] != system:
+        if not order["comment"].startswith(identifier):
             continue
         ct = order["close_time"]
         if ct < last_time:
@@ -26,13 +27,13 @@ def process_closed_trades_py(history, system, last_time, last_tickets):
 
 def test_same_time_closures_are_processed():
     history = [
-        {"ticket": 1, "system": "A", "close_time": 100},
+        {"ticket": 1, "comment": "MoveCatcher_A_foo", "close_time": 100},
     ]
     tickets, last_time, last_tickets = process_closed_trades_py(history, "A", 0, [])
     assert tickets == [1]
 
     # 新しい注文が同一時刻で決済された場合でも処理されることを確認
-    history.append({"ticket": 2, "system": "A", "close_time": 100})
+    history.append({"ticket": 2, "comment": "MoveCatcher_A_bar", "close_time": 100})
     tickets, last_time, last_tickets = process_closed_trades_py(history, "A", last_time, last_tickets)
     assert tickets == [2]
     assert last_time == 100
