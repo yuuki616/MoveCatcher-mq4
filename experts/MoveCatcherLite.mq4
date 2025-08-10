@@ -100,6 +100,9 @@ double MinStopDist()
 void EnsureTPSL(double entry, bool isBuy, double &sl, double &tp)
 {
    double d = GridPips * Pip;
+   double minLevel = MinStopDist();
+   if(d < minLevel)
+      d = minLevel;
    if(isBuy)
    {
       sl = entry - d;
@@ -354,8 +357,15 @@ double GetSpread();
 // 初期化
 int OnInit()
 {
-   s   = GridPips / 2.0;
    Pip = (_Digits==3 || _Digits==5) ? 10*_Point : _Point;
+   double minLevel = MinStopDist();
+   if(GridPips * Pip < minLevel)
+   {
+      double minPips = minLevel / Pip;
+      PrintFormat("GridPips %.1f is below minimum stop distance %.1f pips, adjusting to %.1f", GridPips, minPips, minPips);
+      GridPips = minPips;
+   }
+   s = GridPips / 2.0;
 
    state_A.Init();
    state_B.Init();
