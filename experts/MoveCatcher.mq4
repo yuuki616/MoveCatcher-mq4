@@ -924,12 +924,20 @@ void ProcessClosedTrades(const string system,const bool updateDMC,const string r
          if(system == "A")
          {
             if(ContainsTicket(lastTicketsA,OrderTicket()))
+            {
+               PrintFormat("ProcessClosedTrades: duplicate skip system=%s ticket=%d time=%s", system, OrderTicket(),
+                           TimeToString(ct, TIME_DATE|TIME_SECONDS));
                continue;
+            }
          }
          else
          {
             if(ContainsTicket(lastTicketsB,OrderTicket()))
+            {
+               PrintFormat("ProcessClosedTrades: duplicate skip system=%s ticket=%d time=%s", system, OrderTicket(),
+                           TimeToString(ct, TIME_DATE|TIME_SECONDS));
                continue;
+            }
          }
       }
       int idx = ArraySize(tickets);
@@ -1706,6 +1714,7 @@ void RecoverAfterSL(const string system,const bool wasTP=false)
 void CloseAllOrders(const string reason)
 {
    bool updateDMC = (reason != "RESET_ALIVE" && reason != "RESET_SNAP");
+   // InitCloseTimes() の呼び出しは必要な場面で呼び出し側が行う
    if(!RefreshRatesChecked(__FUNCTION__))
    {
       Print("CloseAllOrders: RefreshRatesChecked failed at start");
@@ -1811,8 +1820,6 @@ void CloseAllOrders(const string reason)
             PrintFormat("CloseAllOrders: failed to delete %d err=%d", ticket, err);
       }
    }
-   if(!updateDMC)
-      InitCloseTimes();
 }
 
 //+------------------------------------------------------------------+
