@@ -240,15 +240,23 @@ int FindPositions(MoveCatcherSystem sys, int &tickets[], datetime &times[])
    return ArraySize(tickets);
 }
 
-void CloseTicket(int ticket, MoveCatcherSystem sys)
+bool CloseTicket(int ticket, MoveCatcherSystem sys)
 {
    if(OrderSelect(ticket, SELECT_BY_TICKET))
    {
       double lots = OrderLots();
       double price = (OrderType()==OP_BUY) ? Bid : Ask;
       LogEvent("DUPLICATE_CLOSE", sys, OrderOpenPrice(), OrderStopLoss(), OrderTakeProfit(), GetSpread(), lots);
-      OrderClose(ticket, lots, price, 0, clrNONE);
+      ResetLastError();
+      bool ok = OrderClose(ticket, lots, price, 0, clrNONE);
+      if(!ok)
+      {
+         int err = GetLastError();
+         PrintFormat("OrderClose failed. ticket=%d error=%d", ticket, err);
+      }
+      return(ok);
    }
+   return(false);
 }
 
 void CorrectDuplicatePositions()
@@ -373,7 +381,7 @@ bool EnterOppositeDirection(MoveCatcherSystem sys);
 void ManageSystem(MoveCatcherSystem sys);
 void CheckRefill();
 void CorrectDuplicatePositions();
-void CloseTicket(int ticket, MoveCatcherSystem sys);
+bool CloseTicket(int ticket, MoveCatcherSystem sys);
 void LogEvent(string reason, MoveCatcherSystem sys, double entry, double sl, double tp, double spread, double actualLot);
 void EnsureTPSL(double entry, bool isBuy, double &sl, double &tp);
 void AdjustPendingPrice(int orderType, double &price);
