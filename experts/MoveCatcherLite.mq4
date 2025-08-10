@@ -73,6 +73,7 @@ double CalcLot(MoveCatcherSystem sys)
 
 double GetSpread()
 {
+   RefreshRates();
    return (Ask - Bid) / Pip;
 }
 
@@ -337,6 +338,7 @@ double GetSpread();
 // 初期化
 int OnInit()
 {
+   RefreshRates();
    state_A.Init();
    state_B.Init();
 
