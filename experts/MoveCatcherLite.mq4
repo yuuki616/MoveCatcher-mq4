@@ -8,8 +8,8 @@ input double MaxSpreadPips = 2.0;
 input int    MagicNumber   = 246810;
 
 // 派生値
-const double s   = GridPips / 2.0;
-const double Pip = (Digits == 3 || Digits == 5) ? 10 * Point : Point;
+double s;
+double Pip;
 
 // コメント識別子
 const string COMMENT_A = "MoveCatcher_A";
@@ -337,6 +337,9 @@ double GetSpread();
 // 初期化
 int OnInit()
 {
+   s   = GridPips / 2.0;
+   Pip = (_Digits==3 || _Digits==5) ? 10*_Point : _Point;
+
    state_A.Init();
    state_B.Init();
 
