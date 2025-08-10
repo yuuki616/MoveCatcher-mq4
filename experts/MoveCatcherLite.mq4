@@ -90,8 +90,13 @@ double CalcLot(MoveCatcherSystem sys)
    int lotDigits = 0;
    if(lotStep > 0)
    {
-      lot = MathRound(lot/lotStep)*lotStep;
-      lotDigits = (int)MathRound(-MathLog(lotStep)/MathLog(10.0));
+      double step = lotStep;
+      while(MathAbs(step - MathRound(step)) > 1e-8 && lotDigits < 8)
+      {
+         step *= 10;
+         lotDigits++;
+      }
+      lot = MathFloor(lot/lotStep + 0.5)*lotStep;
       lot = NormalizeDouble(lot, lotDigits);
    }
    if(lot < minLot) lot = minLot;
