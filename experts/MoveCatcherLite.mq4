@@ -351,10 +351,14 @@ void CorrectDuplicatePositions()
 void ProcessClosedTrades(MoveCatcherSystem sys)
 {
    int idx = (int)sys;
+   string sysStr = (sys == SYSTEM_A) ? "A" : "B";
    datetime lastTime = lastCloseTime[idx];
 
    // 最新の履歴のみを対象にする
-   if(!SelectHistoryRange(lastTime, TimeCurrent()))
+   datetime now = TimeCurrent();
+   bool rangeOK = SelectHistoryRange(lastTime, now);
+   PrintFormat("ProcessClosedTrades: SelectHistoryRange(%s,%s) ok=%d count=%d", TimeToString(lastTime), TimeToString(now), rangeOK, ArraySize(historyTickets));
+   if(!rangeOK)
    {
       PrintFormat("SelectHistoryRange failed: %d", GetLastError());
       return;
@@ -368,7 +372,12 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
    {
       int histTk = historyTickets[i];
       datetime ct = historyTimes[i];
-      if(!OrderSelect(histTk, SELECT_BY_TICKET, MODE_HISTORY)) continue;
+      if(!OrderSelect(histTk, SELECT_BY_TICKET, MODE_HISTORY))
+      {
+         PrintFormat("ProcessClosedTrades: OrderSelect(history) failed ticket=%d err=%d", histTk, GetLastError());
+         continue;
+      }
+      PrintFormat("ProcessClosedTrades: history ticket=%d close=%s magic=%d comment=%s type=%d", histTk, TimeToString(ct), OrderMagicNumber(), OrderComment(), OrderType());
       if(OrderMagicNumber()!=MagicNumber || OrderSymbol()!=Symbol()) continue;
       int type=OrderType(); if(type!=OP_BUY && type!=OP_SELL) continue;
       if(OrderComment()!=CommentIdentifier(sys)) continue;
@@ -385,7 +394,11 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
    }
    for(int i=0;i<ArraySize(tickets);i++)
    {
-      if(!OrderSelect(tickets[i], SELECT_BY_TICKET, MODE_HISTORY)) continue;
+      if(!OrderSelect(tickets[i], SELECT_BY_TICKET, MODE_HISTORY))
+      {
+         PrintFormat("ProcessClosedTrades: OrderSelect(tickets) failed ticket=%d err=%d", tickets[i], GetLastError());
+         continue;
+      }
       double closePrice = OrderClosePrice();
       double tp = OrderTakeProfit();
       double sl = OrderStopLoss();
@@ -405,29 +418,36 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
       }
       double entry = OrderOpenPrice();
       double d = GridPips * Pip;
+      double tpFallback = 0.0;
+      double slFallback = 0.0;
       if(type == OP_BUY)
       {
-         double tpFallback = entry + d;
-         double slFallback = entry - d;
+         tpFallback = entry + d;
+         slFallback = entry - d;
          if(!isTP && closePrice >= tpFallback - tol) isTP = true;
          if(!isSL && closePrice <= slFallback + tol) isSL = true;
       }
       else if(type == OP_SELL)
       {
-         double tpFallback = entry - d;
-         double slFallback = entry + d;
+         tpFallback = entry - d;
+         slFallback = entry + d;
          if(!isTP && closePrice <= tpFallback + tol) isTP = true;
          if(!isSL && closePrice >= slFallback - tol) isSL = true;
       }
+
+      PrintFormat("ProcessClosedTrades: system=%s ticket=%d close=%f tp=%f sl=%f tpFB=%f slFB=%f tol=%f isTP=%d isSL=%d", sysStr, OrderTicket(), closePrice, tp, sl, tpFallback, slFallback, tol, isTP, isSL);
+      if(!(isTP || isSL))
+         PrintFormat("ProcessClosedTrades: ticket=%d no TP/SL match", OrderTicket());
+
       if(isTP || isSL)
       {
          if(sys==SYSTEM_A) state_A.OnTrade(isTP); else state_B.OnTrade(isTP);
+         double nextLot = (sys==SYSTEM_A) ? state_A.NextLot() : state_B.NextLot();
          if(isTP) needReverse[idx] = true; else if(isSL) needReEnter[idx] = true;
 
          // デバッグログ: TP/SL 検知を通知
-         string sysStr = (sys == SYSTEM_A) ? "A" : "B";
          string result = isTP ? "TP" : "SL";
-         PrintFormat("ProcessClosedTrades: system=%s ticket=%d result=%s", sysStr, OrderTicket(), result);
+         PrintFormat("ProcessClosedTrades: system=%s ticket=%d result=%s nextLot=%f", sysStr, OrderTicket(), result, nextLot);
       }
    }
    lastCloseTime[idx] = newLastTime;
