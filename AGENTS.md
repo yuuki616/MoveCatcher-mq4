@@ -1,139 +1,145 @@
+AGENTS.md — MT4 EA 実装指示書（Lite・TP=実TP版）
+Project: MoveCatcher Lite（方式B／2系統 A/B・独立）
+Target: MetaTrader 4（MQL4）
+方針: ギャップ補正・距離帯・各種リセットなし。TP/SL は実設定。ロットは DMCMM × BaseLot を発注直前に毎回評価。A/B は完全独立。
 
+1) 目的 / ミッション
+同時最大2本（A/B 各 0〜1 本）を基本に、2本同時保有時の建値間隔 s = d/2（d=TP/SL 距離）を「できるだけ」維持。
 
----
+TP（実TP）で決済後は逆方向に成行で建て直し、SL（実SL）で決済後は同方向に成行で建て直し。
 
-# MoveCatcher Lite（MT4 EA）— シンプル仕様書
+ロットは DMCMM（DecompositionMonteCarloMM.mqh）準拠：
+実ロット = BaseLot ×（DMCMM 係数）。A/B の DMCMM 状態は完全独立に保持・更新。
 
-## 0. 目的（最小要件）
+2) 実行環境 / 制約
+MT4 / MQL4（OnInit / OnTick / OnDeinit）。OnTradeTransaction は無し → OnTick で履歴差分検知。
 
-* **同時最大2本**（系統 A/B で各 0〜1 本）。
-* 2本同時保有時の**建値間隔**は **s = d/2** を目安に維持。
-* **TP 到達で逆方向に即反転**（影指値）、**SL 到達で順方向に即復帰**（成行）。
-* **ギャップ補正・距離帯・リセット機能なし**（今回は使わない）。
-* **ロットは DMCMM 準拠**：実ロット = **BaseLot ×（DMCMM 係数）**、A/B は**完全独立**に評価。
+価格保護は必要最小限（slippage 固定でも可）。
 
----
+ヘッジ口座前提。FIFO/ノーヘッジの場合は制約あり（別対応不要・この文書では最小構成）。
 
-## 1. 用語・派生値
+3) 入力パラメータ（最小）
+名称	型	例	説明
+GridPips	double	100	d。各ポジの TP/SL 距離（pips）
+BaseLot	double	0.10	実ロット = BaseLot × DMCMM 係数（0.01 刻み推奨）
+MaxSpreadPips	double	2.0	“置く”前だけチェック（初期BのOCO／欠落時の補充）。0で無効
+MagicNumber	int	246810	EA 識別用
 
-* **d = GridPips**：TP/SL 距離（pips）
-* **s = d/2**：2本の目標間隔（pips）
-* **Pip**：`(Digits==3 || 5) ? 10*Point : Point`
-* **コメント（系統識別）**：`MoveCatcher_A` / `MoveCatcher_B`（※Lite版は数列タグなしで簡略）
+内部派生値
 
----
+s = GridPips / 2
 
-## 2. 入力パラメータ（最小）
+Pip = (_Digits==3 || _Digits==5) ? 10*_Point : _Point
 
-| 名称              | 型      |      例 | 説明                                   |
-| --------------- | ------ | -----: | ------------------------------------ |
-| `GridPips`      | double |    100 | d。TP/SL 距離（pips）                     |
-| `BaseLot`       | double |   0.10 | **DMCMM 係数と掛け算**して実ロットを決定（0.01 刻み推奨） |
-| `MaxSpreadPips` | double |    2.0 | **置く前だけ**確認（初期 OCO・補充）。0 で無効         |
-| `MagicNumber`   | int    | 246810 | EA 識別                                |
+4) コメント／ラベル
+系統識別コメント：MoveCatcher_A / MoveCatcher_B
 
-> 追加の細かいパラメータ（slippage 等）は実装側で固定値でも可（最小化のため）。
+すべての注文・ポジションに付与（系統判定はコメントで実施）。
 
----
+5) DMCMM 連携・ロット算出
+抽象 I/F：lotFactor_sys = DMCMM(state_sys)（sys ∈ {A, B}）。
 
-## 3. 価格・約定の基本ルール
+評価タイミング：あらゆる発注の直前（初期建て／TP 反転建て直し／SL リエントリ／補充指値）に毎回実行。
 
-* **指値の基準**：Buy 系は Ask 基準、Sell 系は Bid 基準。
-* **TP/SL（エントリ基準・Ask/Bidを足さない）**
+実ロット：actualLot = BaseLot × lotFactor_sys をブローカーの LotStep / MinLot / MaxLot で丸め・クリップ。
 
-  * Long：TP = Entry + d（判定：**Bid ≥**）、SL = Entry − d（**Bid ≤**）
-  * Short：TP = Entry − d（**Ask ≤**）、SL = Entry + d（**Ask ≥**）
-* **TP 反転の影指値（常時先置き）**
+独立性：A の決済で更新されるのは A のみ、B も同様。
 
-  * Long → **SellLimit @ Entry + d**
-  * Short → **BuyLimit  @ Entry − d**
-    → 到達ティックで**逆方向に即反転**。
+6) 価格・約定ルール（実TP/実SL）
+指値の基準：Buy 系＝Ask 基準／Sell 系＝Bid 基準。
 
----
+TP/SL（実設定）：エントリ基準で ±d（Ask/Bid は足さない）
 
-## 4. DMCMM 連携（ロット決定）
+Long：TP=Entry+d（判定：Bid ≥）、SL=Entry−d（Bid ≤）
 
-* **インターフェース（抽象）**
+Short：TP=Entry−d（Ask ≤）、SL=Entry+d（Ask ≥）
 
-  * 入力：`state_A`・`state_B`（各系統の内部状態：勝敗系列ほか）
-  * 出力：**lotFactor\_sys**（無次元係数）
-* **実ロット**：`actualLot = BaseLot × lotFactor_sys` を **LotStep/Min/Max** で丸め・クリップして発注。
-* **独立性**：`state_A` と `state_B` は**完全に別管理**。一方の結果が他方へ混入しない。
+TP 用の影指値は使わない（サーバ TP のみ）。
 
-> Lite 版では MaxLot・数列タグ・ロット計算リセットの仕組みは**使いません**（最小化）。
+7) 初期化（方式B・簡易）
+系統A：Market で 1 本建て（方向は固定 Buy/Sell 任意。デフォルト Buy）。
 
----
+直前に DMCMM(A) で actualLot_A を取得。
 
-## 5. 初期化（方式Bの簡易版）
+建てたら TP/SL=±d を設定。コメント：MoveCatcher_A。
 
-1. **A を Market で 1 本建て**（方向は固定で良い。デフォルト Buy）
+系統B：A 建値 ± s に OCO を即時配置
 
-   * **DMCMM(A)** を評価 → `actualLot_A` を算出
-   * 直後に **TP/SL = ±d**
-   * コメント：`MoveCatcher_A`
-2. **B のエントリー OCO を即時配置**（A 建値 ±s）
+上：SellLimit @ Entry_A + s、下：BuyLimit @ Entry_A − s。
 
-   * 上側：**SellLimit @ Entry\_A + s**
-   * 下側：**BuyLimit  @ Entry\_A − s**
-   * 置く前に `Spread ≤ MaxSpreadPips` のときのみ送信
-   * どちらか成立 → **B 確定**、片割れは**即キャンセル**
-   * B 成立時に **DMCMM(B)** を評価 → `actualLot_B`、**TP/SL=±d**、コメント：`MoveCatcher_B`
+置く直前のみ Spread ≤ MaxSpreadPips を要求。
 
----
+どちらかが約定 → 片割れを即キャンセル。成立直後に DMCMM(B) を評価し、TP/SL=±d を設定。コメント：MoveCatcher_B。
 
-## 6. ランタイム（運用の最小ルール）
+以後、2本生存中は Pending を持たない（欠落が出た時のみ補充指値を置く）。
 
-### 6.1 TP（利確）
+8) ランタイム（両系統 A/B 共通）
+TP（実TP）で決済されたら
+Win を DMCMM(state_sys) に反映
 
-* 影指値が**同ティック**で約定し、**同系統の逆方向**へ自動反転。
-* 反転直後に **TP/SL=±d** を再付与（影指値も新 Entry ± d で再セット）。
+最新 lotFactor_sys を取得 → actualLot 決定
 
-### 6.2 SL（損切）
+反対方向を Market で即時エントリ
 
-* **同方向に Market で即再エントリ**（`actualLot_sys` は再度 DMCMM(sys) で算出）。
-* 再エントリ直後に **TP/SL=±d**、影指値再セット。
+新ポジに TP/SL=±d を設定（実TP/実SL）
 
-### 6.3 片系統のみになったら（補充）
+コメントは系統ラベル維持（MoveCatcher_A/B）
 
-* **常に 1 本だけ**を検知したら、相手建値 ± s に**1 本だけ指値を置く**。
-* 置く前に `Spread ≤ MaxSpreadPips` を満たさない場合は**スキップ**（次ティックで再試行）。
-* **リセットはしない**（未約定でも放置で OK。シンプル優先）。
+SL（実SL）で決済されたら
+Loss を DMCMM(state_sys) に反映
 
----
+最新 lotFactor_sys を取得 → actualLot 決定
 
-## 7. スプレッド方針（最小）
+同方向を Market で即時リエントリ
 
-* **判定する**：**新規で“置く”時のみ**（初期 OCO・補充）。
-* **判定しない**：Cancel／Close／影指値の維持／Market 再エントリ。
+新ポジに TP/SL=±d を設定（実TP/実SL）
 
----
+コメントは系統ラベル維持
 
-## 8. 異常系（最小の是正のみ）
+同時到達（A/B 同バー）はどちら先でも可。各系統独立なので順序依存は持たない。
+MT4 はイベントフックがないため、OnTick で履歴差分を検知して上記を実施（反転が次ティックになることは許容）。
 
-* **同系統で 2 本同時成立**（レース）：**後着を即クローズ**。
-* **合計 3 本以上**：**最後に成立した重複分**からクローズして**2 本以内**へ戻す。
-* **StopLevel/FreezeLevel** に抵触する SL/TP・指値は**距離を丸め**るか**次ティックで再試行**。
+9) 欠落時の補充（1 本になったとき）
+生存側建値 ± s で 欠落側の片側指値を 1 本だけ置く（OCO ではない）。
 
----
+生存が Long → 欠落は SellLimit @ LongEntry + s
 
-## 9. ログ（任意・簡易）
+生存が Short → 欠落は BuyLimit @ ShortEntry − s
 
-* `Reason{INIT, OCO_HIT, OCO_CANCEL, TP_REV, SL_REENTRY, REFILL}`,
-  `Entry, SL, TP, Spread, System(A/B), actualLot` を `Print`。
-* 勝敗集計をするなら：**TP=Win／SL=Loss／その他=Neutral**（ε 判定は任意）。
+置く直前のみ Spread ≤ MaxSpreadPips を要求。
 
----
+約定したら 2 本体制に復帰（以後 Pending は持たない）。
 
-## 10. 受け入れチェック
+補充ロットも 置く直前に DMCMM（欠落系統）で評価して決定。
 
-* [ ] A 初期 Market＋TP/SL、B の **±s OCO** が置かれる
-* [ ] OCO 片側成立で片割れが**確実にキャンセル**される
-* [ ] **TP 反転**は影指値で即切替、**新ポジに ±d** が付与される
-* [ ] **SL 再エントリ**は Market 即時、**新ポジに ±d** が付与される
-* [ ] **1 本状態**で相手建値 ± s に**補充指値**が置かれる（Spread 条件 OK 時）
-* [ ] Spread 判定は**置くときだけ**
-* [ ] **実ロット = BaseLot ×（DMCMM 係数）** が A/B **独立**で機能する
+10) スプレッド方針（最小）
+判定する：“置く”行為のみ（初期Bの OCO／欠落時の補充）。
 
----
+判定しない：成行エントリ・リエントリ、TP/SL 設定、Cancel/Close。
 
+11) ログ（簡易・推奨）
+Reason{INIT, OCO_HIT, OCO_CANCEL, TP_REVERSE, SL_REENTRY, REFILL}
 
+System{A|B}, Entry/SL/TP, actualLot, Spread, Magic, Ticket
+
+勝敗集計をする場合：TP=Win / SL=Loss / その他=Neutral の単純ルールで OK。
+
+12) 受け入れチェック
+ 初期化：A=Market＋TP/SL、B=±s OCO（Spread OK）→ B 成立で片割れキャンセル。
+
+ TP（実TP）後：Win 反映 → 最新ロットで“逆方向”Market → 新ポジに ±d。
+
+ SL（実SL）後：Loss 反映 → 最新ロットで“同方向”Market → 新ポジに ±d。
+
+ 2 本生存中は Pending なし。1 本時のみ補充指値。
+
+ 実ロット = BaseLot × DMCMM 係数を発注直前に毎回評価（A/B 独立）。
+
+ Spread 判定は置くときだけ。
+
+ 同系統 2 本同時成立／合計 3 本以上は後着から是正して 2 本以内へ。
+
+13) 既知の割り切り
+同ティック完全反転は保証しない（MT4/実TP・OnTick 検知のため）。小さなズレは許容。
+
+ギャップ補正・距離帯・生存同期リセット・MaxLot 等の上級機能は本 Lite では未搭載。
