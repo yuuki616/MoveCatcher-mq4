@@ -1497,15 +1497,15 @@ void DeletePendings(const string system,const string reason)
 }
 
 //+------------------------------------------------------------------+
-//| Re-enter position after SL. UseProtectedLimit controls slippage     |
-//| only here; when false, price protection is disabled.                |
+//| Re-enter or reverse position after close. UseProtectedLimit controls |
+//| slippage only here; when false, price protection is disabled.        |
 //+------------------------------------------------------------------+
-void RecoverAfterSL(const string system)
+void RecoverAfterSL(const string system,const bool reverse=false)
 {
    ProcessClosedTrades(system, true);
    if(!RefreshRatesChecked(__FUNCTION__))
       return;
-   DeletePendings(system, "SL");
+   DeletePendings(system, reverse ? "TP" : "SL");
 
    int lastType = -1;
    for(int i = OrdersHistoryTotal()-1; i >= 0; i--)
@@ -1528,6 +1528,8 @@ void RecoverAfterSL(const string system)
    }
    if(lastType == -1)
       return;
+   if(reverse)
+      lastType = (lastType == OP_BUY) ? OP_SELL : OP_BUY;
 
    string seq;
    double lotFactor;
@@ -1581,7 +1583,7 @@ void RecoverAfterSL(const string system)
    lr.Time       = TimeCurrent();
    lr.Symbol     = Symbol();
    lr.System     = system;
-   lr.Reason     = "SL";
+   lr.Reason     = reverse ? "TP" : "SL";
    lr.ErrorInfo  = errInfo;
    lr.Spread     = spread;
    lr.Dist       = MathMax(dist, 0);
@@ -4006,9 +4008,23 @@ void OnTick()
       EnsureShadowOrder(ticketB, "B");
 
    if(state_A == Missing && !pendA)
-      RecoverAfterSL("A");
+   {
+      if(needReverseA)
+         RecoverAfterSL("A", true);
+      else if(needReEnterA)
+         RecoverAfterSL("A");
+      needReverseA = false;
+      needReEnterA = false;
+   }
    if(state_B == Missing && !pendB)
-      RecoverAfterSL("B");
+   {
+      if(needReverseB)
+         RecoverAfterSL("B", true);
+      else if(needReEnterB)
+         RecoverAfterSL("B");
+      needReverseB = false;
+      needReEnterB = false;
+   }
 }
 
 void OnDeinit(const int reason)
