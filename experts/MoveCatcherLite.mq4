@@ -325,6 +325,14 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
 {
    int idx = (int)sys;
    datetime lastTime = lastCloseTime[idx];
+
+   // 最新の履歴のみを対象にする
+   if(!HistorySelect(lastTime, TimeCurrent()))
+   {
+      PrintFormat("HistorySelect failed: %d", GetLastError());
+      return;
+   }
+
    int tickets[]; datetime times[];
    int newTickets[];
    if(sys==SYSTEM_A) ArrayCopy(newTickets,lastTicketsA); else ArrayCopy(newTickets,lastTicketsB);
@@ -387,6 +395,11 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
       {
          if(sys==SYSTEM_A) state_A.OnTrade(isTP); else state_B.OnTrade(isTP);
          if(isTP) needReverse[idx] = true; else if(isSL) needReEnter[idx] = true;
+
+         // デバッグログ: TP/SL 検知を通知
+         string sysStr = (sys == SYSTEM_A) ? "A" : "B";
+         string result = isTP ? "TP" : "SL";
+         PrintFormat("ProcessClosedTrades: system=%s ticket=%d result=%s", sysStr, OrderTicket(), result);
       }
    }
    lastCloseTime[idx] = newLastTime;
