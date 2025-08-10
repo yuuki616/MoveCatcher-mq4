@@ -353,12 +353,11 @@ int OnInit()
    double slA = entryA - GridPips * Pip;
    double tpA = entryA + GridPips * Pip;
    AdjustStops(true, slA, tpA);
-   if(RetryOrder(false, positionTicket[SYSTEM_A], OP_BUY, actualLot_A, entryA, slA, tpA, COMMENT_A))
-   {
-      lastType[SYSTEM_A] = OP_BUY;
-      PlaceShadowOrder(SYSTEM_A);
-      LogEvent("INIT", SYSTEM_A, entryA, slA, tpA, GetSpread(), actualLot_A);
-   }
+   if(!RetryOrder(false, positionTicket[SYSTEM_A], OP_BUY, actualLot_A, entryA, slA, tpA, COMMENT_A))
+      return(INIT_FAILED);
+   lastType[SYSTEM_A] = OP_BUY;
+   PlaceShadowOrder(SYSTEM_A);
+   LogEvent("INIT", SYSTEM_A, entryA, slA, tpA, GetSpread(), actualLot_A);
 
    double spread = GetSpread();
    if(MaxSpreadPips <= 0 || spread <= MaxSpreadPips)
