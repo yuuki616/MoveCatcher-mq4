@@ -712,22 +712,62 @@ void HandleBExecution(int filledTicket)
 {
    if(filledTicket == ticketBuyLim)
    {
-      if(ticketSellLim > 0 && OrderSelect(ticketSellLim, SELECT_BY_TICKET) && OrderType() == OP_SELLLIMIT)
+      if(ticketSellLim > 0)
       {
-         LogEvent("OCO_CANCEL", SYSTEM_B, OrderOpenPrice(), 0, 0, GetSpread(), OrderLots());
-         OrderDelete(ticketSellLim);
+         bool exists = OrderSelect(ticketSellLim, SELECT_BY_TICKET) && OrderType() == OP_SELLLIMIT;
+         if(exists)
+         {
+            LogEvent("OCO_CANCEL", SYSTEM_B, OrderOpenPrice(), 0, 0, GetSpread(), OrderLots());
+            ResetLastError();
+            bool delOk = OrderDelete(ticketSellLim);
+            if(!delOk)
+            {
+               int err = GetLastError();
+               PrintFormat("OrderDelete failed (ticket=%d, err=%d)", ticketSellLim, err);
+               ResetLastError();
+               delOk = OrderDelete(ticketSellLim);
+               if(!delOk)
+               {
+                  err = GetLastError();
+                  PrintFormat("OrderDelete retry failed (ticket=%d, err=%d)", ticketSellLim, err);
+               }
+            }
+            if(delOk || !OrderSelect(ticketSellLim, SELECT_BY_TICKET))
+               ticketSellLim = -1;
+         }
+         else
+            ticketSellLim = -1;
       }
-      ticketSellLim = -1;
-      ticketBuyLim  = -1; // 約定済みチケットをリセット
+      ticketBuyLim = -1; // 約定済みチケットをリセット
    }
    else if(filledTicket == ticketSellLim)
    {
-      if(ticketBuyLim > 0 && OrderSelect(ticketBuyLim, SELECT_BY_TICKET) && OrderType() == OP_BUYLIMIT)
+      if(ticketBuyLim > 0)
       {
-         LogEvent("OCO_CANCEL", SYSTEM_B, OrderOpenPrice(), 0, 0, GetSpread(), OrderLots());
-         OrderDelete(ticketBuyLim);
+         bool exists = OrderSelect(ticketBuyLim, SELECT_BY_TICKET) && OrderType() == OP_BUYLIMIT;
+         if(exists)
+         {
+            LogEvent("OCO_CANCEL", SYSTEM_B, OrderOpenPrice(), 0, 0, GetSpread(), OrderLots());
+            ResetLastError();
+            bool delOk = OrderDelete(ticketBuyLim);
+            if(!delOk)
+            {
+               int err = GetLastError();
+               PrintFormat("OrderDelete failed (ticket=%d, err=%d)", ticketBuyLim, err);
+               ResetLastError();
+               delOk = OrderDelete(ticketBuyLim);
+               if(!delOk)
+               {
+                  err = GetLastError();
+                  PrintFormat("OrderDelete retry failed (ticket=%d, err=%d)", ticketBuyLim, err);
+               }
+            }
+            if(delOk || !OrderSelect(ticketBuyLim, SELECT_BY_TICKET))
+               ticketBuyLim = -1;
+         }
+         else
+            ticketBuyLim = -1;
       }
-      ticketBuyLim  = -1;
       ticketSellLim = -1; // 約定済みチケットをリセット
    }
 
