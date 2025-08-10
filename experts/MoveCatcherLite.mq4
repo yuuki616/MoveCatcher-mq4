@@ -96,23 +96,18 @@ double MinStopDist()
    return MathMax(stop, freeze) * Point;
 }
 
-void AdjustStops(bool isBuy, double &sl, double &tp)
+void EnsureTPSL(double entry, bool isBuy, double &sl, double &tp)
 {
-   double minLevel = MinStopDist();
-   double bid = Bid;
-   double ask = Ask;
-   if(minLevel > 0)
+   double d = GridPips * Pip;
+   if(isBuy)
    {
-      if(isBuy)
-      {
-         if(bid - sl < minLevel) sl = bid - minLevel;
-         if(tp - ask < minLevel) tp = ask + minLevel;
-      }
-      else
-      {
-         if(sl - bid < minLevel) sl = bid + minLevel;
-         if(ask - tp < minLevel) tp = ask - minLevel;
-      }
+      sl = entry - d;
+      tp = entry + d;
+   }
+   else
+   {
+      sl = entry + d;
+      tp = entry - d;
    }
    sl = NormalizeDouble(sl, _Digits);
    tp = NormalizeDouble(tp, _Digits);
@@ -152,21 +147,18 @@ bool RetryOrder(bool isModify, int &ticket, int orderType, double lot, double &p
          return(true);
 
       int err = GetLastError();
-      if(err == ERR_INVALID_STOPS || err == ERR_INVALID_TRADE_PARAMETERS)
+      if(err == ERR_INVALID_STOPS)
       {
-         if(isModify)
+         break;
+      }
+      if(err == ERR_INVALID_TRADE_PARAMETERS)
+      {
+         if(!isModify && orderType != OP_BUY && orderType != OP_SELL)
          {
-            if(OrderSelect(ticket, SELECT_BY_TICKET))
-               AdjustStops(OrderType() == OP_BUY, sl, tp);
+            AdjustPendingPrice(orderType, price);
+            continue;
          }
-         else
-         {
-            if(orderType == OP_BUY || orderType == OP_SELL)
-               AdjustStops(orderType == OP_BUY, sl, tp);
-            else
-               AdjustPendingPrice(orderType, price);
-         }
-         continue;
+         break;
       }
       if(err == ERR_SERVER_BUSY || err == ERR_TRADE_CONTEXT_BUSY || err == ERR_OFF_QUOTES || err == ERR_REQUOTE)
       {
@@ -338,7 +330,7 @@ void CheckRefill();
 void CorrectDuplicatePositions();
 void CloseTicket(int ticket, MoveCatcherSystem sys);
 void LogEvent(string reason, MoveCatcherSystem sys, double entry, double sl, double tp, double spread, double actualLot);
-void AdjustStops(bool isBuy, double &sl, double &tp);
+void EnsureTPSL(double entry, bool isBuy, double &sl, double &tp);
 void AdjustPendingPrice(int orderType, double &price);
 double GetSpread();
 
@@ -351,9 +343,8 @@ int OnInit()
    double actualLot_A = CalcLot(SYSTEM_A);
 
    double entryA = Ask;
-   double slA = entryA - GridPips * Pip;
-   double tpA = entryA + GridPips * Pip;
-   AdjustStops(true, slA, tpA);
+   double slA, tpA;
+   EnsureTPSL(entryA, true, slA, tpA);
    if(!RetryOrder(false, positionTicket[SYSTEM_A], OP_BUY, actualLot_A, entryA, slA, tpA, COMMENT_A))
       return(INIT_FAILED);
    lastType[SYSTEM_A] = OP_BUY;
@@ -467,9 +458,8 @@ bool ReEnterSameDirection(MoveCatcherSystem sys)
    int type = lastType[idx];
    double actualLot = CalcLot(sys);
    double price = (type == OP_BUY) ? Ask : Bid;
-   double sl = (type == OP_BUY) ? price - GridPips * Pip : price + GridPips * Pip;
-   double tp = (type == OP_BUY) ? price + GridPips * Pip : price - GridPips * Pip;
-   AdjustStops(type==OP_BUY, sl, tp);
+   double sl, tp;
+   EnsureTPSL(price, type==OP_BUY, sl, tp);
    if(RetryOrder(false, positionTicket[idx], type, actualLot, price, sl, tp, CommentIdentifier(sys)))
    {
       lastType[idx] = type;
@@ -486,9 +476,8 @@ bool EnterOppositeDirection(MoveCatcherSystem sys)
    int type = (lastType[idx] == OP_BUY) ? OP_SELL : OP_BUY;
    double actualLot = CalcLot(sys);
    double price = (type == OP_BUY) ? Ask : Bid;
-   double sl = (type == OP_BUY) ? price - GridPips * Pip : price + GridPips * Pip;
-   double tp = (type == OP_BUY) ? price + GridPips * Pip : price - GridPips * Pip;
-   AdjustStops(type==OP_BUY, sl, tp);
+   double sl, tp;
+   EnsureTPSL(price, type==OP_BUY, sl, tp);
    if(RetryOrder(false, positionTicket[idx], type, actualLot, price, sl, tp, CommentIdentifier(sys)))
    {
       lastType[idx] = type;
@@ -512,9 +501,8 @@ void ManageSystem(MoveCatcherSystem sys)
          int prevType = lastType[idx];
          lastType[idx] = OrderType();
          double entry = OrderOpenPrice();
-         double sl = (lastType[idx]==OP_BUY) ? entry - GridPips * Pip : entry + GridPips * Pip;
-         double tp = (lastType[idx]==OP_BUY) ? entry + GridPips * Pip : entry - GridPips * Pip;
-         AdjustStops(lastType[idx]==OP_BUY, sl, tp);
+         double sl, tp;
+         EnsureTPSL(entry, lastType[idx]==OP_BUY, sl, tp);
          if(RetryOrder(true, current, 0, 0, entry, sl, tp, ""))
          {
             string reason;
@@ -528,6 +516,10 @@ void ManageSystem(MoveCatcherSystem sys)
             else
                reason = "SL_REENTRY";
             LogEvent(reason, sys, entry, sl, tp, GetSpread(), OrderLots());
+         }
+         else
+         {
+            positionTicket[idx] = -1;
          }
       }
       needReEnter[idx] = false;
@@ -672,17 +664,7 @@ void HandleBExecution(int filledTicket)
    {
       double entry = OrderOpenPrice();
       double sl, tp;
-      if(OrderType() == OP_BUY)
-      {
-         sl = entry - GridPips * Pip;
-         tp = entry + GridPips * Pip;
-      }
-      else
-      {
-         sl = entry + GridPips * Pip;
-         tp = entry - GridPips * Pip;
-      }
-      AdjustStops(OrderType()==OP_BUY, sl, tp);
+      EnsureTPSL(entry, OrderType()==OP_BUY, sl, tp);
       if(RetryOrder(true, filledTicket, 0, 0, entry, sl, tp, ""))
       {
          positionTicket[SYSTEM_B] = filledTicket;
