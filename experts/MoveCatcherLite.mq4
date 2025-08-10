@@ -662,8 +662,26 @@ void ManageSystem(MoveCatcherSystem sys)
          if(refillTicket[idx] > 0)
          {
             if(OrderSelect(refillTicket[idx], SELECT_BY_TICKET))
-               OrderDelete(refillTicket[idx]);
-            refillTicket[idx] = -1;
+            {
+               ResetLastError();
+               bool delOk = OrderDelete(refillTicket[idx]);
+               if(!delOk)
+               {
+                  int err = GetLastError();
+                  PrintFormat("OrderDelete failed (ticket=%d, err=%d)", refillTicket[idx], err);
+                  ResetLastError();
+                  delOk = OrderDelete(refillTicket[idx]);
+                  if(!delOk)
+                  {
+                     err = GetLastError();
+                     PrintFormat("OrderDelete retry failed (ticket=%d, err=%d)", refillTicket[idx], err);
+                  }
+               }
+               if(delOk || !OrderSelect(refillTicket[idx], SELECT_BY_TICKET))
+                  refillTicket[idx] = -1;
+            }
+            else
+               refillTicket[idx] = -1;
          }
       }
       return;
@@ -677,8 +695,26 @@ void ManageSystem(MoveCatcherSystem sys)
          if(refillTicket[idx] > 0)
          {
             if(OrderSelect(refillTicket[idx], SELECT_BY_TICKET))
-               OrderDelete(refillTicket[idx]);
-            refillTicket[idx] = -1;
+            {
+               ResetLastError();
+               bool delOk = OrderDelete(refillTicket[idx]);
+               if(!delOk)
+               {
+                  int err = GetLastError();
+                  PrintFormat("OrderDelete failed (ticket=%d, err=%d)", refillTicket[idx], err);
+                  ResetLastError();
+                  delOk = OrderDelete(refillTicket[idx]);
+                  if(!delOk)
+                  {
+                     err = GetLastError();
+                     PrintFormat("OrderDelete retry failed (ticket=%d, err=%d)", refillTicket[idx], err);
+                  }
+               }
+               if(delOk || !OrderSelect(refillTicket[idx], SELECT_BY_TICKET))
+                  refillTicket[idx] = -1;
+            }
+            else
+               refillTicket[idx] = -1;
          }
       }
    }
