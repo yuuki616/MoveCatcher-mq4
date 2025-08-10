@@ -310,6 +310,7 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
       if(isTP || isSL)
       {
          if(sys==SYSTEM_A) state_A.OnTrade(isTP); else state_B.OnTrade(isTP);
+         if(isTP) needReverse[idx] = true; else if(isSL) needReEnter[idx] = true;
       }
    }
    lastCloseTime[idx] = newLastTime;
@@ -318,21 +319,20 @@ void ProcessClosedTrades(MoveCatcherSystem sys)
 
 // チケット保持
 int positionTicket[2] = { -1, -1 };
-int shadowTicket[2]   = { -1, -1 };
 int refillTicket[2]   = { -1, -1 };
 int ticketBuyLim      = -1;
 int ticketSellLim     = -1;
 int lastType[2]       = { OP_BUY, OP_BUY };
 bool needResendOCO    = false; // 初期OCO再送フラグ
-bool needReEnter[2]   = { false, false }; // 再エントリ再試行フラグ
+bool needReEnter[2]   = { false, false }; // SL 後の同方向再エントリ
+bool needReverse[2]   = { false, false }; // TP 後の反対方向再エントリ
 
 // 関数プロトタイプ
 void HandleBExecution(int filledTicket);
 int  FindPositions(MoveCatcherSystem sys, int &tickets[], datetime &times[]);
 int  FindPosition(MoveCatcherSystem sys);
-void PlaceShadowOrder(MoveCatcherSystem sys, double overrideLot = -1.0);
-void ReevaluateShadowOrder(MoveCatcherSystem sys);
 bool ReEnterSameDirection(MoveCatcherSystem sys);
+bool EnterOppositeDirection(MoveCatcherSystem sys);
 void ManageSystem(MoveCatcherSystem sys);
 void CheckRefill();
 void CorrectDuplicatePositions();
@@ -357,7 +357,6 @@ int OnInit()
    if(!RetryOrder(false, positionTicket[SYSTEM_A], OP_BUY, actualLot_A, entryA, slA, tpA, COMMENT_A))
       return(INIT_FAILED);
    lastType[SYSTEM_A] = OP_BUY;
-   PlaceShadowOrder(SYSTEM_A);
    LogEvent("INIT", SYSTEM_A, entryA, slA, tpA, GetSpread(), actualLot_A);
 
    double spread = GetSpread();
@@ -386,9 +385,6 @@ void OnTick()
 {
    ProcessClosedTrades(SYSTEM_A);
    ProcessClosedTrades(SYSTEM_B);
-
-   ReevaluateShadowOrder(SYSTEM_A);
-   ReevaluateShadowOrder(SYSTEM_B);
 
    CorrectDuplicatePositions();
 
@@ -464,45 +460,6 @@ int FindPosition(MoveCatcherSystem sys)
    return -1;
 }
 
-// 影指値を配置
-void PlaceShadowOrder(MoveCatcherSystem sys, double overrideLot)
-{
-   int idx = (int)sys;
-   if(positionTicket[idx] < 0 || !OrderSelect(positionTicket[idx], SELECT_BY_TICKET))
-      return;
-
-   int type = OrderType();
-   double entry = OrderOpenPrice();
-   double actualLot = (overrideLot > 0) ? overrideLot : CalcLot(sys);
-   double price = (type == OP_BUY) ? entry + GridPips * Pip : entry - GridPips * Pip;
-   int orderType = (type == OP_BUY) ? OP_SELLLIMIT : OP_BUYLIMIT;
-
-   if(shadowTicket[idx] > 0 && OrderSelect(shadowTicket[idx], SELECT_BY_TICKET))
-      OrderDelete(shadowTicket[idx]);
-
-   AdjustPendingPrice(orderType, price);
-   double sl=0, tp=0;
-   RetryOrder(false, shadowTicket[idx], orderType, actualLot, price, sl, tp, CommentIdentifier(sys));
-}
-
-// 影指値のロットを再評価
-void ReevaluateShadowOrder(MoveCatcherSystem sys)
-{
-   int idx = (int)sys;
-   if(positionTicket[idx] < 0 || !OrderSelect(positionTicket[idx], SELECT_BY_TICKET))
-      return;
-
-   double expectedLot = CalcLot(sys);
-   if(shadowTicket[idx] > 0 && OrderSelect(shadowTicket[idx], SELECT_BY_TICKET))
-   {
-      double currentLot = OrderLots();
-      if(MathAbs(currentLot - expectedLot) <= 0.0000001)
-         return;
-   }
-
-   PlaceShadowOrder(sys, expectedLot);
-}
-
 // 同方向に成行再エントリ
 bool ReEnterSameDirection(MoveCatcherSystem sys)
 {
@@ -515,8 +472,27 @@ bool ReEnterSameDirection(MoveCatcherSystem sys)
    AdjustStops(type==OP_BUY, sl, tp);
    if(RetryOrder(false, positionTicket[idx], type, actualLot, price, sl, tp, CommentIdentifier(sys)))
    {
+      lastType[idx] = type;
       LogEvent("SL_REENTRY", sys, price, sl, tp, GetSpread(), actualLot);
-      PlaceShadowOrder(sys);
+      return(true);
+   }
+   return(false);
+}
+
+// 反対方向に成行エントリ
+bool EnterOppositeDirection(MoveCatcherSystem sys)
+{
+   int idx = (int)sys;
+   int type = (lastType[idx] == OP_BUY) ? OP_SELL : OP_BUY;
+   double actualLot = CalcLot(sys);
+   double price = (type == OP_BUY) ? Ask : Bid;
+   double sl = (type == OP_BUY) ? price - GridPips * Pip : price + GridPips * Pip;
+   double tp = (type == OP_BUY) ? price + GridPips * Pip : price - GridPips * Pip;
+   AdjustStops(type==OP_BUY, sl, tp);
+   if(RetryOrder(false, positionTicket[idx], type, actualLot, price, sl, tp, CommentIdentifier(sys)))
+   {
+      lastType[idx] = type;
+      LogEvent("TP_REVERSE", sys, price, sl, tp, GetSpread(), actualLot);
       return(true);
    }
    return(false);
@@ -548,31 +524,33 @@ void ManageSystem(MoveCatcherSystem sys)
                refillTicket[idx] = -1;
             }
             else if(prevType != lastType[idx])
-               reason = "TP_REV";
+               reason = "TP_REVERSE";
             else
                reason = "SL_REENTRY";
             LogEvent(reason, sys, entry, sl, tp, GetSpread(), OrderLots());
          }
       }
-      PlaceShadowOrder(sys);
+      needReEnter[idx] = false;
+      needReverse[idx] = false;
       return;
    }
 
    if(current > 0)
    {
-      if(shadowTicket[idx] < 0 || !OrderSelect(shadowTicket[idx], SELECT_BY_TICKET))
-         PlaceShadowOrder(sys);
+      positionTicket[idx] = current;
+      if(OrderSelect(current, SELECT_BY_TICKET))
+         lastType[idx] = OrderType();
+      needReEnter[idx] = false;
+      needReverse[idx] = false;
       return;
    }
 
-   if(positionTicket[idx] > 0)
+   positionTicket[idx] = -1;
+
+   if(needReverse[idx])
    {
-      positionTicket[idx] = -1;
-      if(shadowTicket[idx] > 0 && OrderSelect(shadowTicket[idx], SELECT_BY_TICKET))
-         OrderDelete(shadowTicket[idx]);
-      shadowTicket[idx] = -1;
-      if(!ReEnterSameDirection(sys))
-         needReEnter[idx] = true;
+      if(EnterOppositeDirection(sys))
+         needReverse[idx] = false;
       return;
    }
 
@@ -710,7 +688,6 @@ void HandleBExecution(int filledTicket)
          positionTicket[SYSTEM_B] = filledTicket;
          lastType[SYSTEM_B] = OrderType();
          LogEvent("OCO_HIT", SYSTEM_B, entry, sl, tp, GetSpread(), OrderLots());
-         PlaceShadowOrder(SYSTEM_B);
       }
    }
 }
