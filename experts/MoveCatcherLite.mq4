@@ -57,28 +57,32 @@ bool InitStrategy()
       return(false);
    }
    int    slippage = Slippage();
-   double price = Ask;
-   double distA = DistanceToExistingPositions(price);
+   double entrySL, entryTP;
+   double price    = Ask;
+   double oldPrice = price;
+   double distA    = DistanceToExistingPositions(price);
    if(UseDistanceBand && distA >= 0){
       // first distance band check
    }
+
    RefreshRates();
+   price = Ask;
    if(UseDistanceBand && distA >= 0){
       // recheck after price refresh
    }
-   double entrySL, entryTP;
-   double oldPrice = price;
+
    if(price != oldPrice)
    {
       int type = OP_BUY;
       if(type == OP_BUY){
-         entrySL = price - PipsToPrice(GridPips);
-         entryTP = price + PipsToPrice(GridPips);
+         entrySL = NormalizeDouble(price - PipsToPrice(GridPips), _Digits);
+         entryTP = NormalizeDouble(price + PipsToPrice(GridPips), _Digits);
       }else{
-         entrySL = price + PipsToPrice(GridPips);
-         entryTP = price - PipsToPrice(GridPips);
+         entrySL = NormalizeDouble(price + PipsToPrice(GridPips), _Digits);
+         entryTP = NormalizeDouble(price - PipsToPrice(GridPips), _Digits);
       }
    }
+
    distA = DistanceToExistingPositions(price);
    return(true);
 }
