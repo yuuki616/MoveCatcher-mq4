@@ -62,11 +62,10 @@ private:
 /*── WIN ──*/
    void winStep(){
       int n = ArraySize(seq);
-      // 条件成立時は連勝数+1、不成立時は現状維持
-      if(n==2 && seq[0]==0 && seq[1]==1)
-         streak++;
 
-      if(n==2){ seq[0]=0; seq[1]=1; }
+      if(n==2){
+         seq[0]=0; seq[1]=1;
+      }
       else if(n==3){
          int center = seq[1];            // 中央の値を取得
          Erase(seq,0);                   // 先頭を削除
@@ -75,10 +74,18 @@ private:
          int right = left + center%2;    // 右値を計算
          seq[0] = left;                  // 左値を設定
          Ins(seq,1,right);               // 右値を挿入
-      }else{
+      }
+      else{
          Erase(seq,0); Erase(seq,ArraySize(seq)-1);
       }
+
       if(seq[0]==0) avgA(); else avgB();      // ← if/else で呼び出し
+
+      // 連勝数の更新：最終シーケンスが基本形なら加算、それ以外はリセット
+      if(ArraySize(seq)==2 && seq[0]==0 && seq[1]==1)
+         streak++;
+      else
+         streak = 1;
    }
 
 /*── LOSE ──*/
