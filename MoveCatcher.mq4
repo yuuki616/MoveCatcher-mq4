@@ -128,8 +128,9 @@ void SetTPSL(int ticket)
 void PlaceRefill(const string comment, bool longExist, double basePrice)
 {
    if(!SpreadOK()) return;
-   CDecompMC &dmc = (comment=="MoveCatcher_A") ? dmcA : dmcB;
-   double lot   = NormalizeLot(BaseLot * dmc.NextLot());
+   double lot   = NormalizeLot(
+      BaseLot * ((comment=="MoveCatcher_A") ? dmcA.NextLot() : dmcB.NextLot())
+   );
    double price = longExist ? basePrice + s : basePrice - s;
    price = NormalizeDouble(price, _Digits);
    int type = longExist ? OP_SELLLIMIT : OP_BUYLIMIT;
