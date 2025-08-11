@@ -197,6 +197,8 @@ void ProcessClosed()
    {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)) continue;
       if(OrderMagicNumber()!=MagicNumber) continue;
+      int type = OrderType();
+      if(type!=OP_BUY && type!=OP_SELL) continue;      // 未約定指値の履歴を除外
       datetime ct = OrderCloseTime();
       if(ct <= lastHist) break;
       string comment = OrderComment();
@@ -209,7 +211,6 @@ void ProcessClosed()
       else if(sl>0 && MathAbs(closePrice - sl) <= Pip/2.0) win = false;
       else win = (OrderProfit() >= 0);
 
-      int type = OrderType();
       if(comment=="MoveCatcher_A")
          HandleClose(dmcA, comment, type, win);
       else if(comment=="MoveCatcher_B")
