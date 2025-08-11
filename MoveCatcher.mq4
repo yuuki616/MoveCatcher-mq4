@@ -188,7 +188,15 @@ void ProcessClosed()
       datetime ct = OrderCloseTime();
       if(ct <= lastHist) break;
       string comment = OrderComment();
-      bool win = (OrderProfit() >= 0);
+
+      double closePrice = OrderClosePrice();
+      double tp = OrderTakeProfit();
+      double sl = OrderStopLoss();
+      bool win = false;
+      if(tp>0 && MathAbs(closePrice - tp) <= Pip/2.0) win = true;
+      else if(sl>0 && MathAbs(closePrice - sl) <= Pip/2.0) win = false;
+      else win = (OrderProfit() >= 0);
+
       int type = OrderType();
       if(comment=="MoveCatcher_A")
          HandleClose(dmcA, comment, type, win);
@@ -260,4 +268,7 @@ void OnTick()
    CheckPendings();
 }
 
-int OnDeinit(){return(0);}
+void OnDeinit(const int reason)
+{
+   // 特に後処理は不要
+}
