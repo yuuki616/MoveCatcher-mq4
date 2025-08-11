@@ -30,6 +30,7 @@ double NormalizeLot(double lot)
 bool SpreadOK()
 {
    if(MaxSpreadPips<=0) return(true);
+   RefreshRates();
    double spread = (Ask - Bid)/Pip;
    return(spread <= MaxSpreadPips);
 }
@@ -99,6 +100,7 @@ void CloseExtraPositions(const string comment)
       int ticket = tickets[i];
       if(OrderSelect(ticket, SELECT_BY_TICKET))
       {
+         RefreshRates();
          double price = (OrderType()==OP_BUY)?Bid:Ask;
          if(!OrderClose(ticket, OrderLots(), price, 0))
             Print("OrderClose failed: ",GetLastError());
@@ -111,14 +113,16 @@ void SetTPSL(int ticket)
    if(!OrderSelect(ticket, SELECT_BY_TICKET)) return;
    int type = OrderType();
    if(type!=OP_BUY && type!=OP_SELL) return;
-   if(OrderTakeProfit()!=0 || OrderStopLoss()!=0) return;
    double price = NormalizeDouble(OrderOpenPrice(), _Digits);
-   double tp, sl;
-   if(type==OP_BUY){ tp = price + d; sl = price - d; }
-   else            { tp = price - d; sl = price + d; }
+   double tp = (type==OP_BUY) ? price + d : price - d;
+   double sl = (type==OP_BUY) ? price - d : price + d;
    tp = NormalizeDouble(tp, _Digits);
    sl = NormalizeDouble(sl, _Digits);
-   OrderModify(ticket, price, sl, tp, 0);
+   if(MathAbs(OrderTakeProfit()-tp) > Pip/2.0 || MathAbs(OrderStopLoss()-sl) > Pip/2.0)
+   {
+      if(!OrderModify(ticket, price, sl, tp, 0))
+         Print("OrderModify failed: ",GetLastError());
+   }
 }
 
 void PlaceRefill(const string comment, bool longExist, double basePrice)
@@ -129,7 +133,10 @@ void PlaceRefill(const string comment, bool longExist, double basePrice)
    double price = longExist ? basePrice + s : basePrice - s;
    price = NormalizeDouble(price, _Digits);
    int type = longExist ? OP_SELLLIMIT : OP_BUYLIMIT;
-   OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrRed);
+   RefreshRates();
+   int ticket = OrderSend(Symbol(), type, lot, price, 0, 0, 0, comment, MagicNumber, 0, clrRed);
+   if(ticket<0)
+      Print("Refill order failed: ",GetLastError());
 }
 
 int OnInit()
@@ -141,6 +148,7 @@ int OnInit()
    dmcA.Init();
    dmcB.Init();
 
+   RefreshRates();
    double lotA   = NormalizeLot(BaseLot * dmcA.NextLot());
    double priceA = NormalizeDouble(Ask, _Digits);
    double tpA    = NormalizeDouble(priceA + d, _Digits);
@@ -153,8 +161,10 @@ int OnInit()
       double lotB      = NormalizeLot(BaseLot * dmcB.NextLot());
       double sellPrice = NormalizeDouble(priceA + s, _Digits);
       double buyPrice  = NormalizeDouble(priceA - s, _Digits);
-      OrderSend(Symbol(), OP_SELLLIMIT, lotB, sellPrice, 0, 0, 0, "MoveCatcher_B", MagicNumber, 0, clrRed);
-      OrderSend(Symbol(), OP_BUYLIMIT,  lotB, buyPrice,  0, 0, 0, "MoveCatcher_B", MagicNumber, 0, clrRed);
+      int sellTicket = OrderSend(Symbol(), OP_SELLLIMIT, lotB, sellPrice, 0, 0, 0, "MoveCatcher_B", MagicNumber, 0, clrRed);
+      if(sellTicket<0) Print("Init order B sell failed: ",GetLastError());
+      int buyTicket  = OrderSend(Symbol(), OP_BUYLIMIT,  lotB, buyPrice,  0, 0, 0, "MoveCatcher_B", MagicNumber, 0, clrRed);
+      if(buyTicket<0)  Print("Init order B buy failed: ",GetLastError());
    }
 
    lastHist = TimeCurrent();
@@ -167,6 +177,7 @@ void HandleClose(CDecompMC &dmc, const string comment, int prevType, bool win)
    double lot = NormalizeLot(BaseLot * dmc.NextLot());
    int type = prevType;
    if(win) type = (prevType==OP_BUY) ? OP_SELL : OP_BUY;
+   RefreshRates();
    double price = (type==OP_BUY) ? Ask : Bid;
    price = NormalizeDouble(price, _Digits);
    double tp = (type==OP_BUY) ? price + d : price - d;
