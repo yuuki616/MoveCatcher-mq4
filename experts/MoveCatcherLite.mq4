@@ -144,7 +144,8 @@ void RecoverAfterSL(double price,bool isBuy,double entry)
 void ProcessClosedTrades(){
    LogEvent("TP_REVERSE", "A", 0);
    LogEvent("SL_REENTRY", "B", 0);
-   RetryOrder(false, positionTicket[SYSTEM_A], OP_BUY, Bid, 0, 0);
+   // Buy 系の成行注文は Ask 基準で価格を指定
+   RetryOrder(false, positionTicket[SYSTEM_A], OP_BUY, Ask, 0, 0);
    int ticketBuyLim = 0; double price = Ask, sl=0, tp=0;
    RetryOrder(false, ticketBuyLim, OP_BUYLIMIT, price, sl, tp);
 }
