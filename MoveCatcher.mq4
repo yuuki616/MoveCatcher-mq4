@@ -397,9 +397,9 @@ void DoRebalanceLimit(){
    if(!ok){ LogAlways(StringFormat("[REBALANCE_LIMIT_FAIL][%s] close err=%d", S.name, GetLastError())); return; }
    S.activeTicket=0;
 
-   // Spread check (MaxSpreadPips)
+   // Spread check (GapCorrection用許容幅)
    double spr = (Ask-Bid)/PIP();
-   if(InpMaxSpreadPips>0.0 && spr>InpMaxSpreadPips){
+   if(gSpreadCorrPips>0.0 && spr>gSpreadCorrPips){
       LogAlways("[REBALANCE_LIMIT_SKIP] spread too wide");
       rb.dwellStart=0; rb.mode=RB_MODE_IDLE; rb.busy=false; return;
    }
@@ -631,7 +631,7 @@ void OnTick(){
    // 4) Pending成立後の整理（他脚キャンセル、SL/TP付与）
    MaintainPendingAfterFill();
 
-   // 5) TP/SL検知 → Aのみ即成行再エントリ、BはMM更新のみ
+   // 5) TP/SL検知 → A/B共通で即成行再エントリ
    DetectCloseAndReenter();
 
    // 6) 欠落時の補充（片側指値を1本だけ）
