@@ -29,10 +29,25 @@
 | MaxSpreadPips | double | 2.0    | **“置く”前だけ**チェック（初期BのOCO／欠落時補充）。0で無効  |
 | MagicNumber   | int    | 246810 | EA 識別用                               |
 
+### Gap Correction パラメータ
+
+| 名称                 | 型                    | 既定                              | 説明                                   |
+| -------------------- | --------------------- | --------------------------------- | -------------------------------------- |
+| GapCorrection        | bool                  | false                             | ON でギャップ補正を有効化              |
+| GapEpsilonPips (ε)   | double                | 0.3                               | 許容誤差（pips）                       |
+| GapDwellSec          | int                   | 3                                 | 誤差継続秒数                            |
+| GapCooldownSec       | int                   | 30                                | 補正後の再発火待機秒                   |
+| GapTimeoutSec        | int                   | 30                                | MIT 待ちタイムアウト                    |
+| NearGoalRatio (μ)    | double                | 0.2                               | TP/SL までの残距離が μ·d 超のときのみ補正 |
+| SpreadCorrPips       | double                | min(MaxSpreadPips×1.5, 3.0)       | 補正時の最大スプレッド許容               |
+| RebalanceLotMode     | enum{KEEP,RECALC}     | KEEP                              | 補正時のロット：維持 / 再評価            |
+
 **内部派生値**
 
+* `d = GridPips`
 * `s = GridPips / 2`
 * `Pip = (_Digits==3 || _Digits==5) ? 10*_Point : _Point`
+* `PriceStep = _Point`
 
 ## 4) コメント／ラベル
 
@@ -103,6 +118,7 @@
 
 * `GapCorrection=ON` のときのみ有効。
 * 2本同時保有時の建値間隔 `g` が `s=d/2` から `ε` を超えてズレた状態が `GapDwellSec` 継続すると補正判定。
+* 補正対象は原則として直近に建った側（新しいポジション）。
 * 残TP/SL距離が `μ·d` 超かつ `GapCooldownSec` 経過後に発火。
 * 現値が目標価格 `P*` を跨いだティックで **MITスナップ**（ズレ側をクローズ→同方向成行で再建）。
 * MIT不成立で `GapTimeoutSec` 経過時は指値吸着フォールバック（1本体制に落としてPendingを1本のみ配置）。
