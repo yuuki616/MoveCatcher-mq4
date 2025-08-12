@@ -3,10 +3,12 @@
 //| A/B二系統（方式B・修正版/Lite, 実TP/実SL）                      |
 //|  - A: 成行エントリ（TP=反転 / SL=順方向で即時再エントリ）      |
 //|  - B: 初期はA建値±sにOCOで指値、成立後は片脚キャンセル          |
+//|       決済後はAと同様に成行で即時リエントリ                     |
 //|  - 欠落時の補充：片側指値を1本だけ（OCO禁止）                   |
 //|  - Spread判定は「置く時のみ」。0で無効                          |
 //|  - 実ロット = BaseLot × DMCMM係数（発注直前に毎回評価）         |
 //|  - A/BのDMCMM状態は完全独立                                     |
+//|  - 勝敗判定はEA本体が行い、DMCMMへ winStep()/loseStep() で反映 |
 //|  - 2本生存中はPendingなし。3本以上は後着から是正して2本以内へ    |
 //+------------------------------------------------------------------+
 #property strict
@@ -316,7 +318,8 @@ void TryRefillOneSideIfOneLeft(){
    }
 }
 
-// TP/SL検知：Aは即成行再エントリ（TP=反転 / SL=順方向）。Bは成行再エントリなし（OCO/補充のみ）
+// TP/SL検知：A/B 共通で成行再エントリ（TP=反転 / SL=順方向）
+// 勝敗判定はEA側で行い、DMCMMへ winStep()/loseStep() を明示的に通知
 void DetectCloseAndReenter(){
    static int prevA=0, prevB=0;
    static bool inited=false;
@@ -341,11 +344,21 @@ void DetectCloseAndReenter(){
       }
    }
 
-   // --- B: 成行での即再エントリは禁止。勝敗はMMに反映のみ ---
+   // --- B: 即時再エントリ ---
    if(prevB>0 && B.activeTicket==0){
-      int reasonB = CloseReasonFromHistory(prevB);
-      if(reasonB>0) B.mm.winStep(); else if(reasonB<0) B.mm.loseStep();
-      // 欠落補充は TryRefillOneSideIfOneLeft が担当
+      int reasonB = CloseReasonFromHistory(prevB); // 1=TP, -1=SL
+      int dirPrevB=0;
+      if(OrderSelect(prevB, SELECT_BY_TICKET, MODE_HISTORY)){
+         dirPrevB = (OrderType()==OP_BUY)?+1:-1;
+      }
+      if(reasonB!=0 && dirPrevB!=0){
+         if(reasonB>0) B.mm.winStep(); else B.mm.loseStep();
+         int dirNewB = (reasonB>0) ? -dirPrevB : dirPrevB; // TP:反転, SL:順方向
+         int tB = SendMarket(B, dirNewB);
+         if(tB>0){
+            B.activeTicket=tB; B.lastDir=dirNewB; B.entryPrice=MktPriceByDir(dirNewB);
+         }
+      }
    }
 
    prevA=A.activeTicket; prevB=B.activeTicket;
