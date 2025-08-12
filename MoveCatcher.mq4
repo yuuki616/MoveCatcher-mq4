@@ -280,7 +280,7 @@ void MaintainPendingAfterFill(){
 }
 
 void MaintainPendingAfterFillOne(SystemState &S){
-   if(S.activeTicket>0 && (S.pendUpTicket>0 || S.pendDnTicket>0)){
+   if(S.activeTicket>0){
       if(S.pendUpTicket>0) DeleteTicket(S.pendUpTicket,S.name,"AFTER");
       if(S.pendDnTicket>0) DeleteTicket(S.pendDnTicket,S.name,"AFTER");
       S.pendUpTicket=0; S.pendDnTicket=0;
