@@ -275,24 +275,25 @@ void TryPlaceOCO_B_AroundA(){
 // Pending成立後の処理：他脚キャンセル＋SL/TP付与（A/B共通）
 void MaintainPendingAfterFill(){
    RefreshTickets();
-   SystemState* arr[2] = {&A,&B};
-   for(int i=0;i<2;i++){
-      SystemState &S = *arr[i];
-      if(S.activeTicket>0 && (S.pendUpTicket>0 || S.pendDnTicket>0)){
-         if(S.pendUpTicket>0) DeleteTicket(S.pendUpTicket,S.name,"AFTER");
-         if(S.pendDnTicket>0) DeleteTicket(S.pendDnTicket,S.name,"AFTER");
-         S.pendUpTicket=0; S.pendDnTicket=0;
-         if(OrderSelect(S.activeTicket, SELECT_BY_TICKET)){
-            int type=OrderType();
-            double entry=OrderOpenPrice();
-            double sl,tp; CalcSLTP((type==OP_BUY)?+1:-1, entry, InpGridPips, sl, tp);
-            bool need=true;
-            if(Almost(OrderStopLoss(),sl,1) && Almost(OrderTakeProfit(),tp,1)) need=false;
-            if(need){
-               bool ok = OrderModify(S.activeTicket, OrderOpenPrice(), sl, tp, 0, clrNONE);
-               if(ok) LogAlways(StringFormat("[SLTP_SET][%s] ticket=%d SL=%.5f TP=%.5f", S.name, S.activeTicket, sl, tp));
-               else   LogAlways(StringFormat("[SLTP_SET_FAIL][%s] ticket=%d err=%d", S.name, S.activeTicket, GetLastError()));
-            }
+   MaintainPendingAfterFillOne(A);
+   MaintainPendingAfterFillOne(B);
+}
+
+void MaintainPendingAfterFillOne(SystemState &S){
+   if(S.activeTicket>0 && (S.pendUpTicket>0 || S.pendDnTicket>0)){
+      if(S.pendUpTicket>0) DeleteTicket(S.pendUpTicket,S.name,"AFTER");
+      if(S.pendDnTicket>0) DeleteTicket(S.pendDnTicket,S.name,"AFTER");
+      S.pendUpTicket=0; S.pendDnTicket=0;
+      if(OrderSelect(S.activeTicket, SELECT_BY_TICKET)){
+         int type=OrderType();
+         double entry=OrderOpenPrice();
+         double sl,tp; CalcSLTP((type==OP_BUY)?+1:-1, entry, InpGridPips, sl, tp);
+         bool need=true;
+         if(Almost(OrderStopLoss(),sl,1) && Almost(OrderTakeProfit(),tp,1)) need=false;
+         if(need){
+            bool ok = OrderModify(S.activeTicket, OrderOpenPrice(), sl, tp, 0, clrNONE);
+            if(ok) LogAlways(StringFormat("[SLTP_SET][%s] ticket=%d SL=%.5f TP=%.5f", S.name, S.activeTicket, sl, tp));
+            else   LogAlways(StringFormat("[SLTP_SET_FAIL][%s] ticket=%d err=%d", S.name, S.activeTicket, GetLastError()));
          }
       }
    }
@@ -358,7 +359,11 @@ void TryRefillOneSideIfOneLeft(){
 
 // --- Gap Correction Core ---
 void DoRebalanceSnap(){
-   SystemState &S = (rb.sideToMove==0)?A:B;
+   if(rb.sideToMove==0) DoRebalanceSnapSide(A);
+   else DoRebalanceSnapSide(B);
+}
+
+void DoRebalanceSnapSide(SystemState &S){
    if(!OrderSelect(S.activeTicket, SELECT_BY_TICKET)) return;
    int dir = S.lastDir;
    int oldTk = S.activeTicket;
@@ -385,7 +390,11 @@ void DoRebalanceSnap(){
 }
 
 void DoRebalanceLimit(){
-   SystemState &S = (rb.sideToMove==0)?A:B;
+   if(rb.sideToMove==0) DoRebalanceLimitSide(A);
+   else DoRebalanceLimitSide(B);
+}
+
+void DoRebalanceLimitSide(SystemState &S){
    if(!OrderSelect(S.activeTicket, SELECT_BY_TICKET)) return;
    int dir = S.lastDir;
    double lotOld = OrderLots();
@@ -455,9 +464,15 @@ void GapCorrectionTick(){
       if(OrderSelect(B.activeTicket, SELECT_BY_TICKET)) bTime=OrderOpenTime();
       move = (aTime>bTime)?0:1;
       rb.sideToMove=move;
-      SystemState &Sanch = (move==0)?B:A;
-      int anchorDir = Sanch.lastDir;
-      double anchorEntry = Sanch.entryPrice;
+      int anchorDir;
+      double anchorEntry;
+      if(move==0){
+         anchorDir = B.lastDir;
+         anchorEntry = B.entryPrice;
+      }else{
+         anchorDir = A.lastDir;
+         anchorEntry = A.entryPrice;
+      }
       rb.targetPrice = RoundPrice( (anchorDir>0)? (anchorEntry + s) : (anchorEntry - s) );
       rb.mode = RB_MODE_SNAP_WAIT;
    }
