@@ -1,151 +1,130 @@
-# AGENTS.md — MT4 EA 実装指示書（Lite・TP=実TP版・修正版）
+# AGENTS.md — MT4 EA 追加仕様書（Ultimate-Lite Strict 最小実装）
 
-**Project:** MoveCatcher Lite（方式B／2系統 A/B・独立）
+**Project:** MoveCatcher Lite Strict（A/B 系統・最大2本）
 **Target:** MetaTrader 4（MQL4）
-**方針:** ギャップ補正・距離帯・各種リセットなし。TP/SL は実設定。ロットは DMCMM × BaseLot を**発注直前**に毎回評価。A/B は完全独立。
-**修正要旨:** 勝敗判定はEA本体が行い、判定結果を DMCMM（MQH）へ `winStep()` / `loseStep()` で明示的に反映することを明記。
+**方針:** Pending/OCO を一切使用せず、2本目は相手建値±s に触れた瞬間のみ成行（疑似MIT）で建てる。補充は勝敗外（Neutral）で DMCMM は発注時に評価。A/B ロット計算を独立／共通で切り替え可能。
 
 ---
 
-## 1) 目的 / ミッション
+## 入力パラメータ（5つ）
 
-同時最大2本（A/B 各 0〜1 本）を基本に、2本同時保有時の建値間隔 **s = d/2**（d=TP/SL 距離）を「できるだけ」維持。
-**TP（実TP）決済後は逆方向に成行で建て直し、SL（実SL）決済後は同方向に成行で建て直す。**
-ロットは **DMCMM（DecompositionMonteCarloMM.mqh）** 準拠：
-**実ロット = BaseLot ×（DMCMM 係数）**。A/B の DMCMM 状態は完全独立に保持・更新。
+| 名称 | 型 | 例 | 説明 |
+| --- | ---: | ---: | --- |
+| GridPips | double | 100 | d。TP/SL距離（pips） |
+| BaseLot | double | 0.10 | 実ロット = BaseLot × 係数 |
+| MaxSpreadPips | double | 2.0 | 置く前のスプレッド上限（補充時にも流用） |
+| MagicNumber | int | 246810 | EA識別 |
+| **UseSharedDMCMM** | bool | **false** | **false**=A/B独立、**true**=A/B共通（係数・勝敗シーケンスを共有） |
 
-## 2) 実行環境 / 制約
-
-* MT4 / MQL4（`OnInit` / `OnTick` / `OnDeinit`）。`OnTradeTransaction` は無し → **OnTick で履歴差分検知**。
-* 価格保護は必要最小限（slippage 固定でも可）。
-* ヘッジ口座前提。FIFO/ノーヘッジの場合の制約はこの Lite では非対応。
-
-## 3) 入力パラメータ（最小）
-
-| 名称            | 型      | 例      | 説明                                   |
-| ------------- | ------ | ------ | ------------------------------------ |
-| GridPips      | double | 100    | d。各ポジの TP/SL 距離（pips）                |
-| BaseLot       | double | 0.10   | 実ロット = BaseLot × DMCMM 係数（0.01 刻み推奨） |
-| MaxSpreadPips | double | 2.0    | **“置く”前だけ**チェック（初期BのOCO／欠落時補充）。0で無効  |
-| MagicNumber   | int    | 246810 | EA 識別用                               |
-
-**内部派生値**
-
-* `s = GridPips / 2`
-* `Pip = (_Digits==3 || _Digits==5) ? 10*_Point : _Point`
-
-## 4) コメント／ラベル
-
-* 系統識別コメント：**MoveCatcher\_A / MoveCatcher\_B**
-* すべての注文・ポジションに付与（**系統判定はコメント**で実施）。
-
-## 5) DMCMM 連携・ロット算出
-
-* **抽象 I/F:** `lotFactor_sys = DMCMM(state_sys)`（`sys ∈ {A, B}`）
-* **評価タイミング:** あらゆる**発注直前**（初期建て／TP 反転建て直し／SL リエントリ／補充指値）に毎回実行。
-* **実ロット:** `actualLot = BaseLot × lotFactor_sys` をブローカーの `LotStep / MinLot / MaxLot` で丸め・クリップ。
-* **独立性:** A の決済で更新されるのは **A の DMCMM のみ**、B も同様。
-
-> 参考（MQH 側公開想定）：`init() / winStep() / loseStep() / factor()` 等。**勝敗判定はEA側**で行い、結果に応じて `winStep()` / `loseStep()` を呼ぶ。
-
-## 6) 価格・約定ルール（実TP/実SL）
-
-* **指値の基準:** Buy 系＝Ask 基準／Sell 系＝Bid 基準。
-* **TP/SL（実設定）:** エントリ基準で ±d（Ask/Bid は足さない）
-
-  * Long：TP = Entry + d（**判定：Bid ≥**）、SL = Entry − d（**判定：Bid ≤**）
-  * Short：TP = Entry − d（**判定：Ask ≤**）、SL = Entry + d（**判定：Ask ≥**）
-* **TP 用の影指値は不使用**（サーバ TP のみ）。
-
-## 7) 初期化（方式B・簡易）
-
-* **系統A：** Market で 1 本建て（方向は固定 Buy/Sell 任意。デフォルト Buy）。
-
-  * 建てる直前に `DMCMM(A)` で `actualLot_A` を取得。
-  * 約定後、TP/SL=±d を設定。コメント：`MoveCatcher_A`。
-* **系統B：** A 建値 ± s に **OCO** を即時配置
-
-  * 上：`SellLimit @ Entry_A + s`、下：`BuyLimit @ Entry_A − s`。
-  * **置く直前のみ** `Spread ≤ MaxSpreadPips` を要求。
-  * どちらかが約定 → 片割れを即キャンセル。成立直後に `DMCMM(B)` を評価して TP/SL=±d を設定。コメント：`MoveCatcher_B`。
-  * 以後、**2本生存中は Pending を持たない**（欠落時のみ補充指値）。
-
-## 8) ランタイム（両系統 A/B 共通）【★修正明記★】
-
-**勝敗判定はEA本体側で行う**（**TP=Win / SL=Loss**）。**判定結果に応じて、該当系統の DMCMM に対し `winStep()` または `loseStep()` を呼び出し**、内部状態（数列・係数）を更新する。
-
-* **TP（実TP）で決済されたら**
-
-  1. **Win を DMCMM(state\_sys) に反映**（`winStep()`）
-  2. 最新 `lotFactor_sys` を取得 → `actualLot` 決定
-  3. **反対方向**を Market で即時エントリ
-  4. 新ポジに TP/SL=±d を設定（実TP/実SL）
-  5. コメントは系統ラベル維持（`MoveCatcher_A/B`）
-
-* **SL（実SL）で決済されたら**
-
-  1. **Loss を DMCMM(state\_sys) に反映**（`loseStep()`)
-  2. 最新 `lotFactor_sys` を取得 → `actualLot` 決定
-  3. **同方向**を Market で即時リエントリ
-  4. 新ポジに TP/SL=±d を設定（実TP/実SL）
-  5. コメントは系統ラベル維持
-
-* **同時到達（A/B 同バー）:** どちら先でも可。各系統独立なので順序依存は持たない。
-
-* MT4 はイベントフックがないため、**OnTick で履歴差分を検知**して上記を実施（反転が次ティックになることは許容）。
-
-### 勝敗検知（参考実装方針）
-
-* OnTick で **直近クローズ注文**の `ClosePrice` と **設定済み TP/SL** の一致・条件到達で **TP/SLどちらで閉じたかを判別**。
-* 追加のロジックは不要（本 Lite では**単純ルール**で十分）。
-
-## 9) 欠落時の補充（1 本になったとき）
-
-* 生存側建値 ± s で **欠落側の片側指値を 1 本だけ置く**（OCO ではない）。
-
-  * 生存が Long → 欠落は `SellLimit @ LongEntry + s`
-  * 生存が Short → 欠落は `BuyLimit @ ShortEntry − s`
-* **置く直前のみ** `Spread ≤ MaxSpreadPips` を要求。
-* 約定したら 2 本体制に復帰（以後 Pending は持たない）。
-* **補充ロットも発注直前に DMCMM（欠落系統）評価**で決定。
-
-## 10) スプレッド方針（最小）
-
-* **判定する:** “置く”行為のみ（初期Bの OCO／欠落時の補充）。
-* **判定しない:** 成行エントリ・リエントリ、TP/SL 設定、Cancel/Close。
-
-## 11) ログ（簡易・推奨）
-
-* `Reason{INIT, OCO_HIT, OCO_CANCEL, TP_REVERSE, SL_REENTRY, REFILL}`
-* `System{A|B}, Entry/SL/TP, actualLot, Spread, Magic, Ticket`
-* `勝敗集計:`TP=Win / SL=Loss / その他=Neutral` の単純ルールで OK。
-* `DMCMM デバッグ:** ロット係数と使用シーケンスのスナップショットを発注時に出力。
-
-## 12) 受け入れチェック
-
-* 初期化：A=Market＋TP/SL、B=±s OCO（Spread OK）→ B 成立で片割れキャンセル。
-* TP（実TP）後：**EA が Win 判定 → DMCMM へ `winStep()`** → 最新ロットで**逆方向** Market → 新ポジに ±d。
-* SL（実SL）後：**EA が Loss 判定 → DMCMM へ `loseStep()`** → 最新ロットで**同方向** Market → 新ポジに ±d。
-* 2 本生存中は Pending なし。1 本時のみ補充指値。
-* 実ロット = BaseLot × DMCMM 係数を**発注直前**に毎回評価（A/B 独立）。
-* Spread 判定は**置くときだけ**。
-* 同系統 2 本同時成立／合計 3 本以上は**後着から是正**して 2 本以内へ。
-
-## 13) 既知の割り切り
-
-* 同ティック完全反転は保証しない（MT4/実TP・OnTick 検知のため）。**小さなズレは許容**。
-* ギャップ補正・距離帯・生存同期リセット・MaxLot 等の上級機能は本 **Lite** では未搭載。
+> 既定は従来どおり **独立(false)**。運用途中での切替は非推奨（切替時は EA 再起動・状態初期化を前提）。
 
 ---
 
-### 付録A：責務の境界（明文化）
+## 内部定義（固定/派生）
 
-* **EA 本体の責務**
+* `Pip = (_Digits==3||5) ? 10*_Point : _Point`
+* `d = GridPips * Pip`、`s = d/2`
+* 閾値ε（固定定数）：`EPS_PIPS = 0.3`
+  * `EpsilonPoints = round(EPS_PIPS * Pip / _Point)` → `OrderSend.deviation` に使用
+* スプレッド上限：`SpreadCapPips = MaxSpreadPips`
 
-  * 勝敗（TP/SL）判定、再エントリ方向の決定、発注とTP/SL設定、スプレッド判定（置くときのみ）、ログ出力。
-* **DMCMM（MQH）の責務**
+---
 
-  * `winStep()` / `loseStep()` に応じた **数列・係数の更新**、`factor()` での **最新ロット係数の提供**。
-  * **勝敗を自動判定しない**（EAからの明示呼び出し前提）。
+## DMCMM のモード別挙動
 
-以上。
+### UseSharedDMCMM = false（独立・既定）
+
+* インスタンス：`DMCMM_A` / `DMCMM_B` を別々に保持。
+* 勝敗更新：A の TP/SL→A のみ `winStep/loseStep`、B も同様。
+* ロット算出：発注直前に `factor(A/B)` を取得。
+
+### UseSharedDMCMM = true（共通）
+
+* インスタンス：`DMCMM_SHARED` を 1 つだけ保持（A/B 共用）。
+* 勝敗更新：A/B いずれかが TP/SL で閉じたら共通 `winStep/loseStep`。
+  * 同一ティックで A/B 両方閉じたら、クローズ時刻→チケット番号順に逐次 2 回更新。
+* ロット算出：発注直前に共通 `factor()` を取得（A/B とも同一係数）。
+
+> 補充は Neutral：どちらのモードでも `winStep/loseStep` は呼ばない。補充のロットは、その瞬間の該当係数（独立なら欠落系統の `factor()`／共通なら `factor()`）で算出。
+
+---
+
+## 取引ライフサイクル（Ultra-Lite Strict）
+
+### 初期化
+
+1. **A を成行で 1 本** → **TP/SL=±d** 設定（`MoveCatcher_A`）。
+2. **B は置かない**（監視開始のみ）。
+
+### TP/SL 決済
+
+* **TP（Win）**：EA が Win 判定→（独立なら該当系統／共通なら共通）`winStep()`→`factor()`→**反転成行**→**±d**。
+* **SL（Loss）**：同様に `loseStep()`→`factor()`→**同方向成行**→**±d**。
+* ロットは毎回「発注直前」に `BaseLot×係数` を丸め/クリップ。
+
+### 欠落補充（疑似MIT／Pendingなし）
+
+* 状態が 1 本のときだけ監視・発注。
+* アンカー = 生存側の建値 `entryAlive`、目標 `P*`：
+  * 生存 Long → **Sell @ `entryAlive + s`**
+  * 生存 Short → **Buy  @ `entryAlive − s`**
+* 発注条件（そのティックのみ）
+  * **Sell 補充**：`|Bid − P*| ≤ 0.3pips` かつ `Spread ≤ MaxSpreadPips`
+  * **Buy 補充** ：`|Ask − P*| ≤ 0.3pips` かつ `Spread ≤ MaxSpreadPips`
+* 執行
+  * `OrderSend(OP_SELL/BUY, ..., deviation=EpsilonPoints)`（`P*±ε` 超過は拒否）
+  * Filled→**TP/SL=±d** 設定、コメント `MoveCatcher_B`（または欠落側ラベル）。
+  * 拒否/条件未充足→何もしない（監視継続）。
+* DMCMM：Neutral（勝敗更新なし）。ロットは発注直前に（独立/共通の）`factor()` で決定。
+
+### 監視中のアンカー更新
+
+* 生存側が TP/SL で建て直されたら、新建値を即アンカーにして `P*` 再計算（監視再アーム）。
+
+### サニティ整流
+
+* 同系統 2 本/合計 3 本以上になったら、後着から即クローズ（`SANITY_TRIM`）で最大 2 本に収束。
+
+---
+
+## ログ（モード表示を追加）
+
+* 既存：`INIT, TP_REVERSE, SL_REENTRY, SANITY_TRIM`
+* 補充：`REFILL_STRICT_ARM`（監視開始）, `REFILL_STRICT_HIT`（約定）, `REFILL_STRICT_SKIP_SPREAD`, `REFILL_STRICT_REQUOTE/REJECT`
+* モード注記：各ログに `LotMode={INDEPENDENT|SHARED}` を付与（係数の意味づけを明確化）。
+
+---
+
+## 受け入れチェック
+
+1. 補充は常に疑似MIT＆Pendingなし。`|Bid/Ask−P*|≤0.3pips` かつ `Spread≤MaxSpreadPips` のティックのみ約定。
+2. TP/SL 時のみ勝敗更新：
+   * 独立：該当系統の DMCMM だけ更新。
+   * 共通：共通 DMCMM を更新（同ティック 2 件は順序規則で逐次実行）。
+3. ロット算出は発注直前評価：
+   * 独立：`BaseLot×factor(A/B)`
+   * 共通：`BaseLot×factor(shared)`
+4. 補充は Neutral（`winStep/loseStep` 不呼出）。
+5. 最大 2 本厳守（異常時は `SANITY_TRIM`）。
+6. 監視中のアンカー再建で即 `P*` 再計算・監視継続。
+
+---
+
+## 実装メモ（DMCMM 呼び分けの最小コードイメージ）
+
+```text
+double LotFactor(string sys) {
+  return UseSharedDMCMM ? DMCMM_SHARED.factor() : DMCMM_sys[sys].factor();
+}
+void WinStep(string sys) {
+  if (UseSharedDMCMM) DMCMM_SHARED.winStep();
+  else                DMCMM_sys[sys].winStep();
+}
+void LoseStep(string sys) {
+  if (UseSharedDMCMM) DMCMM_SHARED.loseStep();
+  else                DMCMM_sys[sys].loseStep();
+}
+```
+
+> **注意**：`UseSharedDMCMM` の変更は運用中に切替えないこと（係数シーケンスの一貫性が崩れるため）。切替える場合は EA 再起動で DMCMM 状態を意図どおり初期化すること。
+
