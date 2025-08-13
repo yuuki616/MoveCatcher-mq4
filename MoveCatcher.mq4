@@ -1,15 +1,14 @@
 //+------------------------------------------------------------------+
 //|                                                  MoveCatcher.mq4 |
-//| A/B二系統（方式B・修正版/Lite, 実TP/実SL）                      |
-//|  - A: 成行エントリ（TP=反転 / SL=順方向で即時再エントリ）      |
-//|  - B: 初期はA建値±sにOCOで指値、成立後は片脚キャンセル          |
-//|       決済後はAと同様に成行で即時リエントリ                     |
-//|  - 欠落時の補充：片側指値を1本だけ（OCO禁止）                   |
-//|  - Spread判定は「置く時のみ」。0で無効                          |
+//| A/B二系統（Ultimate-Lite Strict, 実TP/実SL）                     |
+//|  - 初期化: Aを成行で1本建て、Bは置かず監視のみ                   |
+//|  - TP/SL決済時のみ勝敗判定→反転/順方向へ即時成行建て直し        |
+//|  - 欠落補充: 生存側建値±sに触れた瞬間だけ成行（疑似MIT）        |
+//|  - Pending/OCOは一切使わず、Spread判定は発注直前のみ（0で無効） |
 //|  - 実ロット = BaseLot × DMCMM係数（発注直前に毎回評価）         |
-//|  - A/BのDMCMM状態は完全独立                                     |
-//|  - 勝敗判定はEA本体が行い、DMCMMへ winStep()/loseStep() で反映 |
-//|  - 2本生存中はPendingなし。3本以上は後着から是正して2本以内へ    |
+//|  - A/Bロット計算は UseSharedDMCMM=falseで独立、trueで共通       |
+//|  - 補充はNeutral（winStep/loseStep は呼ばない）                 |
+//|  - 最大2本を厳守し、異常時はSANITY_TRIMで後着から整流           |
 //+------------------------------------------------------------------+
 #property strict
 
@@ -21,6 +20,7 @@ input double   InpGridPips       = 100;     // d: TP/SL 距離（pips）
 input double   InpBaseLot        = 0.01;    // BaseLot
 input double   InpMaxSpreadPips  = 2.0;     // 置く時の最大スプレッド[pips]（0で無効）
 input int      InpMagic          = 246810;  // マジック
+input bool     InpUseSharedDMCMM = false;   // trueでA/B共通DMCMM
 input int      InpSlippagePoints = 10;      // 許容スリッページ[point]
 input bool     InpStartOnLaunch  = true;    // 起動直後にAを建てる（成行）
 input int      InpStartDir       = 1;       // Aの初回方向: 1=BUY, -1=SELL
