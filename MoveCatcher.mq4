@@ -34,8 +34,14 @@ double RoundPrice(double price){ return NormalizeDouble(price, Digits); }
 bool   Almost(double a,double b,double tolPts){ return MathAbs(a-b) <= tolPts*Point; }
 
 string TF(){ return EnumToString((ENUM_TIMEFRAMES)Period()); }
-void Log(string msg){ if(InpVerboseLog) Print(Symbol(),",",TF(),": ",msg); }
-void LogAlways(string msg){ Print(Symbol(),",",TF(),": ",msg); }
+string LotMode(){ return InpUseSharedDMCMM?"SHARED":"INDEPENDENT"; }
+void Log(string msg){
+   if(InpVerboseLog)
+      Print(Symbol(),",",TF(),": ",msg," LotMode=",LotMode());
+}
+void LogAlways(string msg){
+   Print(Symbol(),",",TF(),": ",msg," LotMode=",LotMode());
+}
 
 // ====== DMCMM Wrapper（数列ログ取得可） ======
 class CDMCMM {
@@ -61,6 +67,20 @@ struct SystemState {
    void clear(){ activeTicket=0; pendUpTicket=0; pendDnTicket=0; entryPrice=0; lastDir=0; }
 };
 SystemState A,B;
+CDMCMM DMCMM_SHARED;           // UseSharedDMCMM=true のとき共通で使用
+
+double LotFactor(SystemState &S){
+   return InpUseSharedDMCMM ? DMCMM_SHARED.factor() : S.mm.factor();
+}
+string SeqString(SystemState &S){
+   return InpUseSharedDMCMM ? DMCMM_SHARED.seqString() : S.mm.seqString();
+}
+void WinStep(SystemState &S){
+   if(InpUseSharedDMCMM) DMCMM_SHARED.winStep(); else S.mm.winStep();
+}
+void LoseStep(SystemState &S){
+   if(InpUseSharedDMCMM) DMCMM_SHARED.loseStep(); else S.mm.loseStep();
+}
 
 // ====== Price/Type utils ======
 double MktPriceByDir(int dir){ return (dir>0) ? Ask : Bid; }
@@ -82,9 +102,9 @@ double NormalizeLot(double lot){
    return NormalizeDouble(x, 2);
 }
 double ComputeLotAndLog(SystemState &S){
-   double factor = S.mm.factor();              // 直前評価
+   double factor = LotFactor(S);               // 直前評価
    double lot    = NormalizeLot(InpBaseLot * factor);
-   string seq    = S.mm.seqString();
+   string seq    = SeqString(S);
    LogAlways(StringFormat("[LOT][%s] seq=%s factor=%.2f base=%.2f lot=%.2f",
              S.name, seq, factor, InpBaseLot, lot));
    return lot;
@@ -335,7 +355,7 @@ void DetectCloseAndReenter(){
          dirPrev = (OrderType()==OP_BUY)?+1:-1;
       }
       if(reason!=0 && dirPrev!=0){
-         if(reason>0) A.mm.winStep(); else A.mm.loseStep();
+         if(reason>0) WinStep(A); else LoseStep(A);
          int dirNew = (reason>0) ? -dirPrev : dirPrev; // TP:反転, SL:順方向
          int tA = SendMarket(A, dirNew);
          if(tA>0){
@@ -352,7 +372,7 @@ void DetectCloseAndReenter(){
          dirPrevB = (OrderType()==OP_BUY)?+1:-1;
       }
       if(reasonB!=0 && dirPrevB!=0){
-         if(reasonB>0) B.mm.winStep(); else B.mm.loseStep();
+         if(reasonB>0) WinStep(B); else LoseStep(B);
          int dirNewB = (reasonB>0) ? -dirPrevB : dirPrevB; // TP:反転, SL:順方向
          int tB = SendMarket(B, dirNewB);
          if(tB>0){
@@ -435,6 +455,7 @@ void StartIfNeeded(){
 int OnInit(){
    A.clear(); A.name="A"; A.mm.reset();
    B.clear(); B.name="B"; B.mm.reset();
+   DMCMM_SHARED.reset();
 
    LogAlways(StringFormat("INIT: StopLevel=%dpt MinLot=%.2f MaxLot=%.2f Step=%.2f",
             (int)MarketInfo(Symbol(), MODE_STOPLEVEL),
