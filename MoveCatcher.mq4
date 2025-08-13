@@ -206,16 +206,24 @@ void TryRefillOneSideIfOneLeft(){
 
    // 生存側と欠落側
    bool aliveIsA = (A.activeTicket>0);
-   SystemState &alive   = aliveIsA ? A : B;
-   SystemState &missing = aliveIsA ? B : A;
-
    double s = Pip2Pt(InpGridPips/2.0);
-   double target = alive.entryPrice + ((alive.lastDir>0)? s : -s);
-   int    dir    = (alive.lastDir>0)? -1 : +1;
+   double target;         // 生存側建値±s
+   int    dir;            // 補充方向（生存側反転）
+   string missingName;    // 欠落系統名
 
-   if(!armed || armSys!=missing.name || !Almost(armPrice,target,1)){
-      armed=true; armSys=missing.name; armPrice=target; armDir=dir;
-      LogAlways(StringFormat("[REFILL_STRICT_ARM][%s] P*=%.5f", missing.name, target));
+   if(aliveIsA){
+      target      = A.entryPrice + ((A.lastDir>0)? s : -s);
+      dir         = (A.lastDir>0)? -1 : +1;
+      missingName = B.name;
+   }else{
+      target      = B.entryPrice + ((B.lastDir>0)? s : -s);
+      dir         = (B.lastDir>0)? -1 : +1;
+      missingName = A.name;
+   }
+
+   if(!armed || armSys!=missingName || !Almost(armPrice,target,1)){
+      armed=true; armSys=missingName; armPrice=target; armDir=dir;
+      LogAlways(StringFormat("[REFILL_STRICT_ARM][%s] P*=%.5f", missingName, target));
    }
 
    // Spread判定（0で無効）
@@ -229,15 +237,21 @@ void TryRefillOneSideIfOneLeft(){
    double diff = (dir>0) ? MathAbs(Ask - target) : MathAbs(Bid - target);
    if(diff>eps) return;            // 未到達
 
-   int tk = SendMarket(missing, dir); // Neutral: win/lose 更新なし
+   int tk;
+   if(aliveIsA) tk = SendMarket(B, dir); else tk = SendMarket(A, dir); // Neutral: win/lose 更新なし
    if(tk>0){
-      missing.activeTicket=tk; missing.lastDir=dir; missing.entryPrice=MktPriceByDir(dir);
-      LogAlways(StringFormat("[REFILL_STRICT_HIT][%s] ticket=%d", missing.name, tk));
+      if(aliveIsA){
+         B.activeTicket=tk; B.lastDir=dir; B.entryPrice=MktPriceByDir(dir);
+         LogAlways(StringFormat("[REFILL_STRICT_HIT][%s] ticket=%d", B.name, tk));
+      }else{
+         A.activeTicket=tk; A.lastDir=dir; A.entryPrice=MktPriceByDir(dir);
+         LogAlways(StringFormat("[REFILL_STRICT_HIT][%s] ticket=%d", A.name, tk));
+      }
       armed=false;
    }else{
       int err=GetLastError();
       string tag = (err==ERR_REQUOTE || err==ERR_OFF_QUOTES)?"REFILL_STRICT_REQUOTE":"REFILL_STRICT_REJECT";
-      LogAlways(StringFormat("[%s][%s] err=%d", tag, missing.name, err));
+      LogAlways(StringFormat("[%s][%s] err=%d", tag, missingName, err));
    }
 }
 
