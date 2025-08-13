@@ -21,11 +21,12 @@ input double   InpBaseLot        = 0.01;    // BaseLot
 input double   InpMaxSpreadPips  = 2.0;     // 置く時の最大スプレッド[pips]（0で無効）
 input int      InpMagic          = 246810;  // マジック
 input bool     InpUseSharedDMCMM = false;   // trueでA/B共通DMCMM
-input int      InpSlippagePoints = 10;      // 許容スリッページ[point]
-input bool     InpStartOnLaunch  = true;    // 起動直後にAを建てる（成行）
-input int      InpStartDir       = 1;       // Aの初回方向: 1=BUY, -1=SELL
-input int      InpReasonTolPoints= 10;      // TP/SL判定許容[point]
-input bool     InpVerboseLog     = true;    // 詳細ログ
+
+// ====== Constants ======
+#define EPS_PIPS 0.3                        // 補充許容[pips]
+const int  REASON_TOL_POINTS = 10;          // TP/SL判定許容[point]
+const bool VERBOSE_LOG       = true;        // 詳細ログ
+int EpsilonPoints            = 0;           // OrderSend.deviation
 
 // ====== Helpers ======
 double PIP(void){ return (Digits==3 || Digits==5) ? (10.0*Point) : Point; }
@@ -36,7 +37,7 @@ bool   Almost(double a,double b,double tolPts){ return MathAbs(a-b) <= tolPts*Po
 string TF(){ return EnumToString((ENUM_TIMEFRAMES)Period()); }
 string LotMode(){ return InpUseSharedDMCMM?"SHARED":"INDEPENDENT"; }
 void Log(string msg){
-   if(InpVerboseLog)
+   if(VERBOSE_LOG)
       Print(Symbol(),",",TF(),": ",msg," LotMode=",LotMode());
 }
 void LogAlways(string msg){
@@ -59,12 +60,10 @@ public:
 struct SystemState {
    string  name;            // "A" / "B"
    int     activeTicket;    // 成行ポジ
-   int     pendUpTicket;    // OCO上や補充上（SellLimit）
-   int     pendDnTicket;    // OCO下や補充下（BuyLimit）
    double  entryPrice;      // 直近エントリ価格（成行）
    int     lastDir;         // +1=BUY, -1=SELL
    CDMCMM  mm;
-   void clear(){ activeTicket=0; pendUpTicket=0; pendDnTicket=0; entryPrice=0; lastDir=0; }
+   void clear(){ activeTicket=0; entryPrice=0; lastDir=0; }
 };
 SystemState A,B;
 CDMCMM DMCMM_SHARED;           // UseSharedDMCMM=true のとき共通で使用
@@ -136,14 +135,6 @@ void RefreshTickets(){
             B.entryPrice   = OrderOpenPrice();
             B.lastDir      = (type==OP_BUY)?+1:-1;
          }
-      }else if(type==OP_SELLLIMIT || type==OP_BUYLIMIT){
-         if(isA){
-            if(type==OP_SELLLIMIT) A.pendUpTicket = OrderTicket();
-            if(type==OP_BUYLIMIT ) A.pendDnTicket = OrderTicket();
-         }else if(isB){
-            if(type==OP_SELLLIMIT) B.pendUpTicket = OrderTicket();
-            if(type==OP_BUYLIMIT ) B.pendDnTicket = OrderTicket();
-         }
       }
    }
 }
@@ -156,8 +147,8 @@ int CloseReasonFromHistory(int ticket){
    double sl = OrderStopLoss();
    double tp = OrderTakeProfit();
    int type  = OrderType();
-   if(tp>0 && Almost(cp,tp,InpReasonTolPoints)) return 1;
-   if(sl>0 && Almost(cp,sl,InpReasonTolPoints)) return -1;
+   if(tp>0 && Almost(cp,tp,REASON_TOL_POINTS)) return 1;
+   if(sl>0 && Almost(cp,sl,REASON_TOL_POINTS)) return -1;
 
    // 保険の近似（Lite割り切り）
    if(type==OP_BUY || type==OP_SELL){
@@ -177,7 +168,7 @@ int SendMarket(SystemState &S, int dir){
    int type = OrderTypeByDir(dir);
    string cmt = StringFormat("MoveCatcher_%s", S.name);
    double lot = ComputeLotAndLog(S);          // ★ 発注直前評価＆数列ログ
-   int ticket = OrderSend(Symbol(), type, lot, price, InpSlippagePoints, sl, tp, cmt, InpMagic, 0, clrNONE);
+   int ticket = OrderSend(Symbol(), type, lot, price, EpsilonPoints, sl, tp, cmt, InpMagic, 0, clrNONE);
    if(ticket<0){
       LogAlways(StringFormat("[%s][OPEN_FAIL] type=%s err=%d", S.name, (dir>0?"BUY":"SELL"), GetLastError()));
    }else{
@@ -187,40 +178,9 @@ int SendMarket(SystemState &S, int dir){
    return ticket;
 }
 
-int SendLimit(SystemState &S, double price, int type, string suffixTag){
-   price = RoundPrice(price);
-   double sl=0, tp=0; // 置くときは価格のみ、約定後にSL/TP付与
-   string cmt = StringFormat("MoveCatcher_%s%s", S.name, suffixTag); // 例: MoveCatcher_B[OCOU]
-   double lot = ComputeLotAndLog(S);          // ★ 発注直前評価＆数列ログ
-   int ticket = OrderSend(Symbol(), type, lot, price, InpSlippagePoints, sl, tp, cmt, InpMagic, 0, clrNONE);
-   if(ticket<0){
-      LogAlways(StringFormat("[%s][PEND_FAIL] %s@%.5f err=%d",
-                 S.name, (type==OP_SELLLIMIT?"SellLimit":"BuyLimit"), price, GetLastError()));
-   }else{
-      LogAlways(StringFormat("[PEND_PLACE][%s] %s@%.5f lot=%.2f tag=%s",
-                 S.name, (type==OP_SELLLIMIT?"SellLimit":"BuyLimit"), price, lot, suffixTag));
-   }
-   return ticket;
-}
-
-bool DeleteTicket(int ticket, string sysName, string tag){
-   if(ticket<=0) return true;
-   if(!OrderSelect(ticket, SELECT_BY_TICKET)) return true; // 既に消えてる
-   if(!(OrderType()==OP_BUYLIMIT || OrderType()==OP_SELLLIMIT)) return true;
-   bool ok = OrderDelete(ticket);
-   if(!ok) LogAlways(StringFormat("[%s][PEND_CANCEL_FAIL] ticket=%d err=%d", sysName, ticket, GetLastError()));
-   else    LogAlways(StringFormat("[PEND_CANCEL][%s] ticket=%d tag=%s", sysName, ticket, tag));
-   return ok;
-}
-
 // ====== Guards ======
-bool HasAnyPending(){
-   RefreshTickets();
-   return (A.pendUpTicket>0 || A.pendDnTicket>0 || B.pendUpTicket>0 || B.pendDnTicket>0);
-}
 int  MarketCount(){
    int cnt=0;
-   RefreshTickets();
    if(A.activeTicket>0) cnt++;
    if(B.activeTicket>0) cnt++;
    return cnt;
@@ -228,113 +188,51 @@ int  MarketCount(){
 
 // ====== Core behaviours ======
 
-// 初期BのOCO（Aが存在し、Bが完全に空の時のみ）
-void TryPlaceOCO_B_AroundA(){
-   RefreshTickets();
-   if(A.activeTicket<=0) return;
-   if(B.activeTicket>0 || B.pendUpTicket>0 || B.pendDnTicket>0) return;
-
-   // Spread判定（0で無効）
-   double spr = (Ask-Bid)/PIP();
-   if(InpMaxSpreadPips>0.0 && spr>InpMaxSpreadPips){
-      Log("[OCO_SKIP] spread too wide");
-      return;
-   }
-
-   double s = Pip2Pt(InpGridPips/2.0);
-   double upPrice = A.entryPrice + s;   // SellLimit（上）
-   double dnPrice = A.entryPrice - s;   // BuyLimit（下）
-
-   // StopLevel尊重
-   double stopLevel = MarketInfo(Symbol(), MODE_STOPLEVEL)*Point;
-   if(Ask + stopLevel > upPrice) upPrice = Ask + stopLevel + 2*Point;
-   if(dnPrice > Bid - stopLevel) dnPrice = Bid - stopLevel - 2*Point;
-
-   // 2本同時配置（BのMMを使用）
-   B.pendUpTicket = SendLimit(B, upPrice, OP_SELLLIMIT, "[OCOU]");
-   B.pendDnTicket = SendLimit(B, dnPrice, OP_BUYLIMIT,  "[OCOD]");
-}
-
-// BのOCO片脚約定→他脚キャンセル＋SL/TP付与（成立直後）
-void MaintainOCOAfterFill(){
-   RefreshTickets();
-   if(B.activeTicket>0){
-      // 他脚をキャンセル
-      if(B.pendUpTicket>0) DeleteTicket(B.pendUpTicket,"B","OCOU");
-      if(B.pendDnTicket>0) DeleteTicket(B.pendDnTicket,"B","OCOD");
-      B.pendUpTicket=0; B.pendDnTicket=0;
-
-      // SL/TPを明示設定（既に設定済ならスキップ）
-      if(OrderSelect(B.activeTicket, SELECT_BY_TICKET)){
-         int  type = OrderType();
-         double entry = OrderOpenPrice();
-         double sl,tp; CalcSLTP((type==OP_BUY)?+1:-1, entry, InpGridPips, sl, tp);
-         bool need = true;
-         if(Almost(OrderStopLoss(), sl, 1) && Almost(OrderTakeProfit(), tp, 1)) need=false;
-         if(need){
-            bool ok = OrderModify(B.activeTicket, OrderOpenPrice(), sl, tp, 0, clrNONE);
-            if(ok) LogAlways(StringFormat("[SLTP_SET][B] ticket=%d SL=%.5f TP=%.5f", B.activeTicket, sl, tp));
-            else   LogAlways(StringFormat("[SLTP_SET_FAIL][B] ticket=%d err=%d", B.activeTicket, GetLastError()));
-         }
-      }
-   }
-}
-
-// 欠落時の補充：片側指値を1本だけ（A/Bどちらが欠落でも可）
+// 欠落時の補充：疑似MIT（Pendingを使わず生存側建値±sで成行）
 void TryRefillOneSideIfOneLeft(){
+   static bool armed=false;
+   static string armSys="";
+   static double armPrice=0.0;
+   static int armDir=0;
+
    RefreshTickets();
    int mktCnt = MarketCount();
-   if(mktCnt!=1) return;               // 2本 or 0本は対象外
-   if(HasAnyPending()) return;         // Pendingを既に持っているなら置かない
+   if(mktCnt!=1){ armed=false; return; }
+
+   // 生存側と欠落側
+   bool aliveIsA = (A.activeTicket>0);
+   SystemState &alive   = aliveIsA ? A : B;
+   SystemState &missing = aliveIsA ? B : A;
+
+   double s = Pip2Pt(InpGridPips/2.0);
+   double target = alive.entryPrice + ((alive.lastDir>0)? s : -s);
+   int    dir    = (alive.lastDir>0)? -1 : +1;
+
+   if(!armed || armSys!=missing.name || !Almost(armPrice,target,1)){
+      armed=true; armSys=missing.name; armPrice=target; armDir=dir;
+      LogAlways(StringFormat("[REFILL_STRICT_ARM][%s] P*=%.5f", missing.name, target));
+   }
 
    // Spread判定（0で無効）
    double spr = (Ask-Bid)/PIP();
    if(InpMaxSpreadPips>0.0 && spr>InpMaxSpreadPips){
-      Log("[REFILL_SKIP] spread too wide");
+      Log("[REFILL_STRICT_SKIP_SPREAD]");
       return;
    }
 
-   // どちらが生存しているか
-   bool aliveIsA = (A.activeTicket>0);
+   double eps = Pip2Pt(EPS_PIPS);
+   double diff = (dir>0) ? MathAbs(Ask - target) : MathAbs(Bid - target);
+   if(diff>eps) return;            // 未到達
 
-   // 生存側の方向を取得
-   int aliveTicket = aliveIsA ? A.activeTicket : B.activeTicket;
-   if(!OrderSelect(aliveTicket, SELECT_BY_TICKET)) return;
-   int aliveDir = (OrderType()==OP_BUY)? +1 : -1;
-
-   double s = Pip2Pt(InpGridPips/2.0);
-   double stopLevel = MarketInfo(Symbol(), MODE_STOPLEVEL)*Point;
-
-   if(aliveIsA){
-      // 欠落側 = B、Bへ片側指値を1本
-      double price;
-      int    ptype;
-      if(aliveDir>0){
-         price = A.entryPrice + s;     // AがLong→BへSellLimit@A+s
-         ptype = OP_SELLLIMIT;
-         if(Ask + stopLevel > price) price = Ask + stopLevel + 2*Point;
-      }else{
-         price = A.entryPrice - s;     // AがShort→BへBuyLimit@A-s
-         ptype = OP_BUYLIMIT;
-         if(price > Bid - stopLevel) price = Bid - stopLevel - 2*Point;
-      }
-      int tk = SendLimit(B, price, ptype, "[REFILL]");
-      if(ptype==OP_SELLLIMIT) B.pendUpTicket=tk; else B.pendDnTicket=tk;
+   int tk = SendMarket(missing, dir); // Neutral: win/lose 更新なし
+   if(tk>0){
+      missing.activeTicket=tk; missing.lastDir=dir; missing.entryPrice=MktPriceByDir(dir);
+      LogAlways(StringFormat("[REFILL_STRICT_HIT][%s] ticket=%d", missing.name, tk));
+      armed=false;
    }else{
-      // 欠落側 = A、Aへ片側指値を1本
-      double price;
-      int    ptype;
-      if(aliveDir>0){
-         price = B.entryPrice + s;     // BがLong→AへSellLimit@B+s
-         ptype = OP_SELLLIMIT;
-         if(Ask + stopLevel > price) price = Ask + stopLevel + 2*Point;
-      }else{
-         price = B.entryPrice - s;     // BがShort→AへBuyLimit@B-s
-         ptype = OP_BUYLIMIT;
-         if(price > Bid - stopLevel) price = Bid - stopLevel - 2*Point;
-      }
-      int tk = SendLimit(A, price, ptype, "[REFILL]");
-      if(ptype==OP_SELLLIMIT) A.pendUpTicket=tk; else A.pendDnTicket=tk;
+      int err=GetLastError();
+      string tag = (err==ERR_REQUOTE || err==ERR_OFF_QUOTES)?"REFILL_STRICT_REQUOTE":"REFILL_STRICT_REJECT";
+      LogAlways(StringFormat("[%s][%s] err=%d", tag, missing.name, err));
    }
 }
 
@@ -355,7 +253,13 @@ void DetectCloseAndReenter(){
          dirPrev = (OrderType()==OP_BUY)?+1:-1;
       }
       if(reason!=0 && dirPrev!=0){
-         if(reason>0) WinStep(A); else LoseStep(A);
+         if(reason>0){
+            WinStep(A);
+            LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", A.name, prevA));
+         }else{
+            LoseStep(A);
+            LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", A.name, prevA));
+         }
          int dirNew = (reason>0) ? -dirPrev : dirPrev; // TP:反転, SL:順方向
          int tA = SendMarket(A, dirNew);
          if(tA>0){
@@ -372,7 +276,13 @@ void DetectCloseAndReenter(){
          dirPrevB = (OrderType()==OP_BUY)?+1:-1;
       }
       if(reasonB!=0 && dirPrevB!=0){
-         if(reasonB>0) WinStep(B); else LoseStep(B);
+         if(reasonB>0){
+            WinStep(B);
+            LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", B.name, prevB));
+         }else{
+            LoseStep(B);
+            LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", B.name, prevB));
+         }
          int dirNewB = (reasonB>0) ? -dirPrevB : dirPrevB; // TP:反転, SL:順方向
          int tB = SendMarket(B, dirNewB);
          if(tB>0){
@@ -401,17 +311,8 @@ void EnforceMaxTwo(){
       }
    }
 
-   // 2本以下なら以降の処理は不要（Pendingの整理だけ行う）
-   if(n<=2) {
-      if(n==2){
-         RefreshTickets();
-         if(A.pendUpTicket>0) DeleteTicket(A.pendUpTicket,"A","ENFORCE");
-         if(A.pendDnTicket>0) DeleteTicket(A.pendDnTicket,"A","ENFORCE");
-         if(B.pendUpTicket>0) DeleteTicket(B.pendUpTicket,"B","ENFORCE");
-         if(B.pendDnTicket>0) DeleteTicket(B.pendDnTicket,"B","ENFORCE");
-      }
-      return;
-   }
+   // 2本以下なら以降の処理は不要
+   if(n<=2) return;
 
    // open昇順にソート（バブル）
    for(int i=0;i<n;i++)
@@ -422,40 +323,21 @@ void EnforceMaxTwo(){
    for(int k=n-1; k>=0 && n>2; k--){
       if(OrderSelect(recs[k].ticket, SELECT_BY_TICKET)){
          double price = (OrderType()==OP_BUY)? Bid : Ask;
-         bool ok = OrderClose(OrderTicket(), OrderLots(), price, InpSlippagePoints, clrNONE);
-         if(ok){ LogAlways(StringFormat("[ENFORCE][CLOSE_EXTRA] ticket=%d", OrderTicket())); n--; }
-         else  { LogAlways(StringFormat("[ENFORCE_FAIL][CLOSE_EXTRA] ticket=%d err=%d", OrderTicket(), GetLastError())); break; }
+         bool ok = OrderClose(OrderTicket(), OrderLots(), price, EpsilonPoints, clrNONE);
+         if(ok){ LogAlways(StringFormat("SANITY_TRIM: ticket=%d", OrderTicket())); n--; }
+         else  { LogAlways(StringFormat("SANITY_TRIM_FAIL: ticket=%d err=%d", OrderTicket(), GetLastError())); break; }
       }
    }
 
-   // 最終的に2本生存中はPendingなしに整える
-   RefreshTickets();
-   if(MarketCount()>=2){
-      if(A.pendUpTicket>0) DeleteTicket(A.pendUpTicket,"A","ENFORCE");
-      if(A.pendDnTicket>0) DeleteTicket(A.pendDnTicket,"A","ENFORCE");
-      if(B.pendUpTicket>0) DeleteTicket(B.pendUpTicket,"B","ENFORCE");
-      if(B.pendDnTicket>0) DeleteTicket(B.pendDnTicket,"B","ENFORCE");
-   }
 }
 
-// ====== Start on Launch ======
-void StartIfNeeded(){
-   RefreshTickets();
-   if(!InpStartOnLaunch) return;
-   if(A.activeTicket>0) return;
-
-   int dir = (InpStartDir>=0)?+1:-1;
-   int tA = SendMarket(A, dir);
-   if(tA>0){
-     A.activeTicket=tA; A.lastDir=dir; A.entryPrice=MktPriceByDir(dir);
-   }
-}
 
 // ====== Events ======
 int OnInit(){
    A.clear(); A.name="A"; A.mm.reset();
    B.clear(); B.name="B"; B.mm.reset();
    DMCMM_SHARED.reset();
+   EpsilonPoints = (int)MathRound(EPS_PIPS * PIP() / Point);
 
    LogAlways(StringFormat("INIT: StopLevel=%dpt MinLot=%.2f MaxLot=%.2f Step=%.2f",
             (int)MarketInfo(Symbol(), MODE_STOPLEVEL),
@@ -463,9 +345,12 @@ int OnInit(){
             MarketInfo(Symbol(), MODE_MAXLOT),
             MarketInfo(Symbol(), MODE_LOTSTEP)));
 
-   // 初回A→BのOCO
-   StartIfNeeded();
-   TryPlaceOCO_B_AroundA();
+   // 初回Aのみ成行で建てる
+   int dir = +1;
+   int tA = SendMarket(A, dir);
+   if(tA>0){
+     A.activeTicket=tA; A.lastDir=dir; A.entryPrice=MktPriceByDir(dir);
+   }
    return(INIT_SUCCEEDED);
 }
 
@@ -477,18 +362,12 @@ void OnTick(){
    // 1) 状態更新
    RefreshTickets();
 
-   // 2) 3本以上の是正（2本以内 enforce & 2本生存中はPendingなし）
+   // 2) 3本以上の是正
    EnforceMaxTwo();
 
-   // 3) 初期BのOCO（AがありBが空の時のみ）
-   TryPlaceOCO_B_AroundA();
-
-   // 4) BのOCO片脚約定後の処理（他脚キャンセル、SL/TP付与）
-   MaintainOCOAfterFill();
-
-   // 5) TP/SL検知 → Aのみ即成行再エントリ、BはMM更新のみ
+   // 3) TP/SL検知 → 即時再エントリ
    DetectCloseAndReenter();
 
-   // 6) 欠落時の補充（片側指値を1本だけ）
+   // 4) 欠落時の補充（疑似MIT）
    TryRefillOneSideIfOneLeft();
 }
