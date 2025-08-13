@@ -29,25 +29,10 @@
 | MaxSpreadPips | double | 2.0    | **“置く”前だけ**チェック（初期BのOCO／欠落時補充）。0で無効  |
 | MagicNumber   | int    | 246810 | EA 識別用                               |
 
-### Gap Correction パラメータ
-
-| 名称                 | 型                    | 既定                              | 説明                                   |
-| -------------------- | --------------------- | --------------------------------- | -------------------------------------- |
-| GapCorrection        | bool                  | false                             | ON でギャップ補正を有効化              |
-| GapEpsilonPips (ε)   | double                | 0.3                               | 許容誤差（pips）                       |
-| GapDwellSec          | int                   | 3                                 | 誤差継続秒数                            |
-| GapCooldownSec       | int                   | 30                                | 補正後の再発火待機秒                   |
-| GapTimeoutSec        | int                   | 30                                | MIT 待ちタイムアウト                    |
-| NearGoalRatio (μ)    | double                | 0.2                               | TP/SL までの残距離が μ·d 超のときのみ補正 |
-| SpreadCorrPips       | double                | min(MaxSpreadPips×1.5, 3.0)       | 補正時の最大スプレッド許容               |
-| RebalanceLotMode     | enum{KEEP,RECALC}     | KEEP                              | 補正時のロット：維持 / 再評価            |
-
 **内部派生値**
 
-* `d = GridPips`
 * `s = GridPips / 2`
 * `Pip = (_Digits==3 || _Digits==5) ? 10*_Point : _Point`
-* `PriceStep = _Point`
 
 ## 4) コメント／ラベル
 
@@ -114,16 +99,6 @@
 * OnTick で **直近クローズ注文**の `ClosePrice` と **設定済み TP/SL** の一致・条件到達で **TP/SLどちらで閉じたかを判別**。
 * 追加のロジックは不要（本 Lite では**単純ルール**で十分）。
 
-### Gap Correction（s=d/2 吸着）Lite拡張
-
-* `GapCorrection=ON` のときのみ有効。
-* 2本同時保有時の建値間隔 `g` が `s=d/2` から `ε` を超えてズレた状態が `GapDwellSec` 継続すると補正判定。
-* 補正対象は原則として直近に建った側（新しいポジション）。
-* 残TP/SL距離が `μ·d` 超かつ `GapCooldownSec` 経過後に発火。
-* 現値が目標価格 `P*` を跨いだティックで **MITスナップ**（ズレ側をクローズ→同方向成行で再建）。
-* MIT不成立で `GapTimeoutSec` 経過時は指値吸着フォールバック（1本体制に落としてPendingを1本のみ配置）。
-* 補正イベントは勝敗集計に含めない（`winStep()/loseStep()` は呼ばない）。
-
 ## 9) 欠落時の補充（1 本になったとき）
 
 * 生存側建値 ± s で **欠落側の片側指値を 1 本だけ置く**（OCO ではない）。
@@ -141,8 +116,8 @@
 
 ## 11) ログ（簡易・推奨）
 
-* `Reason{INIT, OCO_HIT, OCO_CANCEL, TP_REVERSE, SL_REENTRY, REFILL, REBALANCE_SNAP, REBALANCE_LIMIT, REBALANCE_SKIP_NEARGOAL, REBALANCE_SKIP_FREEZE, REBALANCE_SKIP_VOL, REBALANCE_TIMEOUT}`
-* `System{A|B}, Entry/SL/TP, actualLot, Spread, Magic, Ticket` に加え、Gap Correction 時は `EntryA/EntryB, g, s, ε, Mode{SNAP|LIMIT}, LotMode{KEEP|RECALC}, P*, TicketClosed, TicketNew, CooldownSec` などを出力。
+* `Reason{INIT, OCO_HIT, OCO_CANCEL, TP_REVERSE, SL_REENTRY, REFILL}`
+* `System{A|B}, Entry/SL/TP, actualLot, Spread, Magic, Ticket`
 * `勝敗集計:`TP=Win / SL=Loss / その他=Neutral` の単純ルールで OK。
 * `DMCMM デバッグ:** ロット係数と使用シーケンスのスナップショットを発注時に出力。
 
@@ -155,15 +130,11 @@
 * 実ロット = BaseLot × DMCMM 係数を**発注直前**に毎回評価（A/B 独立）。
 * Spread 判定は**置くときだけ**。
 * 同系統 2 本同時成立／合計 3 本以上は**後着から是正**して 2 本以内へ。
-* GapCorrection=ON時、2本同時保有で `|g−s|>ε` が `GapDwellSec` 継続すると MITスナップで誤差が縮小。
-* MIT不成立時は `GapTimeoutSec` 経過で指値吸着が実行され、復帰後の `|g−s|` が初回より縮小（またはε以内）。
-* 補正イベントは勝敗集計に含まれず、2本同時保有時にPendingを持たない原則を維持。
-* Freeze/Stops違反・NearGoal・過大スプレッドでは補正がスキップされログに理由が出る。
 
 ## 13) 既知の割り切り
 
 * 同ティック完全反転は保証しない（MT4/実TP・OnTick 検知のため）。**小さなズレは許容**。
-* 距離帯・生存同期リセット・MaxLot 等の上級機能は本 **Lite** では未搭載。
+* ギャップ補正・距離帯・生存同期リセット・MaxLot 等の上級機能は本 **Lite** では未搭載。
 
 ---
 
