@@ -170,6 +170,14 @@ int SendMarket(SystemState &S, int dir){
    }
    double price = MktPriceByDir(dir);
    double sl,tp; CalcSLTP(dir, price, InpGridPips, sl, tp);
+
+   // --- 価格乖離チェック：スプレッド過大で ±d を満たせない場合は発注しない ---
+   bool invalid = (dir>0) ? (sl>=Bid || tp<=Ask) : (sl<=Ask || tp>=Bid);
+   if(invalid){
+      LogAlways(StringFormat("[OPEN_SKIP_INVALID_STOPS][%s] Bid=%.5f Ask=%.5f SL=%.5f TP=%.5f",
+               S.name, Bid, Ask, sl, tp));
+      return 0;
+   }
    int type = OrderTypeByDir(dir);
    string cmt = StringFormat("MoveCatcher_%s", S.name);
    double lot = ComputeLotAndLog(S);          // ★ 発注直前評価＆数列ログ
