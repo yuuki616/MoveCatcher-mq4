@@ -171,13 +171,6 @@ int SendMarket(SystemState &S, int dir){
    double price = MktPriceByDir(dir);
    double sl,tp; CalcSLTP(dir, price, InpGridPips, sl, tp);
 
-   // --- 価格乖離チェック：スプレッド過大で ±d を満たせない場合は発注しない ---
-   bool invalid = (dir>0) ? (sl>=Bid || tp<=Ask) : (sl<=Ask || tp>=Bid);
-   if(invalid){
-      LogAlways(StringFormat("[OPEN_SKIP_INVALID_STOPS][%s] Bid=%.5f Ask=%.5f SL=%.5f TP=%.5f",
-               S.name, Bid, Ask, sl, tp));
-      return 0;
-   }
    int type = OrderTypeByDir(dir);
    string cmt = StringFormat("MoveCatcher_%s", S.name);
    double lot = ComputeLotAndLog(S);          // ★ 発注直前評価＆数列ログ
@@ -267,16 +260,27 @@ void TryRefillOneSideIfOneLeft(){
 // 勝敗判定はEA側で行い、DMCMMへ winStep()/loseStep() を明示的に通知
 void DetectCloseAndReenter(){
    static int prevA=0, prevB=0;
+   static int pendDirA=0, pendDirB=0;   // 再エントリ未成時の方向を保持
    static bool inited=false;
    if(!inited){ RefreshTickets(); prevA=A.activeTicket; prevB=B.activeTicket; inited=true; return; }
 
    RefreshTickets();
 
+   // ---- 未決再エントリの再試行 ----
+   if(pendDirA!=0 && A.activeTicket==0){
+      int t = SendMarket(A, pendDirA);
+      if(t>0){ A.activeTicket=t; A.lastDir=pendDirA; A.entryPrice=MktPriceByDir(pendDirA); pendDirA=0; prevA=A.activeTicket; }
+   }
+   if(pendDirB!=0 && B.activeTicket==0){
+      int t = SendMarket(B, pendDirB);
+      if(t>0){ B.activeTicket=t; B.lastDir=pendDirB; B.entryPrice=MktPriceByDir(pendDirB); pendDirB=0; prevB=B.activeTicket; }
+   }
+
    // ---- 閉鎖イベント収集 ----
    struct CloseEvent { int sys; int reason; int dirPrev; datetime closeTime; int ticket; };
    CloseEvent evs[]; int n=0; ArrayResize(evs,0);
 
-   if(prevA>0 && A.activeTicket==0){
+   if(prevA>0 && A.activeTicket==0 && pendDirA==0){
       int reason = CloseReasonFromHistory(prevA);  // 1=TP, -1=SL
       int dirPrev=0; datetime ct=0;
       if(OrderSelect(prevA, SELECT_BY_TICKET, MODE_HISTORY)){
@@ -287,8 +291,9 @@ void DetectCloseAndReenter(){
          CloseEvent e; e.sys=0; e.reason=reason; e.dirPrev=dirPrev; e.closeTime=ct; e.ticket=prevA;
          ArrayResize(evs, n+1); evs[n]=e; n++;
       }
+      prevA=0; // 閉鎖済
    }
-   if(prevB>0 && B.activeTicket==0){
+   if(prevB>0 && B.activeTicket==0 && pendDirB==0){
       int reason = CloseReasonFromHistory(prevB);  // 1=TP, -1=SL
       int dirPrev=0; datetime ct=0;
       if(OrderSelect(prevB, SELECT_BY_TICKET, MODE_HISTORY)){
@@ -299,6 +304,7 @@ void DetectCloseAndReenter(){
          CloseEvent e; e.sys=1; e.reason=reason; e.dirPrev=dirPrev; e.closeTime=ct; e.ticket=prevB;
          ArrayResize(evs, n+1); evs[n]=e; n++;
       }
+      prevB=0; // 閉鎖済
    }
 
    // ---- クローズ時刻→チケット番号順にソート ----
@@ -324,7 +330,9 @@ void DetectCloseAndReenter(){
          int dirNew = (reason>0) ? -dirPrev : dirPrev;
          int tNew = SendMarket(A, dirNew);
          if(tNew>0){
-            A.activeTicket=tNew; A.lastDir=dirNew; A.entryPrice=MktPriceByDir(dirNew);
+            A.activeTicket=tNew; A.lastDir=dirNew; A.entryPrice=MktPriceByDir(dirNew); prevA=A.activeTicket;
+         }else{
+            pendDirA=dirNew; // 次ティック以降で再試行
          }
       }else{
          if(reason>0){
@@ -337,12 +345,15 @@ void DetectCloseAndReenter(){
          int dirNew = (reason>0) ? -dirPrev : dirPrev;
          int tNew = SendMarket(B, dirNew);
          if(tNew>0){
-            B.activeTicket=tNew; B.lastDir=dirNew; B.entryPrice=MktPriceByDir(dirNew);
+            B.activeTicket=tNew; B.lastDir=dirNew; B.entryPrice=MktPriceByDir(dirNew); prevB=B.activeTicket;
+         }else{
+            pendDirB=dirNew; // 次ティック以降で再試行
          }
       }
    }
 
-   prevA=A.activeTicket; prevB=B.activeTicket;
+   if(pendDirA==0) prevA=A.activeTicket;
+   if(pendDirB==0) prevB=B.activeTicket;
 }
 
 // 2本超過/同系統重複の是正：後着からクローズして最大1本×2系統に収束
