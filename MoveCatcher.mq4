@@ -27,17 +27,6 @@ input int      InpStartDir       = 1;       // Aの初回方向: 1=BUY, -1=SELL
 input int      InpReasonTolPoints= 10;      // TP/SL判定許容[point]
 input bool     InpVerboseLog     = true;    // 詳細ログ
 
-// --- Gap Correction Params ---
-input bool     InpGapCorrection  = false;   // ギャップ補正を有効化
-input double   InpGapEpsilonPips = 0.3;     // 許容誤差ε[pips]
-input int      InpGapDwellSec    = 3;       // 誤差継続秒数
-input int      InpGapCooldownSec = 30;      // 補正後の待機秒
-input int      InpGapTimeoutSec  = 30;      // MIT待ちタイムアウト
-input double   InpNearGoalRatio  = 0.2;     // μ: TP/SLまでの残距離比
-input double   InpSpreadCorrPips = 0.0;     // 補正時の最大スプレッド許容[pips]
-enum ENUM_RB_LOT_MODE { RB_KEEP, RB_RECALC };
-input ENUM_RB_LOT_MODE InpRebalanceLotMode = RB_KEEP; // ロット維持/再評価
-
 // ====== Helpers ======
 double PIP(void){ return (Digits==3 || Digits==5) ? (10.0*Point) : Point; }
 double Pip2Pt(double pips){ return pips * PIP(); }
@@ -72,19 +61,6 @@ struct SystemState {
    void clear(){ activeTicket=0; pendUpTicket=0; pendDnTicket=0; entryPrice=0; lastDir=0; }
 };
 SystemState A,B;
-
-// ====== Gap Rebalance State ======
-enum { RB_MODE_IDLE=0, RB_MODE_SNAP_WAIT=1, RB_MODE_LIMIT_WAIT=2 };
-struct RebalanceState {
-   bool     busy;
-   datetime dwellStart;
-   datetime lastAction;
-   int      mode;
-   int      sideToMove; // 0=A,1=B
-   double   targetPrice;
-};
-RebalanceState rb = {false,0,0,RB_MODE_IDLE,0,0.0};
-double gSpreadCorrPips=0.0;
 
 // ====== Price/Type utils ======
 double MktPriceByDir(int dir){ return (dir>0) ? Ask : Bid; }
@@ -140,13 +116,13 @@ void RefreshTickets(){
             B.entryPrice   = OrderOpenPrice();
             B.lastDir      = (type==OP_BUY)?+1:-1;
          }
-      }else if(type==OP_SELLLIMIT || type==OP_BUYLIMIT || type==OP_BUYSTOP || type==OP_SELLSTOP){
+      }else if(type==OP_SELLLIMIT || type==OP_BUYLIMIT){
          if(isA){
-            if(type==OP_SELLLIMIT || type==OP_SELLSTOP) A.pendUpTicket = OrderTicket();
-            if(type==OP_BUYLIMIT  || type==OP_BUYSTOP ) A.pendDnTicket = OrderTicket();
+            if(type==OP_SELLLIMIT) A.pendUpTicket = OrderTicket();
+            if(type==OP_BUYLIMIT ) A.pendDnTicket = OrderTicket();
          }else if(isB){
-            if(type==OP_SELLLIMIT || type==OP_SELLSTOP) B.pendUpTicket = OrderTicket();
-            if(type==OP_BUYLIMIT  || type==OP_BUYSTOP ) B.pendDnTicket = OrderTicket();
+            if(type==OP_SELLLIMIT) B.pendUpTicket = OrderTicket();
+            if(type==OP_BUYLIMIT ) B.pendDnTicket = OrderTicket();
          }
       }
    }
@@ -191,16 +167,18 @@ int SendMarket(SystemState &S, int dir){
    return ticket;
 }
 
-int SendPending(SystemState &S, double price, int type, string suffixTag){
+int SendLimit(SystemState &S, double price, int type, string suffixTag){
    price = RoundPrice(price);
-   double sl=0, tp=0; // 約定後にSL/TP付与
-   string cmt = StringFormat("MoveCatcher_%s%s", S.name, suffixTag);
+   double sl=0, tp=0; // 置くときは価格のみ、約定後にSL/TP付与
+   string cmt = StringFormat("MoveCatcher_%s%s", S.name, suffixTag); // 例: MoveCatcher_B[OCOU]
    double lot = ComputeLotAndLog(S);          // ★ 発注直前評価＆数列ログ
    int ticket = OrderSend(Symbol(), type, lot, price, InpSlippagePoints, sl, tp, cmt, InpMagic, 0, clrNONE);
    if(ticket<0){
-      LogAlways(StringFormat("[%s][PEND_FAIL] type=%d@%.5f err=%d", S.name, type, price, GetLastError()));
+      LogAlways(StringFormat("[%s][PEND_FAIL] %s@%.5f err=%d",
+                 S.name, (type==OP_SELLLIMIT?"SellLimit":"BuyLimit"), price, GetLastError()));
    }else{
-      LogAlways(StringFormat("[PEND_PLACE][%s] type=%d@%.5f lot=%.2f tag=%s", S.name, type, price, lot, suffixTag));
+      LogAlways(StringFormat("[PEND_PLACE][%s] %s@%.5f lot=%.2f tag=%s",
+                 S.name, (type==OP_SELLLIMIT?"SellLimit":"BuyLimit"), price, lot, suffixTag));
    }
    return ticket;
 }
@@ -208,26 +186,11 @@ int SendPending(SystemState &S, double price, int type, string suffixTag){
 bool DeleteTicket(int ticket, string sysName, string tag){
    if(ticket<=0) return true;
    if(!OrderSelect(ticket, SELECT_BY_TICKET)) return true; // 既に消えてる
-   int ot = OrderType();
-   if(!(ot==OP_BUYLIMIT || ot==OP_SELLLIMIT || ot==OP_BUYSTOP || ot==OP_SELLSTOP)) return true;
+   if(!(OrderType()==OP_BUYLIMIT || OrderType()==OP_SELLLIMIT)) return true;
    bool ok = OrderDelete(ticket);
    if(!ok) LogAlways(StringFormat("[%s][PEND_CANCEL_FAIL] ticket=%d err=%d", sysName, ticket, GetLastError()));
    else    LogAlways(StringFormat("[PEND_CANCEL][%s] ticket=%d tag=%s", sysName, ticket, tag));
    return ok;
-}
-
-double DistToGoal(int ticket){
-   if(!OrderSelect(ticket, SELECT_BY_TICKET)) return 0.0;
-   int type = OrderType();
-   double distTP, distSL;
-   if(type==OP_BUY){
-      distTP = OrderTakeProfit() - Bid;
-      distSL = Bid - OrderStopLoss();
-   }else{
-      distTP = Ask - OrderTakeProfit();
-      distSL = OrderStopLoss() - Ask;
-   }
-   return MathMin(distTP, distSL);
 }
 
 // ====== Guards ======
@@ -268,32 +231,30 @@ void TryPlaceOCO_B_AroundA(){
    if(dnPrice > Bid - stopLevel) dnPrice = Bid - stopLevel - 2*Point;
 
    // 2本同時配置（BのMMを使用）
-   B.pendUpTicket = SendPending(B, upPrice, OP_SELLLIMIT, "[OCOU]");
-   B.pendDnTicket = SendPending(B, dnPrice, OP_BUYLIMIT,  "[OCOD]");
+   B.pendUpTicket = SendLimit(B, upPrice, OP_SELLLIMIT, "[OCOU]");
+   B.pendDnTicket = SendLimit(B, dnPrice, OP_BUYLIMIT,  "[OCOD]");
 }
 
-// Pending成立後の処理：他脚キャンセル＋SL/TP付与（A/B共通）
-void MaintainPendingAfterFill(){
+// BのOCO片脚約定→他脚キャンセル＋SL/TP付与（成立直後）
+void MaintainOCOAfterFill(){
    RefreshTickets();
-   MaintainPendingAfterFillOne(A);
-   MaintainPendingAfterFillOne(B);
-}
+   if(B.activeTicket>0){
+      // 他脚をキャンセル
+      if(B.pendUpTicket>0) DeleteTicket(B.pendUpTicket,"B","OCOU");
+      if(B.pendDnTicket>0) DeleteTicket(B.pendDnTicket,"B","OCOD");
+      B.pendUpTicket=0; B.pendDnTicket=0;
 
-void MaintainPendingAfterFillOne(SystemState &S){
-   if(S.activeTicket>0){
-      if(S.pendUpTicket>0) DeleteTicket(S.pendUpTicket,S.name,"AFTER");
-      if(S.pendDnTicket>0) DeleteTicket(S.pendDnTicket,S.name,"AFTER");
-      S.pendUpTicket=0; S.pendDnTicket=0;
-      if(OrderSelect(S.activeTicket, SELECT_BY_TICKET)){
-         int type=OrderType();
-         double entry=OrderOpenPrice();
+      // SL/TPを明示設定（既に設定済ならスキップ）
+      if(OrderSelect(B.activeTicket, SELECT_BY_TICKET)){
+         int  type = OrderType();
+         double entry = OrderOpenPrice();
          double sl,tp; CalcSLTP((type==OP_BUY)?+1:-1, entry, InpGridPips, sl, tp);
-         bool need=true;
-         if(Almost(OrderStopLoss(),sl,1) && Almost(OrderTakeProfit(),tp,1)) need=false;
+         bool need = true;
+         if(Almost(OrderStopLoss(), sl, 1) && Almost(OrderTakeProfit(), tp, 1)) need=false;
          if(need){
-            bool ok = OrderModify(S.activeTicket, OrderOpenPrice(), sl, tp, 0, clrNONE);
-            if(ok) LogAlways(StringFormat("[SLTP_SET][%s] ticket=%d SL=%.5f TP=%.5f", S.name, S.activeTicket, sl, tp));
-            else   LogAlways(StringFormat("[SLTP_SET_FAIL][%s] ticket=%d err=%d", S.name, S.activeTicket, GetLastError()));
+            bool ok = OrderModify(B.activeTicket, OrderOpenPrice(), sl, tp, 0, clrNONE);
+            if(ok) LogAlways(StringFormat("[SLTP_SET][B] ticket=%d SL=%.5f TP=%.5f", B.activeTicket, sl, tp));
+            else   LogAlways(StringFormat("[SLTP_SET_FAIL][B] ticket=%d err=%d", B.activeTicket, GetLastError()));
          }
       }
    }
@@ -337,7 +298,7 @@ void TryRefillOneSideIfOneLeft(){
          ptype = OP_BUYLIMIT;
          if(price > Bid - stopLevel) price = Bid - stopLevel - 2*Point;
       }
-      int tk = SendPending(B, price, ptype, "[REFILL]");
+      int tk = SendLimit(B, price, ptype, "[REFILL]");
       if(ptype==OP_SELLLIMIT) B.pendUpTicket=tk; else B.pendDnTicket=tk;
    }else{
       // 欠落側 = A、Aへ片側指値を1本
@@ -352,149 +313,9 @@ void TryRefillOneSideIfOneLeft(){
          ptype = OP_BUYLIMIT;
          if(price > Bid - stopLevel) price = Bid - stopLevel - 2*Point;
       }
-   int tk = SendPending(A, price, ptype, "[REFILL]");
+      int tk = SendLimit(A, price, ptype, "[REFILL]");
       if(ptype==OP_SELLLIMIT) A.pendUpTicket=tk; else A.pendDnTicket=tk;
    }
-}
-
-// --- Gap Correction Core ---
-void DoRebalanceSnap(){
-   if(rb.sideToMove==0) DoRebalanceSnapSide(A);
-   else DoRebalanceSnapSide(B);
-}
-
-void DoRebalanceSnapSide(SystemState &S){
-   if(!OrderSelect(S.activeTicket, SELECT_BY_TICKET)) return;
-   int dir = S.lastDir;
-   int oldTk = S.activeTicket;
-   double lotOld = OrderLots();
-   double lotNew = lotOld;
-   if(InpRebalanceLotMode==RB_RECALC) lotNew = ComputeLotAndLog(S);
-   else LogAlways(StringFormat("[LOT_KEEP][%s] lot=%.2f", S.name, lotNew));
-   double priceClose = (dir>0)? Bid : Ask;
-   bool ok = OrderClose(S.activeTicket, lotOld, priceClose, InpSlippagePoints, clrNONE);
-   if(!ok){ LogAlways(StringFormat("[REBALANCE_SNAP_FAIL][%s] close err=%d", S.name, GetLastError())); return; }
-   RefreshRates();
-   double price = MktPriceByDir(dir);
-   double sl,tp; CalcSLTP(dir, price, InpGridPips, sl, tp);
-   int type = OrderTypeByDir(dir);
-   string cmt = StringFormat("MoveCatcher_%s", S.name);
-   int tk = OrderSend(Symbol(), type, lotNew, price, InpSlippagePoints, sl, tp, cmt, InpMagic, 0, clrNONE);
-   if(tk>0){
-      LogAlways(StringFormat("[REBALANCE_SNAP][%s] P*=%.5f oldTk=%d newTk=%d", S.name, rb.targetPrice, oldTk, tk));
-      S.activeTicket=tk; S.entryPrice=price; S.lastDir=dir;
-   }else{
-      LogAlways(StringFormat("[REBALANCE_SNAP_FAIL][%s] open err=%d", S.name, GetLastError()));
-   }
-   rb.lastAction=TimeCurrent(); rb.dwellStart=0; rb.mode=RB_MODE_IDLE; rb.busy=false;
-}
-
-void DoRebalanceLimit(){
-   if(rb.sideToMove==0) DoRebalanceLimitSide(A);
-   else DoRebalanceLimitSide(B);
-}
-
-void DoRebalanceLimitSide(SystemState &S){
-   if(!OrderSelect(S.activeTicket, SELECT_BY_TICKET)) return;
-   int dir = S.lastDir;
-   double lotOld = OrderLots();
-   double lotNew = lotOld;
-   if(InpRebalanceLotMode==RB_RECALC) lotNew = ComputeLotAndLog(S);
-   else LogAlways(StringFormat("[LOT_KEEP][%s] lot=%.2f", S.name, lotNew));
-   double priceClose = (dir>0)? Bid : Ask;
-   bool ok = OrderClose(S.activeTicket, lotOld, priceClose, InpSlippagePoints, clrNONE);
-   if(!ok){ LogAlways(StringFormat("[REBALANCE_LIMIT_FAIL][%s] close err=%d", S.name, GetLastError())); return; }
-   S.activeTicket=0;
-
-   // Spread check (GapCorrection用許容幅)
-   double spr = (Ask-Bid)/PIP();
-   if(gSpreadCorrPips>0.0 && spr>gSpreadCorrPips){
-      LogAlways("[REBALANCE_LIMIT_SKIP] spread too wide");
-      rb.dwellStart=0; rb.mode=RB_MODE_IDLE; rb.busy=false; return;
-   }
-
-   int ptype;
-   double price = rb.targetPrice;
-   if(dir>0){ ptype = (price<=Ask) ? OP_BUYLIMIT : OP_BUYSTOP; }
-   else     { ptype = (price>=Bid) ? OP_SELLLIMIT : OP_SELLSTOP; }
-   string tag="[REBAL]";
-   int tk = OrderSend(Symbol(), ptype, lotNew, price, InpSlippagePoints, 0,0,
-                      StringFormat("MoveCatcher_%s%s",S.name,tag), InpMagic,0,clrNONE);
-   if(tk>0){
-      if(price>Ask) S.pendUpTicket=tk; else S.pendDnTicket=tk;
-      LogAlways(StringFormat("[REBALANCE_LIMIT][%s] P*=%.5f newPend=%d", S.name, price, tk));
-   }else{
-      LogAlways(StringFormat("[REBALANCE_LIMIT_FAIL][%s] open err=%d", S.name, GetLastError()));
-   }
-   rb.lastAction=TimeCurrent(); rb.dwellStart=0; rb.mode=RB_MODE_IDLE; rb.busy=false;
-}
-
-void GapCorrectionTick(){
-   if(!InpGapCorrection) return;
-   RefreshRates();
-   RefreshTickets();
-   if(A.activeTicket<=0 || B.activeTicket<=0){ rb.dwellStart=0; rb.mode=RB_MODE_IDLE; return; }
-
-   double s = Pip2Pt(InpGridPips/2.0);
-   double g = MathAbs(A.entryPrice - B.entryPrice);
-   double err = g - s;
-   double eps = Pip2Pt(InpGapEpsilonPips);
-   if(MathAbs(err) <= eps){ rb.dwellStart=0; rb.mode=RB_MODE_IDLE; return; }
-
-   double d = Pip2Pt(InpGridPips);
-   double mu = InpNearGoalRatio * d;
-   if(DistToGoal(A.activeTicket) <= mu || DistToGoal(B.activeTicket) <= mu){
-      LogAlways("[REBALANCE_SKIP_NEARGOAL]"); rb.dwellStart=0; rb.mode=RB_MODE_IDLE; return; }
-   if(TimeCurrent() - rb.lastAction < InpGapCooldownSec) return;
-
-   if(rb.dwellStart==0){ rb.dwellStart=TimeCurrent(); return; }
-   if(TimeCurrent() - rb.dwellStart < InpGapDwellSec) return;
-
-   double stopLevel = MarketInfo(Symbol(), MODE_STOPLEVEL)*Point;
-   double freezeLevel = MarketInfo(Symbol(), MODE_FREEZELEVEL)*Point;
-   if(d < stopLevel || d < freezeLevel){
-      LogAlways("[REBALANCE_SKIP_FREEZE]"); rb.dwellStart=0; rb.mode=RB_MODE_IDLE; return;
-   }
-
-   if(rb.mode==RB_MODE_IDLE){
-      // pick side: newer
-      int move = 0;
-      datetime aTime=0,bTime=0;
-      if(OrderSelect(A.activeTicket, SELECT_BY_TICKET)) aTime=OrderOpenTime();
-      if(OrderSelect(B.activeTicket, SELECT_BY_TICKET)) bTime=OrderOpenTime();
-      move = (aTime>bTime)?0:1;
-      rb.sideToMove=move;
-      int anchorDir;
-      double anchorEntry;
-      if(move==0){
-         anchorDir = B.lastDir;
-         anchorEntry = B.entryPrice;
-      }else{
-         anchorDir = A.lastDir;
-         anchorEntry = A.entryPrice;
-      }
-      rb.targetPrice = RoundPrice( (anchorDir>0)? (anchorEntry + s) : (anchorEntry - s) );
-      rb.mode = RB_MODE_SNAP_WAIT;
-   }
-
-   double spr = (Ask-Bid)/PIP();
-   if(gSpreadCorrPips>0.0 && spr>gSpreadCorrPips){
-      if(TimeCurrent() - rb.dwellStart >= InpGapTimeoutSec) DoRebalanceLimit();
-      return;
-   }
-
-   int dir = (rb.sideToMove==0)? A.lastDir : B.lastDir;
-   double priceNow = (dir>0)? Ask : Bid;
-   static double prevPriceAsk=0, prevPriceBid=0;
-   double prev = (dir>0)? prevPriceAsk : prevPriceBid;
-   bool crossed = false;
-   if(prev!=0){
-      if( (prev<rb.targetPrice && priceNow>=rb.targetPrice) ||
-          (prev>rb.targetPrice && priceNow<=rb.targetPrice) ) crossed=true;
-   }
-   if(crossed){ DoRebalanceSnap(); return; }
-   if(TimeCurrent() - rb.dwellStart >= InpGapTimeoutSec){ DoRebalanceLimit(); return; }
-   prevPriceAsk=Ask; prevPriceBid=Bid;
 }
 
 // TP/SL検知：A/B 共通で成行再エントリ（TP=反転 / SL=順方向）
@@ -615,8 +436,6 @@ int OnInit(){
    A.clear(); A.name="A"; A.mm.reset();
    B.clear(); B.name="B"; B.mm.reset();
 
-   gSpreadCorrPips = (InpSpreadCorrPips>0.0) ? InpSpreadCorrPips : MathMin(InpMaxSpreadPips*1.5, 3.0);
-
    LogAlways(StringFormat("INIT: StopLevel=%dpt MinLot=%.2f MaxLot=%.2f Step=%.2f",
             (int)MarketInfo(Symbol(), MODE_STOPLEVEL),
             MarketInfo(Symbol(), MODE_MINLOT),
@@ -643,15 +462,12 @@ void OnTick(){
    // 3) 初期BのOCO（AがありBが空の時のみ）
    TryPlaceOCO_B_AroundA();
 
-   // 4) Pending成立後の整理（他脚キャンセル、SL/TP付与）
-   MaintainPendingAfterFill();
+   // 4) BのOCO片脚約定後の処理（他脚キャンセル、SL/TP付与）
+   MaintainOCOAfterFill();
 
-   // 5) TP/SL検知 → A/B共通で即成行再エントリ
+   // 5) TP/SL検知 → Aのみ即成行再エントリ、BはMM更新のみ
    DetectCloseAndReenter();
 
    // 6) 欠落時の補充（片側指値を1本だけ）
    TryRefillOneSideIfOneLeft();
-
-   // 7) Gap Correction
-   GapCorrectionTick();
 }
