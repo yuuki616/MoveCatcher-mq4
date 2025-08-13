@@ -245,48 +245,72 @@ void DetectCloseAndReenter(){
 
    RefreshTickets();
 
-   // --- A: 即時再エントリ ---
+   // ---- 閉鎖イベント収集 ----
+   struct CloseEvent { int sys; int reason; int dirPrev; datetime closeTime; int ticket; };
+   CloseEvent evs[]; int n=0; ArrayResize(evs,0);
+
    if(prevA>0 && A.activeTicket==0){
       int reason = CloseReasonFromHistory(prevA);  // 1=TP, -1=SL
-      int dirPrev=0;
+      int dirPrev=0; datetime ct=0;
       if(OrderSelect(prevA, SELECT_BY_TICKET, MODE_HISTORY)){
          dirPrev = (OrderType()==OP_BUY)?+1:-1;
+         ct      = OrderCloseTime();
       }
       if(reason!=0 && dirPrev!=0){
-         if(reason>0){
-            WinStep(A);
-            LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", A.name, prevA));
-         }else{
-            LoseStep(A);
-            LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", A.name, prevA));
-         }
-         int dirNew = (reason>0) ? -dirPrev : dirPrev; // TP:反転, SL:順方向
-         int tA = SendMarket(A, dirNew);
-         if(tA>0){
-            A.activeTicket=tA; A.lastDir=dirNew; A.entryPrice=MktPriceByDir(dirNew);
-         }
+         CloseEvent e; e.sys=0; e.reason=reason; e.dirPrev=dirPrev; e.closeTime=ct; e.ticket=prevA;
+         ArrayResize(evs, n+1); evs[n]=e; n++;
+      }
+   }
+   if(prevB>0 && B.activeTicket==0){
+      int reason = CloseReasonFromHistory(prevB);  // 1=TP, -1=SL
+      int dirPrev=0; datetime ct=0;
+      if(OrderSelect(prevB, SELECT_BY_TICKET, MODE_HISTORY)){
+         dirPrev = (OrderType()==OP_BUY)?+1:-1;
+         ct      = OrderCloseTime();
+      }
+      if(reason!=0 && dirPrev!=0){
+         CloseEvent e; e.sys=1; e.reason=reason; e.dirPrev=dirPrev; e.closeTime=ct; e.ticket=prevB;
+         ArrayResize(evs, n+1); evs[n]=e; n++;
       }
    }
 
-   // --- B: 即時再エントリ ---
-   if(prevB>0 && B.activeTicket==0){
-      int reasonB = CloseReasonFromHistory(prevB); // 1=TP, -1=SL
-      int dirPrevB=0;
-      if(OrderSelect(prevB, SELECT_BY_TICKET, MODE_HISTORY)){
-         dirPrevB = (OrderType()==OP_BUY)?+1:-1;
-      }
-      if(reasonB!=0 && dirPrevB!=0){
-         if(reasonB>0){
+   // ---- クローズ時刻→チケット番号順にソート ----
+   for(int i=0;i<n;i++)
+      for(int j=i+1;j<n;j++)
+         if(evs[i].closeTime>evs[j].closeTime ||
+            (evs[i].closeTime==evs[j].closeTime && evs[i].ticket>evs[j].ticket)){
+            CloseEvent t=evs[i]; evs[i]=evs[j]; evs[j]=t; }
+
+   // ---- 順次更新＆再エントリ ----
+   for(int k=0;k<n;k++){
+      int reason = evs[k].reason;
+      int dirPrev = evs[k].dirPrev;
+      int ticket = evs[k].ticket;
+      if(evs[k].sys==0){
+         if(reason>0){
+            WinStep(A);
+            LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", A.name, ticket));
+         }else{
+            LoseStep(A);
+            LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", A.name, ticket));
+         }
+         int dirNew = (reason>0) ? -dirPrev : dirPrev;
+         int tNew = SendMarket(A, dirNew);
+         if(tNew>0){
+            A.activeTicket=tNew; A.lastDir=dirNew; A.entryPrice=MktPriceByDir(dirNew);
+         }
+      }else{
+         if(reason>0){
             WinStep(B);
-            LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", B.name, prevB));
+            LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", B.name, ticket));
          }else{
             LoseStep(B);
-            LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", B.name, prevB));
+            LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", B.name, ticket));
          }
-         int dirNewB = (reasonB>0) ? -dirPrevB : dirPrevB; // TP:反転, SL:順方向
-         int tB = SendMarket(B, dirNewB);
-         if(tB>0){
-            B.activeTicket=tB; B.lastDir=dirNewB; B.entryPrice=MktPriceByDir(dirNewB);
+         int dirNew = (reason>0) ? -dirPrev : dirPrev;
+         int tNew = SendMarket(B, dirNew);
+         if(tNew>0){
+            B.activeTicket=tNew; B.lastDir=dirNew; B.entryPrice=MktPriceByDir(dirNew);
          }
       }
    }
