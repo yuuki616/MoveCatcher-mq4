@@ -318,10 +318,9 @@ void DetectCloseAndReenter(){
    prevA=A.activeTicket; prevB=B.activeTicket;
 }
 
-// 2本超過の是正：後着から削除/クローズして2本以内、2本生存中はPendingなし
+// 2本超過/同系統重複の是正：後着からクローズして最大1本×2系統に収束
 void EnforceMaxTwo(){
-   // 動的配列で収集（未初期化警告の回避）
-   struct TRec { int ticket; datetime open; int type; };
+   struct TRec { int ticket; datetime open; int type; string sys; };
    TRec recs[]; int n=0; ArrayResize(recs,0);
 
    int total=OrdersTotal();
@@ -330,29 +329,38 @@ void EnforceMaxTwo(){
       if(OrderSymbol()!=Symbol() || OrderMagicNumber()!=InpMagic) continue;
       int type=OrderType();
       if(type==OP_BUY || type==OP_SELL){
-         TRec r; r.ticket=OrderTicket(); r.open=OrderOpenTime(); r.type=type;
+         string c=OrderComment();
+         string sys=(StringFind(c,"MoveCatcher_A")==0)?"A":
+                    (StringFind(c,"MoveCatcher_B")==0)?"B":"";
+         TRec r; r.ticket=OrderTicket(); r.open=OrderOpenTime(); r.type=type; r.sys=sys;
          ArrayResize(recs, n+1); recs[n]=r; n++;
       }
    }
 
-   // 2本以下なら以降の処理は不要
-   if(n<=2) return;
-
-   // open昇順にソート（バブル）
+   // open昇順にソート
    for(int i=0;i<n;i++)
       for(int j=i+1;j<n;j++)
          if(recs[i].open>recs[j].open){ TRec t=recs[i]; recs[i]=recs[j]; recs[j]=t; }
 
-   // 後着からクローズして2本にする
-   for(int k=n-1; k>=0 && n>2; k--){
-      if(OrderSelect(recs[k].ticket, SELECT_BY_TICKET)){
+   bool haveA=false, haveB=false; int kept=0;
+   for(int k=0;k<n;k++){
+      bool close=false;
+      if(recs[k].sys=="A"){
+         if(haveA) close=true; else haveA=true;
+      }else if(recs[k].sys=="B"){
+         if(haveB) close=true; else haveB=true;
+      }
+      if(!close && kept>=2) close=true; // 合計3本以上 → 後着から削除
+
+      if(close && OrderSelect(recs[k].ticket, SELECT_BY_TICKET)){
          double price = (OrderType()==OP_BUY)? Bid : Ask;
          bool ok = OrderClose(OrderTicket(), OrderLots(), price, EpsilonPoints, clrNONE);
-         if(ok){ LogAlways(StringFormat("SANITY_TRIM: ticket=%d", OrderTicket())); n--; }
-         else  { LogAlways(StringFormat("SANITY_TRIM_FAIL: ticket=%d err=%d", OrderTicket(), GetLastError())); break; }
+         if(ok) LogAlways(StringFormat("SANITY_TRIM: ticket=%d", OrderTicket()));
+         else   LogAlways(StringFormat("SANITY_TRIM_FAIL: ticket=%d err=%d", OrderTicket(), GetLastError()));
+      }else if(!close){
+         kept++;
       }
    }
-
 }
 
 
