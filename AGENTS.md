@@ -6,11 +6,12 @@
 
 ---
 
-## 入力パラメータ（5つ）
+## 入力パラメータ（6つ）
 
 | 名称 | 型 | 例 | 説明 |
 | --- | ---: | ---: | --- |
 | GridPips | double | 100 | d。TP/SL距離（pips） |
+| TpOffsetPips | double | 1.0 | TP距離への加算値（pips） |
 | BaseLot | double | 0.10 | 実ロット = BaseLot × 係数 |
 | MaxSpreadPips | double | 2.0 | 置く前のスプレッド上限（補充時にも流用） |
 | MagicNumber | int | 246810 | EA識別 |
@@ -23,7 +24,9 @@
 ## 内部定義（固定/派生）
 
 * `Pip = (_Digits==3||5) ? 10*_Point : _Point`
-* `d = GridPips * Pip`、`s = d/2`
+* `d = GridPips * Pip`、`o = TpOffsetPips * Pip`
+* `s = d/2`
+* TP距離：`d + o`、SL距離：`d`
 * 閾値ε（固定定数）：`EPS_PIPS = 0.3`
   * `EpsilonPoints = round(EPS_PIPS * Pip / _Point)` → `OrderSend.deviation` に使用
 * スプレッド上限：`SpreadCapPips = MaxSpreadPips`
@@ -53,13 +56,13 @@
 
 ### 初期化
 
-1. **A を成行で 1 本** → **TP/SL=±d** 設定（`MoveCatcher_A`）。
+1. **A を成行で 1 本** → **SL=±d, TP=±(d+o)** 設定（`MoveCatcher_A`）。
 2. **B は置かない**（監視開始のみ）。
 
 ### TP/SL 決済
 
-* **TP（Win）**：EA が Win 判定→（独立なら該当系統／共通なら共通）`winStep()`→`factor()`→**反転成行**→**±d**。
-* **SL（Loss）**：同様に `loseStep()`→`factor()`→**同方向成行**→**±d**。
+* **TP（Win）**：EA が Win 判定→（独立なら該当系統／共通なら共通）`winStep()`→`factor()`→**反転成行**→**SL=±d, TP=±(d+o)**。
+* **SL（Loss）**：同様に `loseStep()`→`factor()`→**同方向成行**→**SL=±d, TP=±(d+o)**。
 * ロットは毎回「発注直前」に `BaseLot×係数` を丸め/クリップ。
 
 ### 欠落補充（疑似MIT／Pendingなし）
@@ -73,7 +76,7 @@
   * **Buy 補充** ：`|Ask − P*| ≤ 0.3pips` かつ `Spread ≤ MaxSpreadPips`
 * 執行
   * `OrderSend(OP_SELL/BUY, ..., deviation=EpsilonPoints)`（`P*±ε` 超過は拒否）
-  * Filled→**TP/SL=±d** 設定、コメント `MoveCatcher_B`（または欠落側ラベル）。
+  * Filled→**SL=±d, TP=±(d+o)** 設定、コメント `MoveCatcher_B`（または欠落側ラベル）。
   * 拒否/条件未充足→何もしない（監視継続）。
 * DMCMM：Neutral（勝敗更新なし）。ロットは発注直前に（独立/共通の）`factor()` で決定。
 

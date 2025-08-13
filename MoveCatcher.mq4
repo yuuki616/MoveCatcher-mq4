@@ -16,7 +16,8 @@
 #include "DecompositionMonteCarloMM.mqh"
 
 // ====== Inputs ======
-input double   InpGridPips       = 100;     // d: TP/SL 距離（pips）
+input double   InpGridPips       = 100;     // d: TP/SL 距離（pips）(TPはd+InpTpOffsetPips)
+input double   InpTpOffsetPips   = 0;       // TPオフセット（pips）
 input double   InpBaseLot        = 0.01;    // BaseLot
 input double   InpMaxSpreadPips  = 2.0;     // 置く時の最大スプレッド[pips]（0で無効）
 input int      InpMagic          = 246810;  // マジック
@@ -88,8 +89,9 @@ int    OrderTypeByDir(int dir){ return (dir>0) ? OP_BUY : OP_SELL; }
 // ====== SL/TP ======
 void CalcSLTP(int dir, double entry, double d_pips, double &sl, double &tp){
    double d = Pip2Pt(d_pips);
-   if(dir>0){ sl = RoundPrice(entry - d); tp = RoundPrice(entry + d); } // Long: Bid判定で±d
-   else     { sl = RoundPrice(entry + d); tp = RoundPrice(entry - d); } // Short: Ask判定で±d
+   double o = Pip2Pt(InpTpOffsetPips);
+   if(dir>0){ sl = RoundPrice(entry - d); tp = RoundPrice(entry + d + o); } // Long: SL=d, TP=d+o
+   else     { sl = RoundPrice(entry + d); tp = RoundPrice(entry - d - o); } // Short: SL=d, TP=d+o
 }
 
 // ====== Lot helper（直前評価＋数列ログ） ======
