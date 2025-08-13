@@ -163,6 +163,11 @@ int CloseReasonFromHistory(int ticket){
 // ====== Send helpers ======
 int SendMarket(SystemState &S, int dir){
    RefreshRates();
+   double spr = (Ask-Bid)/PIP();
+   if(InpMaxSpreadPips>0.0 && spr>InpMaxSpreadPips){
+      LogAlways(StringFormat("[OPEN_SKIP_SPREAD][%s] spr=%.1f", S.name, spr));
+      return 0;
+   }
    double price = MktPriceByDir(dir);
    double sl,tp; CalcSLTP(dir, price, InpGridPips, sl, tp);
    int type = OrderTypeByDir(dir);
