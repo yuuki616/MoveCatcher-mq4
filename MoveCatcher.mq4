@@ -108,7 +108,7 @@ double ComputeLotAndLog(SystemState &S){
    double factor = LotFactor(S);               // 直前評価
    double lot    = NormalizeLot(InpBaseLot * factor);
    string seq    = SeqString(S);
-   LogAlways(StringFormat("[LOT][%s] seq=%s factor=%.2f base=%.2f lot=%.2f",
+    Log(StringFormat("[LOT][%s] seq=%s factor=%.2f base=%.2f lot=%.2f",
              S.name, seq, factor, InpBaseLot, lot));
    return lot;
 }
@@ -169,7 +169,7 @@ int SendMarket(SystemState &S, int dir){
    RefreshRates();
    double spr = (Ask-Bid)/PIP();
    if(InpMaxSpreadPips>0.0 && spr>InpMaxSpreadPips){
-      LogAlways(StringFormat("[OPEN_SKIP_SPREAD][%s] spr=%.1f", S.name, spr));
+      Log(StringFormat("[OPEN_SKIP_SPREAD][%s] spr=%.1f", S.name, spr));
       return 0;
    }
    double price = MktPriceByDir(dir);
@@ -182,8 +182,8 @@ int SendMarket(SystemState &S, int dir){
    if(ticket<0){
       LogAlways(StringFormat("[%s][OPEN_FAIL] type=%s err=%d", S.name, (dir>0?"BUY":"SELL"), GetLastError()));
    }else{
-      LogAlways(StringFormat("[OPEN][%s] type=%s price=%.5f SL=%.5f TP=%.5f lot=%.2f magic=%d ticket=%d",
-               S.name, (dir>0?"BUY":"SELL"), price, sl, tp, lot, InpMagic, ticket));
+      Log(StringFormat("[OPEN][%s] type=%s price=%.5f SL=%.5f TP=%.5f lot=%.2f magic=%d ticket=%d",
+             S.name, (dir>0?"BUY":"SELL"), price, sl, tp, lot, InpMagic, ticket));
    }
    return ticket;
 }
