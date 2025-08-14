@@ -202,10 +202,11 @@ void TryRefillOneSideIfOneLeft(){
    static string armSys="";
    static double armPrice=0.0;
    static int armDir=0;
+   static double prevDiff=1e9;      // 直前の価格乖離（ヒット判定用）
 
    RefreshTickets();
    int mktCnt = MarketCount();
-   if(mktCnt!=1){ armed=false; return; }
+   if(mktCnt!=1){ armed=false; prevDiff=1e9; return; }
 
    // 生存側と欠落側
    bool aliveIsA = (A.activeTicket>0);
@@ -225,7 +226,7 @@ void TryRefillOneSideIfOneLeft(){
    }
 
    if(!armed || armSys!=missingName || !Almost(armPrice,target,1)){
-      armed=true; armSys=missingName; armPrice=target; armDir=dir;
+      armed=true; armSys=missingName; armPrice=target; armDir=dir; prevDiff=1e9;
       LogAlways(StringFormat("[REFILL_STRICT_ARM][%s] P*=%.5f", missingName, target));
    }
 
@@ -238,7 +239,9 @@ void TryRefillOneSideIfOneLeft(){
 
    double eps = Pip2Pt(EPS_PIPS);
    double diff = (dir>0) ? MathAbs(Ask - target) : MathAbs(Bid - target);
-   if(diff>eps) return;            // 未到達
+   bool hit = (diff<=eps && prevDiff>eps);
+   prevDiff = diff;
+   if(!hit) return;                // 未到達 or 滞留中
 
    int tk;
    if(aliveIsA) tk = SendMarket(B, dir); else tk = SendMarket(A, dir); // Neutral: win/lose 更新なし
@@ -250,7 +253,7 @@ void TryRefillOneSideIfOneLeft(){
          A.activeTicket=tk; A.lastDir=dir; A.entryPrice=MktPriceByDir(dir);
          LogAlways(StringFormat("[REFILL_STRICT_HIT][%s] ticket=%d", A.name, tk));
       }
-      armed=false;
+      armed=false; prevDiff=1e9;
    }else{
       int err=GetLastError();
       string tag = (err==ERR_REQUOTE || err==ERR_OFF_QUOTES)?"REFILL_STRICT_REQUOTE":"REFILL_STRICT_REJECT";
