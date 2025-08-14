@@ -180,9 +180,9 @@ int SendMarket(SystemState &S, int dir){
    double lot = ComputeLotAndLog(S);          // ★ 発注直前評価＆数列ログ
    int ticket = OrderSend(Symbol(), type, lot, price, EpsilonPoints, sl, tp, cmt, InpMagic, 0, clrNONE);
    if(ticket<0){
-      LogAlways(StringFormat("[%s][OPEN_FAIL] type=%s err=%d", S.name, (dir>0?"BUY":"SELL"), GetLastError()));
+      Log(StringFormat("[%s][OPEN_FAIL] type=%s err=%d", S.name, (dir>0?"BUY":"SELL"), GetLastError()));
    }else{
-      Log(StringFormat("[OPEN][%s] type=%s price=%.5f SL=%.5f TP=%.5f lot=%.2f magic=%d ticket=%d",
+      LogAlways(StringFormat("[OPEN][%s] type=%s price=%.5f SL=%.5f TP=%.5f lot=%.2f magic=%d ticket=%d",
              S.name, (dir>0?"BUY":"SELL"), price, sl, tp, lot, InpMagic, ticket));
    }
    return ticket;
@@ -229,7 +229,7 @@ void TryRefillOneSideIfOneLeft(){
 
    if(!armed || armSys!=missingName || !Almost(armPrice,target,1)){
       armed=true; armSys=missingName; armPrice=target; armDir=dir; prevDiff=1e9;
-      LogAlways(StringFormat("[REFILL_STRICT_ARM][%s] P*=%.5f", missingName, target));
+      Log(StringFormat("[REFILL_STRICT_ARM][%s] P*=%.5f", missingName, target));
    }
 
    // Spread判定（0で無効）
@@ -259,7 +259,7 @@ void TryRefillOneSideIfOneLeft(){
    }else{
       int err=GetLastError();
       string tag = (err==ERR_REQUOTE || err==ERR_OFF_QUOTES)?"REFILL_STRICT_REQUOTE":"REFILL_STRICT_REJECT";
-      LogAlways(StringFormat("[%s][%s] err=%d", tag, missingName, err));
+      Log(StringFormat("[%s][%s] err=%d", tag, missingName, err));
    }
 }
 
@@ -401,7 +401,7 @@ void EnforceMaxTwo(){
          double price = (OrderType()==OP_BUY)? Bid : Ask;
          bool ok = OrderClose(OrderTicket(), OrderLots(), price, EpsilonPoints, clrNONE);
          if(ok) LogAlways(StringFormat("SANITY_TRIM: ticket=%d", OrderTicket()));
-         else   LogAlways(StringFormat("SANITY_TRIM_FAIL: ticket=%d err=%d", OrderTicket(), GetLastError()));
+         else   Log(StringFormat("SANITY_TRIM_FAIL: ticket=%d err=%d", OrderTicket(), GetLastError()));
       }else if(!close){
          kept++;
       }
@@ -416,7 +416,7 @@ int OnInit(){
    DMCMM_SHARED.reset();
    EpsilonPoints = (int)MathRound(EPS_PIPS * PIP() / Point);
 
-   LogAlways(StringFormat("INIT: StopLevel=%dpt MinLot=%.2f MaxLot=%.2f Step=%.2f",
+   Log(StringFormat("INIT: StopLevel=%dpt MinLot=%.2f MaxLot=%.2f Step=%.2f",
             (int)MarketInfo(Symbol(), MODE_STOPLEVEL),
             MarketInfo(Symbol(), MODE_MINLOT),
             MarketInfo(Symbol(), MODE_MAXLOT),
@@ -432,7 +432,7 @@ int OnInit(){
 }
 
 void OnDeinit(const int reason){
-   LogAlways("DEINIT");
+   Log("DEINIT");
 }
 
 void OnTick(){
