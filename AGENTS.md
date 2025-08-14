@@ -6,7 +6,7 @@
 
 ---
 
-## 入力パラメータ（6つ）
+## 入力パラメータ（7つ）
 
 | 名称 | 型 | 例 | 説明 |
 | --- | ---: | ---: | --- |
@@ -16,6 +16,7 @@
 | MaxSpreadPips | double | 2.0 | 置く前のスプレッド上限（補充時にも流用） |
 | MagicNumber | int | 246810 | EA識別 |
 | **UseSharedDMCMM** | bool | **false** | **false**=A/B独立、**true**=A/B共通（係数・勝敗シーケンスを共有） |
+| LogMode | ENUM | FULL | ログレベル（**FULL**=詳細ログ、**MIN**=最小限） |
 
 > 既定は従来どおり **独立(false)**。運用途中での切替は非推奨（切替時は EA 再起動・状態初期化を前提）。
 
@@ -92,6 +93,8 @@
 
 ## ログ（モード表示を追加）
 
+* `LogMode=FULL`：既存ログをすべて出力。
+* `LogMode=MIN` ：`Log()` レベルの詳細ログを抑制し、必要最小限のみ出力。
 * 既存：`INIT, TP_REVERSE, SL_REENTRY, SANITY_TRIM`
 * 補充：`REFILL_STRICT_ARM`（監視開始）, `REFILL_STRICT_HIT`（約定）, `REFILL_STRICT_SKIP_SPREAD`, `REFILL_STRICT_REQUOTE/REJECT`
 * モード注記：各ログに `LotMode={INDEPENDENT|SHARED}` を付与（係数の意味づけを明確化）。

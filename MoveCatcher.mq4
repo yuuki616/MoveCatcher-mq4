@@ -9,6 +9,7 @@
 //|  - A/Bロット計算は UseSharedDMCMM=falseで独立、trueで共通       |
 //|  - 補充はNeutral（winStep/loseStep は呼ばない）                 |
 //|  - 最大2本を厳守し、異常時はSANITY_TRIMで後着から整流           |
+//|  - LogModeで詳細ログと最小限ログを切り替え可能                 |
 //+------------------------------------------------------------------+
 #property strict
 
@@ -22,11 +23,12 @@ input double   InpBaseLot        = 0.01;    // BaseLot
 input double   InpMaxSpreadPips  = 2.0;     // 置く時の最大スプレッド[pips]（0で無効）
 input int      InpMagic          = 246810;  // マジック
 input bool     InpUseSharedDMCMM = false;   // trueでA/B共通DMCMM
+enum ENUM_LOG_MODE { LOG_FULL=0, LOG_MIN=1 };
+input ENUM_LOG_MODE InpLogMode   = LOG_FULL; // ログ出力モード
 
 // ====== Constants ======
 #define EPS_PIPS 0.3                        // 補充許容[pips]
 const int  REASON_TOL_POINTS = 10;          // TP/SL判定許容[point]
-const bool VERBOSE_LOG       = true;        // 詳細ログ
 int EpsilonPoints            = 0;           // OrderSend.deviation
 
 // ====== Helpers ======
@@ -38,7 +40,7 @@ bool   Almost(double a,double b,double tolPts){ return MathAbs(a-b) <= tolPts*Po
 string TF(){ return EnumToString((ENUM_TIMEFRAMES)Period()); }
 string LotMode(){ return InpUseSharedDMCMM?"SHARED":"INDEPENDENT"; }
 void Log(string msg){
-   if(VERBOSE_LOG)
+   if(InpLogMode==LOG_FULL)
       Print(Symbol(),",",TF(),": ",msg," LotMode=",LotMode());
 }
 void LogAlways(string msg){
