@@ -2,7 +2,7 @@
 //|                                                  MoveCatcher.mq4 |
 //| A/B二系統（Ultimate-Lite Strict, 実TP/実SL）                     |
 //|  - 初期化: Aを成行で1本建て、Bは置かず監視のみ                   |
-//|  - TP/SL決済時のみ勝敗判定→反転/順方向へ即時成行建て直し        |
+//|  - TP/SL決済時のみ勝敗判定→生存側建値±s到達で反転/順方向へ再エントリ|
 //|  - 欠落補充: 生存側建値±sに触れた瞬間だけ成行（疑似MIT）        |
 //|  - Pending/OCOは一切使わず、Spread判定は発注直前のみ（0で無効） |
 //|  - 実ロット = BaseLot × DMCMM係数（発注直前に毎回評価）         |
@@ -70,6 +70,15 @@ struct SystemState {
 };
 SystemState A,B;
 CDMCMM DMCMM_SHARED;           // UseSharedDMCMM=true のとき共通で使用
+
+// 再エントリ監視用（TP/SL後にentryAlive±s到達で建て直し）
+struct ReEntryArm {
+   bool   armed;
+   double target;
+   int    dir;
+   double prevDiff;
+};
+ReEntryArm ReArmA={false,0,0,0}, ReArmB={false,0,0,0};
 
 double LotFactor(SystemState &S){
    return InpUseSharedDMCMM ? DMCMM_SHARED.factor() : S.mm.factor();
@@ -210,6 +219,9 @@ void TryRefillOneSideIfOneLeft(){
    int mktCnt = MarketCount();
    if(mktCnt!=1){ armed=false; prevDiff=1e9; return; }
 
+   bool missingIsA = (A.activeTicket==0);
+   if((missingIsA && ReArmA.armed) || (!missingIsA && ReArmB.armed)){ armed=false; prevDiff=1e9; return; }
+
    // 生存側と欠落側
    bool aliveIsA = (A.activeTicket>0);
    double s = Pip2Pt(InpGridPips/2.0);
@@ -263,104 +275,134 @@ void TryRefillOneSideIfOneLeft(){
    }
 }
 
-// TP/SL検知：A/B 共通で成行再エントリ（TP=反転 / SL=順方向）
+// TP/SL検知：決済時に勝敗更新し、entryAlive±s到達で再エントリをアーム
 // 勝敗判定はEA側で行い、DMCMMへ winStep()/loseStep() を明示的に通知
-void DetectCloseAndReenter(){
+void DetectCloseAndArm(){
    static int prevA=0, prevB=0;
-   static int pendDirA=0, pendDirB=0;   // 再エントリ未成時の方向を保持
    static bool inited=false;
    if(!inited){ RefreshTickets(); prevA=A.activeTicket; prevB=B.activeTicket; inited=true; return; }
 
    RefreshTickets();
 
-   // ---- 未決再エントリの再試行 ----
-   if(pendDirA!=0 && A.activeTicket==0){
-      int t = SendMarket(A, pendDirA);
-      if(t>0){ A.activeTicket=t; A.lastDir=pendDirA; A.entryPrice=MktPriceByDir(pendDirA); pendDirA=0; prevA=A.activeTicket; }
-   }
-   if(pendDirB!=0 && B.activeTicket==0){
-      int t = SendMarket(B, pendDirB);
-      if(t>0){ B.activeTicket=t; B.lastDir=pendDirB; B.entryPrice=MktPriceByDir(pendDirB); pendDirB=0; prevB=B.activeTicket; }
-   }
-
-   // ---- 閉鎖イベント収集 ----
-   struct CloseEvent { int sys; int reason; int dirPrev; datetime closeTime; int ticket; };
+   struct CloseEvent { int sys; int reason; int dirPrev; datetime closeTime; int ticket; double entryPrev; };
    CloseEvent evs[]; int n=0; ArrayResize(evs,0);
 
-   if(prevA>0 && A.activeTicket==0 && pendDirA==0){
+   if(prevA>0 && A.activeTicket==0){
       int reason = CloseReasonFromHistory(prevA);  // 1=TP, -1=SL
-      int dirPrev=0; datetime ct=0;
+      int dirPrev=0; datetime ct=0; double ep=0;
       if(OrderSelect(prevA, SELECT_BY_TICKET, MODE_HISTORY)){
          dirPrev = (OrderType()==OP_BUY)?+1:-1;
          ct      = OrderCloseTime();
+         ep      = OrderOpenPrice();
       }
       if(reason!=0 && dirPrev!=0){
-         CloseEvent e; e.sys=0; e.reason=reason; e.dirPrev=dirPrev; e.closeTime=ct; e.ticket=prevA;
+         CloseEvent e; e.sys=0; e.reason=reason; e.dirPrev=dirPrev; e.closeTime=ct; e.ticket=prevA; e.entryPrev=ep;
          ArrayResize(evs, n+1); evs[n]=e; n++;
       }
       prevA=0; // 閉鎖済
    }
-   if(prevB>0 && B.activeTicket==0 && pendDirB==0){
+   if(prevB>0 && B.activeTicket==0){
       int reason = CloseReasonFromHistory(prevB);  // 1=TP, -1=SL
-      int dirPrev=0; datetime ct=0;
+      int dirPrev=0; datetime ct=0; double ep=0;
       if(OrderSelect(prevB, SELECT_BY_TICKET, MODE_HISTORY)){
          dirPrev = (OrderType()==OP_BUY)?+1:-1;
          ct      = OrderCloseTime();
+         ep      = OrderOpenPrice();
       }
       if(reason!=0 && dirPrev!=0){
-         CloseEvent e; e.sys=1; e.reason=reason; e.dirPrev=dirPrev; e.closeTime=ct; e.ticket=prevB;
+         CloseEvent e; e.sys=1; e.reason=reason; e.dirPrev=dirPrev; e.closeTime=ct; e.ticket=prevB; e.entryPrev=ep;
          ArrayResize(evs, n+1); evs[n]=e; n++;
       }
       prevB=0; // 閉鎖済
    }
 
-   // ---- クローズ時刻→チケット番号順にソート ----
    for(int i=0;i<n;i++)
       for(int j=i+1;j<n;j++)
          if(evs[i].closeTime>evs[j].closeTime ||
             (evs[i].closeTime==evs[j].closeTime && evs[i].ticket>evs[j].ticket)){
             CloseEvent t=evs[i]; evs[i]=evs[j]; evs[j]=t; }
 
-   // ---- 順次更新＆再エントリ ----
+   double s = Pip2Pt(InpGridPips/2.0);
+
    for(int k=0;k<n;k++){
       int reason = evs[k].reason;
       int dirPrev = evs[k].dirPrev;
-      int ticket = evs[k].ticket;
+      double entryPrev = evs[k].entryPrev;
+      int dirNew = (reason>0) ? -dirPrev : dirPrev;
+
       if(evs[k].sys==0){
-         if(reason>0){
-            WinStep(A);
-            LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", A.name, ticket));
-         }else{
-            LoseStep(A);
-            LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", A.name, ticket));
-         }
-         int dirNew = (reason>0) ? -dirPrev : dirPrev;
-         int tNew = SendMarket(A, dirNew);
-         if(tNew>0){
-            A.activeTicket=tNew; A.lastDir=dirNew; A.entryPrice=MktPriceByDir(dirNew); prevA=A.activeTicket;
-         }else{
-            pendDirA=dirNew; // 次ティック以降で再試行
-         }
+         if(reason>0){ WinStep(A); LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", A.name, evs[k].ticket)); }
+         else{        LoseStep(A); LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", A.name, evs[k].ticket)); }
+
+         double target;
+         if(B.activeTicket>0) target = B.entryPrice + ((B.lastDir>0)? s : -s);
+         else                 target = entryPrev - dirNew*s;
+         ReArmA.armed=true; ReArmA.dir=dirNew; ReArmA.target=target; ReArmA.prevDiff=1e9;
+         Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", A.name, target));
       }else{
-         if(reason>0){
-            WinStep(B);
-            LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", B.name, ticket));
-         }else{
-            LoseStep(B);
-            LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", B.name, ticket));
-         }
-         int dirNew = (reason>0) ? -dirPrev : dirPrev;
-         int tNew = SendMarket(B, dirNew);
-         if(tNew>0){
-            B.activeTicket=tNew; B.lastDir=dirNew; B.entryPrice=MktPriceByDir(dirNew); prevB=B.activeTicket;
-         }else{
-            pendDirB=dirNew; // 次ティック以降で再試行
+         if(reason>0){ WinStep(B); LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", B.name, evs[k].ticket)); }
+         else{        LoseStep(B); LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", B.name, evs[k].ticket)); }
+
+         double target;
+         if(A.activeTicket>0) target = A.entryPrice + ((A.lastDir>0)? s : -s);
+         else                 target = entryPrev - dirNew*s;
+         ReArmB.armed=true; ReArmB.dir=dirNew; ReArmB.target=target; ReArmB.prevDiff=1e9;
+         Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", B.name, target));
+      }
+   }
+
+   prevA=A.activeTicket; prevB=B.activeTicket;
+}
+
+// entryAlive±s到達での再エントリ実行
+void TryReentryStrict(){
+   double eps = Pip2Pt(EPS_PIPS);
+
+   if(ReArmA.armed && A.activeTicket==0){
+      double spr = (Ask-Bid)/PIP();
+      if(InpMaxSpreadPips>0.0 && spr>InpMaxSpreadPips){
+         Log(StringFormat("[REENTRY_STRICT_SKIP_SPREAD][%s]", A.name));
+      }else{
+         double diff = (ReArmA.dir>0)? MathAbs(Ask - ReArmA.target) : MathAbs(Bid - ReArmA.target);
+         bool hit = (diff<=eps && ReArmA.prevDiff>eps);
+         ReArmA.prevDiff = diff;
+         if(hit){
+            int tk = SendMarket(A, ReArmA.dir);
+            if(tk>0){
+               A.activeTicket=tk; A.lastDir=ReArmA.dir; A.entryPrice=MktPriceByDir(ReArmA.dir);
+               LogAlways(StringFormat("[REENTRY_STRICT_HIT][%s] ticket=%d", A.name, tk));
+               ReArmA.armed=false;
+            }else{
+               int err=GetLastError();
+               string tag=(err==ERR_REQUOTE||err==ERR_OFF_QUOTES)?"REENTRY_STRICT_REQUOTE":"REENTRY_STRICT_REJECT";
+               Log(StringFormat("[%s][%s] err=%d", tag, A.name, err));
+            }
          }
       }
    }
 
-   if(pendDirA==0) prevA=A.activeTicket;
-   if(pendDirB==0) prevB=B.activeTicket;
+   if(ReArmB.armed && B.activeTicket==0){
+      double spr = (Ask-Bid)/PIP();
+      if(InpMaxSpreadPips>0.0 && spr>InpMaxSpreadPips){
+         Log(StringFormat("[REENTRY_STRICT_SKIP_SPREAD][%s]", B.name));
+      }else{
+         double diff = (ReArmB.dir>0)? MathAbs(Ask - ReArmB.target) : MathAbs(Bid - ReArmB.target);
+         bool hit = (diff<=eps && ReArmB.prevDiff>eps);
+         ReArmB.prevDiff = diff;
+         if(hit){
+            int tk = SendMarket(B, ReArmB.dir);
+            if(tk>0){
+               B.activeTicket=tk; B.lastDir=ReArmB.dir; B.entryPrice=MktPriceByDir(ReArmB.dir);
+               LogAlways(StringFormat("[REENTRY_STRICT_HIT][%s] ticket=%d", B.name, tk));
+               ReArmB.armed=false;
+            }else{
+               int err=GetLastError();
+               string tag=(err==ERR_REQUOTE||err==ERR_OFF_QUOTES)?"REENTRY_STRICT_REQUOTE":"REENTRY_STRICT_REJECT";
+               Log(StringFormat("[%s][%s] err=%d", tag, B.name, err));
+            }
+         }
+      }
+   }
 }
 
 // 2本超過/同系統重複の是正：後着からクローズして最大1本×2系統に収束
@@ -415,6 +457,7 @@ int OnInit(){
    B.clear(); B.name="B"; B.mm.reset();
    DMCMM_SHARED.reset();
    EpsilonPoints = (int)MathRound(EPS_PIPS * PIP() / Point);
+   ReArmA.armed=false; ReArmB.armed=false;
 
    Log(StringFormat("INIT: StopLevel=%dpt MinLot=%.2f MaxLot=%.2f Step=%.2f",
             (int)MarketInfo(Symbol(), MODE_STOPLEVEL),
@@ -442,9 +485,12 @@ void OnTick(){
    // 2) 3本以上の是正
    EnforceMaxTwo();
 
-   // 3) TP/SL検知 → 即時再エントリ
-   DetectCloseAndReenter();
+   // 3) TP/SL検知 → 再エントリアーム
+   DetectCloseAndArm();
 
-   // 4) 欠落時の補充（疑似MIT）
+   // 4) entryAlive±s到達での再エントリ
+   TryReentryStrict();
+
+   // 5) 欠落時の補充（疑似MIT）
    TryRefillOneSideIfOneLeft();
 }
