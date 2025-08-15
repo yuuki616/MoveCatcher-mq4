@@ -483,6 +483,8 @@ int OnInit(){
    if(tA>0){
      A.activeTicket=tA; A.lastDir=dir; A.entryPrice=MktPriceByDir(dir);
    }
+   // 初回エントリー後に欠落補充をアーム
+   TryRefillOneSideIfOneLeft();
    return(INIT_SUCCEEDED);
 }
 
