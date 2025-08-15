@@ -65,6 +65,7 @@
 
 * **TP（Win）**：EA が Win 判定→（独立なら該当系統／共通なら共通）`winStep()`→**反転エントリを監視**：生存側建値 `entryAlive` ± `s` から ±`GapAllowedPips` 以内に入ったティックのみ成行→**SL=±d, TP=±(d+o)**。
 * **SL（Loss）**：同様に `loseStep()`→**順方向エントリを監視**：生存側建値 `entryAlive` ± `s` から ±`GapAllowedPips` 以内に入ったティックのみ成行→**SL=±d, TP=±(d+o)**。
+* 監視中に反対系統が TP/SL で決済された場合は当該監視を解除し、欠落補充モードへ移行（ログ `[REENTRY_STRICT_CANCEL]`）。
 * ロットは毎回「発注直前」に `BaseLot×係数` を丸め/クリップ。監視中にスプレッド上限を超えるティックでは発注しない。
 
 ### 欠落補充（疑似MIT／Pendingなし）
@@ -97,6 +98,7 @@
 * `LogMode=FULL`：既存ログをすべて出力。
 * `LogMode=MIN` ：`Log()` レベルの詳細ログを抑制し、必要最小限のみ出力。
 * 既存：`INIT, TP_REVERSE, SL_REENTRY, SANITY_TRIM`
+* 再エントリ：`REENTRY_STRICT_ARM`, `REENTRY_STRICT_HIT`, `REENTRY_STRICT_SKIP_SPREAD`, `REENTRY_STRICT_REQUOTE/REJECT`, `REENTRY_STRICT_CANCEL`
 * 補充：`REFILL_STRICT_ARM`（監視開始）, `REFILL_STRICT_HIT`（約定）, `REFILL_STRICT_SKIP_SPREAD`, `REFILL_STRICT_REQUOTE/REJECT`
 * モード注記：各ログに `LotMode={INDEPENDENT|SHARED}` を付与（係数の意味づけを明確化）。
 
