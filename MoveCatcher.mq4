@@ -2,8 +2,8 @@
 //|                                                  MoveCatcher.mq4 |
 //| A/B二系統（Ultimate-Lite Strict, 実TP/実SL）                     |
 //|  - 初期化: Aを成行で1本建て、Bは置かず監視のみ                   |
-//|  - TP/SL決済時のみ勝敗判定→生存側建値±s到達で反転/順方向へ再エントリ|
-//|  - 欠落補充: 生存側建値±sに触れた瞬間だけ成行（疑似MIT）        |
+//|  - TP/SL決済時のみ勝敗判定→生存側建値±sからGapAllowedPips以内で反転/順方向へ再エントリ|
+//|  - 欠落補充: 生存側建値±sからGapAllowedPips以内に入った瞬間だけ成行（疑似MIT）|
 //|  - Pending/OCOは一切使わず、Spread判定は発注直前のみ（0で無効） |
 //|  - 実ロット = BaseLot × DMCMM係数（発注直前に毎回評価）         |
 //|  - A/Bロット計算は UseSharedDMCMM=falseで独立、trueで共通       |
@@ -21,13 +21,14 @@ input double   InpGridPips       = 100;     // d: TP/SL 距離（pips）(TPはd+
 input double   InpTpOffsetPips   = 0;       // TPオフセット（pips）
 input double   InpBaseLot        = 0.01;    // BaseLot
 input double   InpMaxSpreadPips  = 2.0;     // 置く時の最大スプレッド[pips]（0で無効）
+input double   InpGapAllowedPips = 0.3;     // entryAlive±s許容差[pips]
 input int      InpMagic          = 246810;  // マジック
 input bool     InpUseSharedDMCMM = false;   // trueでA/B共通DMCMM
 enum ENUM_LOG_MODE { LOG_FULL=0, LOG_MIN=1 };
 input ENUM_LOG_MODE InpLogMode   = LOG_FULL; // ログ出力モード
 
 // ====== Constants ======
-#define EPS_PIPS 0.3                        // 補充許容[pips]
+#define EPS_PIPS 0.3                        // OrderSend許容[pips]
 const int  REASON_TOL_POINTS = 10;          // TP/SL判定許容[point]
 int EpsilonPoints            = 0;           // OrderSend.deviation
 
@@ -251,9 +252,9 @@ void TryRefillOneSideIfOneLeft(){
       return;
    }
 
-   double eps = Pip2Pt(EPS_PIPS);
+   double gap = Pip2Pt(InpGapAllowedPips);
    double diff = (dir>0) ? MathAbs(Ask - target) : MathAbs(Bid - target);
-   bool hit = (diff<=eps && prevDiff>eps);
+   bool hit = (diff<=gap && prevDiff>gap);
    prevDiff = diff;
    if(!hit) return;                // 未到達 or 滞留中
 
@@ -356,7 +357,7 @@ void DetectCloseAndArm(){
 
 // entryAlive±s到達での再エントリ実行
 void TryReentryStrict(){
-   double eps = Pip2Pt(EPS_PIPS);
+   double gap = Pip2Pt(InpGapAllowedPips);
 
    if(ReArmA.armed && A.activeTicket==0){
       double spr = (Ask-Bid)/PIP();
@@ -364,7 +365,7 @@ void TryReentryStrict(){
          Log(StringFormat("[REENTRY_STRICT_SKIP_SPREAD][%s]", A.name));
       }else{
          double diff = (ReArmA.dir>0)? MathAbs(Ask - ReArmA.target) : MathAbs(Bid - ReArmA.target);
-         bool hit = (diff<=eps && ReArmA.prevDiff>eps);
+         bool hit = (diff<=gap && ReArmA.prevDiff>gap);
          ReArmA.prevDiff = diff;
          if(hit){
             int tk = SendMarket(A, ReArmA.dir);
@@ -387,7 +388,7 @@ void TryReentryStrict(){
          Log(StringFormat("[REENTRY_STRICT_SKIP_SPREAD][%s]", B.name));
       }else{
          double diff = (ReArmB.dir>0)? MathAbs(Ask - ReArmB.target) : MathAbs(Bid - ReArmB.target);
-         bool hit = (diff<=eps && ReArmB.prevDiff>eps);
+         bool hit = (diff<=gap && ReArmB.prevDiff>gap);
          ReArmB.prevDiff = diff;
          if(hit){
             int tk = SendMarket(B, ReArmB.dir);

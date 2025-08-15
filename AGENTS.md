@@ -2,11 +2,11 @@
 
 **Project:** MoveCatcher Lite Strict（A/B 系統・最大2本）
 **Target:** MetaTrader 4（MQL4）
-**方針:** Pending/OCO を一切使用せず、2本目は相手建値±s に触れた瞬間のみ成行（疑似MIT）で建てる。補充は勝敗外（Neutral）で DMCMM は発注時に評価。A/B ロット計算を独立／共通で切り替え可能。
+**方針:** Pending/OCO を一切使用せず、2本目は相手建値±s から `GapAllowedPips` 以内に入った瞬間のみ成行（疑似MIT）で建てる。補充は勝敗外（Neutral）で DMCMM は発注時に評価。A/B ロット計算を独立／共通で切り替え可能。
 
 ---
 
-## 入力パラメータ（7つ）
+## 入力パラメータ（8つ）
 
 | 名称 | 型 | 例 | 説明 |
 | --- | ---: | ---: | --- |
@@ -14,6 +14,7 @@
 | TpOffsetPips | double | 1.0 | TP距離への加算値（pips） |
 | BaseLot | double | 0.10 | 実ロット = BaseLot × 係数 |
 | MaxSpreadPips | double | 2.0 | 置く前のスプレッド上限（補充時にも流用） |
+| GapAllowedPips | double | 0.3 | entryAlive±s許容差（pips） |
 | MagicNumber | int | 246810 | EA識別 |
 | **UseSharedDMCMM** | bool | **false** | **false**=A/B独立、**true**=A/B共通（係数・勝敗シーケンスを共有） |
 | LogMode | ENUM | FULL | ログレベル（**FULL**=詳細ログ、**MIN**=最小限） |
@@ -62,8 +63,8 @@
 
 ### TP/SL 決済
 
-* **TP（Win）**：EA が Win 判定→（独立なら該当系統／共通なら共通）`winStep()`→**反転エントリを監視**：生存側建値 `entryAlive` ± `s` に触れたティックのみ成行→**SL=±d, TP=±(d+o)**。
-* **SL（Loss）**：同様に `loseStep()`→**順方向エントリを監視**：生存側建値 `entryAlive` ± `s` に触れたティックのみ成行→**SL=±d, TP=±(d+o)**。
+* **TP（Win）**：EA が Win 判定→（独立なら該当系統／共通なら共通）`winStep()`→**反転エントリを監視**：生存側建値 `entryAlive` ± `s` から ±`GapAllowedPips` 以内に入ったティックのみ成行→**SL=±d, TP=±(d+o)**。
+* **SL（Loss）**：同様に `loseStep()`→**順方向エントリを監視**：生存側建値 `entryAlive` ± `s` から ±`GapAllowedPips` 以内に入ったティックのみ成行→**SL=±d, TP=±(d+o)**。
 * ロットは毎回「発注直前」に `BaseLot×係数` を丸め/クリップ。監視中にスプレッド上限を超えるティックでは発注しない。
 
 ### 欠落補充（疑似MIT／Pendingなし）
@@ -73,8 +74,8 @@
   * 生存 Long → **Sell @ `entryAlive + s`**
   * 生存 Short → **Buy  @ `entryAlive − s`**
 * 発注条件（そのティックのみ）
-  * **Sell 補充**：`|Bid − P*| ≤ 0.3pips` かつ `Spread ≤ MaxSpreadPips`
-  * **Buy 補充** ：`|Ask − P*| ≤ 0.3pips` かつ `Spread ≤ MaxSpreadPips`
+  * **Sell 補充**：`|Bid − P*| ≤ GapAllowedPips` かつ `Spread ≤ MaxSpreadPips`
+  * **Buy 補充** ：`|Ask − P*| ≤ GapAllowedPips` かつ `Spread ≤ MaxSpreadPips`
 * 執行
   * `OrderSend(OP_SELL/BUY, ..., deviation=EpsilonPoints)`（`P*±ε` 超過は拒否）
   * Filled→**SL=±d, TP=±(d+o)** 設定、コメント `MoveCatcher_B`（または欠落側ラベル）。
@@ -103,7 +104,7 @@
 
 ## 受け入れチェック
 
-1. 補充は常に疑似MIT＆Pendingなし。`|Bid/Ask−P*|≤0.3pips` かつ `Spread≤MaxSpreadPips` のティックのみ約定。
+1. 補充は常に疑似MIT＆Pendingなし。`|Bid/Ask−P*|≤GapAllowedPips` かつ `Spread≤MaxSpreadPips` のティックのみ約定。
 2. TP/SL 時のみ勝敗更新：
    * 独立：該当系統の DMCMM だけ更新。
    * 共通：共通 DMCMM を更新（同ティック 2 件は順序規則で逐次実行）。
