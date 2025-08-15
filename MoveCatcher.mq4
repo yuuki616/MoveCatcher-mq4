@@ -279,9 +279,17 @@ void TryRefillOneSideIfOneLeft(){
 // TP/SL検知：決済時に勝敗更新し、entryAlive±s到達で再エントリをアーム
 // 勝敗判定はEA側で行い、DMCMMへ winStep()/loseStep() を明示的に通知
 void DetectCloseAndArm(){
-   static int prevA=0, prevB=0;
-   static bool inited=false;
-   if(!inited){ RefreshTickets(); prevA=A.activeTicket; prevB=B.activeTicket; inited=true; return; }
+   static int    prevA=0, prevB=0;
+   static int    prevDirA=0, prevDirB=0;
+   static double prevEntryA=0, prevEntryB=0;
+   static bool   inited=false;
+   if(!inited){
+      RefreshTickets();
+      prevA=A.activeTicket; prevB=B.activeTicket;
+      prevDirA=A.lastDir;  prevDirB=B.lastDir;
+      prevEntryA=A.entryPrice; prevEntryB=B.entryPrice;
+      inited=true; return;
+   }
 
    RefreshTickets();
 
@@ -290,11 +298,10 @@ void DetectCloseAndArm(){
 
    if(prevA>0 && A.activeTicket==0){
       int reason = CloseReasonFromHistory(prevA);  // 1=TP, -1=SL
-      int dirPrev=0; datetime ct=0; double ep=0;
-      if(OrderSelect(prevA, SELECT_BY_TICKET, MODE_HISTORY)){
-         dirPrev = (OrderType()==OP_BUY)?+1:-1;
-         ct      = OrderCloseTime();
-         ep      = OrderOpenPrice();
+      int dirPrev = prevDirA; double ep = prevEntryA; datetime ct = TimeCurrent();
+      if(reason==0 && dirPrev!=0){
+         double now = (dirPrev>0)? Bid : Ask;
+         reason = ( (dirPrev>0 && now>ep) || (dirPrev<0 && now<ep) ) ? 1 : -1;
       }
       if(reason!=0 && dirPrev!=0){
          CloseEvent e; e.sys=0; e.reason=reason; e.dirPrev=dirPrev; e.closeTime=ct; e.ticket=prevA; e.entryPrev=ep;
@@ -304,11 +311,10 @@ void DetectCloseAndArm(){
    }
    if(prevB>0 && B.activeTicket==0){
       int reason = CloseReasonFromHistory(prevB);  // 1=TP, -1=SL
-      int dirPrev=0; datetime ct=0; double ep=0;
-      if(OrderSelect(prevB, SELECT_BY_TICKET, MODE_HISTORY)){
-         dirPrev = (OrderType()==OP_BUY)?+1:-1;
-         ct      = OrderCloseTime();
-         ep      = OrderOpenPrice();
+      int dirPrev = prevDirB; double ep = prevEntryB; datetime ct = TimeCurrent();
+      if(reason==0 && dirPrev!=0){
+         double now = (dirPrev>0)? Bid : Ask;
+         reason = ( (dirPrev>0 && now>ep) || (dirPrev<0 && now<ep) ) ? 1 : -1;
       }
       if(reason!=0 && dirPrev!=0){
          CloseEvent e; e.sys=1; e.reason=reason; e.dirPrev=dirPrev; e.closeTime=ct; e.ticket=prevB; e.entryPrev=ep;
@@ -365,6 +371,8 @@ void DetectCloseAndArm(){
    }
 
    prevA=A.activeTicket; prevB=B.activeTicket;
+   prevDirA=A.lastDir;   prevDirB=B.lastDir;
+   prevEntryA=A.entryPrice; prevEntryB=B.entryPrice;
 }
 
 // entryAlive±s到達での再エントリ実行
