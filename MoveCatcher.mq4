@@ -247,7 +247,7 @@ void TryRefillOneSideIfOneLeft(){
    // Spread判定（0で無効）
    double spr = (Ask-Bid)/PIP();
    if(InpMaxSpreadPips>0.0 && spr>InpMaxSpreadPips){
-      Log("[REFILL_STRICT_SKIP_SPREAD]");
+      Log(StringFormat("[REFILL_STRICT_SKIP_SPREAD][%s] spr=%.1f", missingName, spr));
       return;
    }
 
