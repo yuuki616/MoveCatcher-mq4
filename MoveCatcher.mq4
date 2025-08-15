@@ -240,8 +240,9 @@ void TryRefillOneSideIfOneLeft(){
       missingName = A.name;
    }
 
+   double diff = (dir>0) ? MathAbs(Ask - target) : MathAbs(Bid - target);
    if(!armed || armSys!=missingName || !Almost(armPrice,target,1)){
-      armed=true; armSys=missingName; armPrice=target; armDir=dir; prevDiff=1e9;
+      armed=true; armSys=missingName; armPrice=target; armDir=dir; prevDiff=diff;
       Log(StringFormat("[REFILL_STRICT_ARM][%s] P*=%.5f", missingName, target));
    }
 
@@ -253,7 +254,6 @@ void TryRefillOneSideIfOneLeft(){
    }
 
    double gap = Pip2Pt(InpGapAllowedPips);
-   double diff = (dir>0) ? MathAbs(Ask - target) : MathAbs(Bid - target);
    bool hit = (diff<=gap && prevDiff>gap);
    prevDiff = diff;
    if(!hit) return;                // 未到達 or 滞留中
@@ -338,7 +338,9 @@ void DetectCloseAndArm(){
          double target;
          if(B.activeTicket>0) target = B.entryPrice + ((B.lastDir>0)? s : -s);
          else                 target = entryPrev - dirNew*s;
-         ReArmA.armed=true; ReArmA.dir=dirNew; ReArmA.target=target; ReArmA.prevDiff=1e9;
+         ReArmA.armed=true; ReArmA.dir=dirNew; ReArmA.target=target;
+         double diff = (ReArmA.dir>0)? MathAbs(Ask - target) : MathAbs(Bid - target);
+         ReArmA.prevDiff=diff;
          Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", A.name, target));
       }else{
          if(reason>0){ WinStep(B); LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", B.name, evs[k].ticket)); }
@@ -347,7 +349,9 @@ void DetectCloseAndArm(){
          double target;
          if(A.activeTicket>0) target = A.entryPrice + ((A.lastDir>0)? s : -s);
          else                 target = entryPrev - dirNew*s;
-         ReArmB.armed=true; ReArmB.dir=dirNew; ReArmB.target=target; ReArmB.prevDiff=1e9;
+         ReArmB.armed=true; ReArmB.dir=dirNew; ReArmB.target=target;
+         double diffB = (ReArmB.dir>0)? MathAbs(Ask - target) : MathAbs(Bid - target);
+         ReArmB.prevDiff=diffB;
          Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", B.name, target));
       }
    }
