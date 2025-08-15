@@ -3,7 +3,7 @@
 //| A/B二系統（Ultimate-Lite Strict, 実TP/実SL）                     |
 //|  - 初期化: Aを成行で1本建て、Bは置かず監視のみ                   |
 //|  - TP/SL決済時のみ勝敗判定→生存側建値±sからGapAllowedPips以内で反転/順方向へ再エントリ|
-//|  - 欠落補充: 生存側建値±s到達で即成行（疑似MIT、GapAllowedPips閾値なし）|
+//|  - 欠落補充: 生存側建値±sからGapAllowedPips以内に入った瞬間のみ成行（疑似MIT）|
 //|  - Pending/OCOは一切使わず、Spread判定は発注直前のみ（0で無効） |
 //|  - 実ロット = BaseLot × DMCMM係数（発注直前に毎回評価）         |
 //|  - A/Bロット計算は UseSharedDMCMM=falseで独立、trueで共通       |
@@ -21,7 +21,7 @@ input double   InpGridPips       = 100;     // d: TP/SL 距離（pips）(TPはd+
 input double   InpTpOffsetPips   = 0;       // TPオフセット（pips）
 input double   InpBaseLot        = 0.01;    // BaseLot
 input double   InpMaxSpreadPips  = 2.0;     // 置く時の最大スプレッド[pips]（0で無効）
-input double   InpGapAllowedPips = 0.3;     // entryAlive±s許容差[pips]（再エントリのみ）
+input double   InpGapAllowedPips = 0.3;     // entryAlive±s許容差[pips]（再エントリ・欠落補充）
 input int      InpMagic          = 246810;  // マジック
 input bool     InpUseSharedDMCMM = false;   // trueでA/B共通DMCMM
 enum ENUM_LOG_MODE { LOG_FULL=0, LOG_MIN=1 };
@@ -240,9 +240,10 @@ void TryRefillOneSideIfOneLeft(){
       missingName = A.name;
    }
 
-   double diff = (dir>0) ? (Ask - target) : (target - Bid);
+   double gap = Pip2Pt(InpGapAllowedPips);
+   double diff = (dir>0) ? MathAbs(Ask - target) : MathAbs(Bid - target);
    if(!armed || armSys!=missingName || !Almost(armPrice,target,1)){
-      armed=true; armSys=missingName; armPrice=target; armDir=dir; prevDiff=1e9; // アーム直後の即時ヒットを許容
+      armed=true; armSys=missingName; armPrice=target; armDir=dir; prevDiff=gap+1; // アーム直後の即時ヒットを許容
       Log(StringFormat("[REFILL_STRICT_ARM][%s] P*=%.5f", missingName, target));
    }
 
@@ -253,7 +254,7 @@ void TryRefillOneSideIfOneLeft(){
       return;
    }
 
-   bool hit = (diff<=0 && prevDiff>0);
+   bool hit = (diff<=gap && prevDiff>gap);
    prevDiff = diff;
    if(!hit) return;                // 未到達 or 滞留中
 
