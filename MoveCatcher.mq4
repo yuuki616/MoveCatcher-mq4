@@ -331,6 +331,10 @@ void DetectCloseAndArm(){
       int dirNew = (reason>0) ? -dirPrev : dirPrev;
 
       if(evs[k].sys==0){
+         if(ReArmB.armed){
+            ReArmB.armed=false;
+            Log(StringFormat("[REENTRY_STRICT_CANCEL][%s]", B.name));
+         }
          if(reason>0){ WinStep(A); LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", A.name, evs[k].ticket)); }
          else{        LoseStep(A); LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", A.name, evs[k].ticket)); }
 
@@ -342,6 +346,10 @@ void DetectCloseAndArm(){
          ReArmA.prevDiff=gapArm+1;                     // アーム直後の即時ヒットを許容
          Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", A.name, target));
       }else{
+         if(ReArmA.armed){
+            ReArmA.armed=false;
+            Log(StringFormat("[REENTRY_STRICT_CANCEL][%s]", A.name));
+         }
          if(reason>0){ WinStep(B); LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", B.name, evs[k].ticket)); }
          else{        LoseStep(B); LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", B.name, evs[k].ticket)); }
 
