@@ -240,9 +240,10 @@ void TryRefillOneSideIfOneLeft(){
       missingName = A.name;
    }
 
+   double gap = Pip2Pt(InpGapAllowedPips);
    double diff = (dir>0) ? MathAbs(Ask - target) : MathAbs(Bid - target);
    if(!armed || armSys!=missingName || !Almost(armPrice,target,1)){
-      armed=true; armSys=missingName; armPrice=target; armDir=dir; prevDiff=diff;
+      armed=true; armSys=missingName; armPrice=target; armDir=dir; prevDiff=gap+1; // アーム直後の即時ヒットを許容
       Log(StringFormat("[REFILL_STRICT_ARM][%s] P*=%.5f", missingName, target));
    }
 
@@ -253,7 +254,6 @@ void TryRefillOneSideIfOneLeft(){
       return;
    }
 
-   double gap = Pip2Pt(InpGapAllowedPips);
    bool hit = (diff<=gap && prevDiff>gap);
    prevDiff = diff;
    if(!hit) return;                // 未到達 or 滞留中
@@ -338,9 +338,9 @@ void DetectCloseAndArm(){
          double target;
          if(B.activeTicket>0) target = B.entryPrice + ((B.lastDir>0)? s : -s);
          else                 target = entryPrev - dirNew*s;
+         double gapArm = Pip2Pt(InpGapAllowedPips);
          ReArmA.armed=true; ReArmA.dir=dirNew; ReArmA.target=target;
-         double diff = (ReArmA.dir>0)? MathAbs(Ask - target) : MathAbs(Bid - target);
-         ReArmA.prevDiff=diff;
+         ReArmA.prevDiff=gapArm+1;                     // アーム直後の即時ヒットを許容
          Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", A.name, target));
       }else{
          if(reason>0){ WinStep(B); LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", B.name, evs[k].ticket)); }
@@ -349,9 +349,9 @@ void DetectCloseAndArm(){
          double target;
          if(A.activeTicket>0) target = A.entryPrice + ((A.lastDir>0)? s : -s);
          else                 target = entryPrev - dirNew*s;
+         double gapArmB = Pip2Pt(InpGapAllowedPips);
          ReArmB.armed=true; ReArmB.dir=dirNew; ReArmB.target=target;
-         double diffB = (ReArmB.dir>0)? MathAbs(Ask - target) : MathAbs(Bid - target);
-         ReArmB.prevDiff=diffB;
+         ReArmB.prevDiff=gapArmB+1;                    // アーム直後の即時ヒットを許容
          Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", B.name, target));
       }
    }
