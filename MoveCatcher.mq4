@@ -384,10 +384,7 @@ void TryReentryStrict(){
       if(InpMaxSpreadPips>0.0 && spr>InpMaxSpreadPips){
          Log(StringFormat("[REENTRY_STRICT_SKIP_SPREAD][%s]", A.name));
       }else{
-         double diff = (ReArmA.dir>0)? MathAbs(Ask - ReArmA.target) : MathAbs(Bid - ReArmA.target);
-         bool hit = (diff<=gap && ReArmA.prevDiff>gap);
-         ReArmA.prevDiff = diff;
-         if(hit){
+         if(B.activeTicket==0){
             int tk = SendMarket(A, ReArmA.dir);
             if(tk>0){
                A.activeTicket=tk; A.lastDir=ReArmA.dir; A.entryPrice=MktPriceByDir(ReArmA.dir);
@@ -398,6 +395,22 @@ void TryReentryStrict(){
                string tag=(err==ERR_REQUOTE||err==ERR_OFF_QUOTES)?"REENTRY_STRICT_REQUOTE":"REENTRY_STRICT_REJECT";
                Log(StringFormat("[%s][%s] err=%d", tag, A.name, err));
             }
+         }else{
+            double diff = (ReArmA.dir>0)? MathAbs(Ask - ReArmA.target) : MathAbs(Bid - ReArmA.target);
+            bool hit = (diff<=gap && ReArmA.prevDiff>gap);
+            ReArmA.prevDiff = diff;
+            if(hit){
+               int tk = SendMarket(A, ReArmA.dir);
+               if(tk>0){
+                  A.activeTicket=tk; A.lastDir=ReArmA.dir; A.entryPrice=MktPriceByDir(ReArmA.dir);
+                  LogAlways(StringFormat("[REENTRY_STRICT_HIT][%s] ticket=%d", A.name, tk));
+                  ReArmA.armed=false;
+               }else{
+                  int err=GetLastError();
+                  string tag=(err==ERR_REQUOTE||err==ERR_OFF_QUOTES)?"REENTRY_STRICT_REQUOTE":"REENTRY_STRICT_REJECT";
+                  Log(StringFormat("[%s][%s] err=%d", tag, A.name, err));
+               }
+            }
          }
       }
    }
@@ -407,10 +420,7 @@ void TryReentryStrict(){
       if(InpMaxSpreadPips>0.0 && spr>InpMaxSpreadPips){
          Log(StringFormat("[REENTRY_STRICT_SKIP_SPREAD][%s]", B.name));
       }else{
-         double diff = (ReArmB.dir>0)? MathAbs(Ask - ReArmB.target) : MathAbs(Bid - ReArmB.target);
-         bool hit = (diff<=gap && ReArmB.prevDiff>gap);
-         ReArmB.prevDiff = diff;
-         if(hit){
+         if(A.activeTicket==0){
             int tk = SendMarket(B, ReArmB.dir);
             if(tk>0){
                B.activeTicket=tk; B.lastDir=ReArmB.dir; B.entryPrice=MktPriceByDir(ReArmB.dir);
@@ -420,6 +430,22 @@ void TryReentryStrict(){
                int err=GetLastError();
                string tag=(err==ERR_REQUOTE||err==ERR_OFF_QUOTES)?"REENTRY_STRICT_REQUOTE":"REENTRY_STRICT_REJECT";
                Log(StringFormat("[%s][%s] err=%d", tag, B.name, err));
+            }
+         }else{
+            double diff = (ReArmB.dir>0)? MathAbs(Ask - ReArmB.target) : MathAbs(Bid - ReArmB.target);
+            bool hit = (diff<=gap && ReArmB.prevDiff>gap);
+            ReArmB.prevDiff = diff;
+            if(hit){
+               int tk = SendMarket(B, ReArmB.dir);
+               if(tk>0){
+                  B.activeTicket=tk; B.lastDir=ReArmB.dir; B.entryPrice=MktPriceByDir(ReArmB.dir);
+                  LogAlways(StringFormat("[REENTRY_STRICT_HIT][%s] ticket=%d", B.name, tk));
+                  ReArmB.armed=false;
+               }else{
+                  int err=GetLastError();
+                  string tag=(err==ERR_REQUOTE||err==ERR_OFF_QUOTES)?"REENTRY_STRICT_REQUOTE":"REENTRY_STRICT_REJECT";
+                  Log(StringFormat("[%s][%s] err=%d", tag, B.name, err));
+               }
             }
          }
       }
