@@ -78,8 +78,9 @@ struct ReEntryArm {
    double target;
    int    dir;
    double prevDiff;
+   bool   immediate;
 };
-ReEntryArm ReArmA={false,0,0,0}, ReArmB={false,0,0,0};
+ReEntryArm ReArmA={false,0,0,0,false}, ReArmB={false,0,0,0,false};
 
 double LotFactor(SystemState &S){
    return InpUseSharedDMCMM ? DMCMM_SHARED.factor() : S.mm.factor();
@@ -339,34 +340,46 @@ void DetectCloseAndArm(){
 
       if(evs[k].sys==0){
          if(ReArmB.armed){
-            ReArmB.armed=false;
+            ReArmB.armed=false; ReArmB.immediate=false;
             Log(StringFormat("[REENTRY_STRICT_CANCEL][%s]", B.name));
          }
          if(reason>0){ WinStep(A); LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", A.name, evs[k].ticket)); }
          else{        LoseStep(A); LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", A.name, evs[k].ticket)); }
 
          double target;
-         if(B.activeTicket>0) target = B.entryPrice + ((B.lastDir>0)? s : -s);
-         else                 target = entryPrev - dirNew*s;
-         double gapArm = Pip2Pt(InpGapAllowedPips);
-         ReArmA.armed=true; ReArmA.dir=dirNew; ReArmA.target=target;
-         ReArmA.prevDiff=gapArm+1;                     // アーム直後の即時ヒットを許容
-         Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", A.name, target));
+         if(B.activeTicket>0){
+            target = B.entryPrice + ((B.lastDir>0)? s : -s);
+            double gapArm = Pip2Pt(InpGapAllowedPips);
+            ReArmA.armed=true; ReArmA.dir=dirNew; ReArmA.target=target;
+            ReArmA.prevDiff=gapArm+1; ReArmA.immediate=false;
+            Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", A.name, target));
+         }else{
+            target = entryPrev - dirNew*s;
+            ReArmA.armed=true; ReArmA.dir=dirNew; ReArmA.target=target;
+            ReArmA.prevDiff=0; ReArmA.immediate=true;
+            Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", A.name, target));
+         }
       }else{
          if(ReArmA.armed){
-            ReArmA.armed=false;
+            ReArmA.armed=false; ReArmA.immediate=false;
             Log(StringFormat("[REENTRY_STRICT_CANCEL][%s]", A.name));
          }
          if(reason>0){ WinStep(B); LogAlways(StringFormat("TP_REVERSE[%s] ticket=%d", B.name, evs[k].ticket)); }
          else{        LoseStep(B); LogAlways(StringFormat("SL_REENTRY[%s] ticket=%d", B.name, evs[k].ticket)); }
 
          double target;
-         if(A.activeTicket>0) target = A.entryPrice + ((A.lastDir>0)? s : -s);
-         else                 target = entryPrev - dirNew*s;
-         double gapArmB = Pip2Pt(InpGapAllowedPips);
-         ReArmB.armed=true; ReArmB.dir=dirNew; ReArmB.target=target;
-         ReArmB.prevDiff=gapArmB+1;                    // アーム直後の即時ヒットを許容
-         Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", B.name, target));
+         if(A.activeTicket>0){
+            target = A.entryPrice + ((A.lastDir>0)? s : -s);
+            double gapArmB = Pip2Pt(InpGapAllowedPips);
+            ReArmB.armed=true; ReArmB.dir=dirNew; ReArmB.target=target;
+            ReArmB.prevDiff=gapArmB+1; ReArmB.immediate=false;
+            Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", B.name, target));
+         }else{
+            target = entryPrev - dirNew*s;
+            ReArmB.armed=true; ReArmB.dir=dirNew; ReArmB.target=target;
+            ReArmB.prevDiff=0; ReArmB.immediate=true;
+            Log(StringFormat("[REENTRY_STRICT_ARM][%s] P*=%.5f", B.name, target));
+         }
       }
    }
 
@@ -383,6 +396,17 @@ void TryReentryStrict(){
       double spr = (Ask-Bid)/PIP();
       if(InpMaxSpreadPips>0.0 && spr>InpMaxSpreadPips){
          Log(StringFormat("[REENTRY_STRICT_SKIP_SPREAD][%s]", A.name));
+      }else if(ReArmA.immediate){
+         int tk = SendMarket(A, ReArmA.dir);
+         if(tk>0){
+            A.activeTicket=tk; A.lastDir=ReArmA.dir; A.entryPrice=MktPriceByDir(ReArmA.dir);
+            LogAlways(StringFormat("[REENTRY_STRICT_HIT][%s] ticket=%d", A.name, tk));
+            ReArmA.armed=false;
+         }else{
+            int err=GetLastError();
+            string tag=(err==ERR_REQUOTE||err==ERR_OFF_QUOTES)?"REENTRY_STRICT_REQUOTE":"REENTRY_STRICT_REJECT";
+            Log(StringFormat("[%s][%s] err=%d", tag, A.name, err));
+         }
       }else{
          double diff = (ReArmA.dir>0)? MathAbs(Ask - ReArmA.target) : MathAbs(Bid - ReArmA.target);
          bool hit   = (diff<=gap && ReArmA.prevDiff>gap);
@@ -406,6 +430,17 @@ void TryReentryStrict(){
       double spr = (Ask-Bid)/PIP();
       if(InpMaxSpreadPips>0.0 && spr>InpMaxSpreadPips){
          Log(StringFormat("[REENTRY_STRICT_SKIP_SPREAD][%s]", B.name));
+      }else if(ReArmB.immediate){
+         int tk = SendMarket(B, ReArmB.dir);
+         if(tk>0){
+            B.activeTicket=tk; B.lastDir=ReArmB.dir; B.entryPrice=MktPriceByDir(ReArmB.dir);
+            LogAlways(StringFormat("[REENTRY_STRICT_HIT][%s] ticket=%d", B.name, tk));
+            ReArmB.armed=false;
+         }else{
+            int err=GetLastError();
+            string tag=(err==ERR_REQUOTE||err==ERR_OFF_QUOTES)?"REENTRY_STRICT_REQUOTE":"REENTRY_STRICT_REJECT";
+            Log(StringFormat("[%s][%s] err=%d", tag, B.name, err));
+         }
       }else{
          double diff = (ReArmB.dir>0)? MathAbs(Ask - ReArmB.target) : MathAbs(Bid - ReArmB.target);
          bool hit   = (diff<=gap && ReArmB.prevDiff>gap);
@@ -478,7 +513,8 @@ int OnInit(){
    B.clear(); B.name="B"; B.mm.reset();
    DMCMM_SHARED.reset();
    EpsilonPoints = (int)MathRound(EPS_PIPS * PIP() / Point);
-   ReArmA.armed=false; ReArmB.armed=false;
+   ReArmA.armed=false; ReArmA.immediate=false;
+   ReArmB.armed=false; ReArmB.immediate=false;
 
    Log(StringFormat("INIT: StopLevel=%dpt MinLot=%.2f MaxLot=%.2f Step=%.2f",
             (int)MarketInfo(Symbol(), MODE_STOPLEVEL),
